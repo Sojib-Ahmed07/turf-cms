@@ -1,0 +1,12 @@
+// drizzle.config.js
+import "dotenv/config";
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+    schema: "./src/db/schema/index.js",
+    out: "./drizzle",
+    dialect: "postgresql",
+    dbCredentials: { url: process.env.DATABASE_URL },
+    strict: true,
+    verbose: true,
+});

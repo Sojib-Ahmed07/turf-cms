@@ -1,23 +1,43 @@
 // src/components/site/Navbar.jsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X, Ticket, Phone, MapPin } from "lucide-react";
+import {
+    Menu,
+    X,
+    Ticket,
+    Phone,
+    MapPin,
+    User as UserIcon,
+    LogOut,
+    ChevronDown,
+} from "lucide-react";
 import Logo from "./Logo";
 import Button from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { signOut, useSession } from "@/lib/auth-client";
 
 /**
  * Fixed layout; logo + labels come from the CMS.
- * `user` is null when signed out: { name, image } when signed in.
+ * `user` (optional) is passed from the server as an SSR fallback to avoid
+ * a "Sign in" flash on first paint. Live auth state comes from useSession().
  */
-export default function Navbar({ settings, items = [], user = null }) {
+export default function Navbar({ settings, items = [], user: initialUser = null }) {
+    const { data: session, isPending } = useSession();
+    const user = session?.user ?? (isPending ? initialUser : null);
+
     const [open, setOpen] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const pathname = usePathname();
+    const router = useRouter();
+    const menuRef = useRef(null);
+
+    const showMyBookings = settings?.showMyBookings !== false;
+    const bookLabel = settings?.menuButtonLabel || "Book a slot";
 
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 8);
@@ -28,10 +48,55 @@ export default function Navbar({ settings, items = [], user = null }) {
 
     useEffect(() => {
         document.body.style.overflow = open ? "hidden" : "";
-        return () => (document.body.style.overflow = "");
+        return () => {
+            document.body.style.overflow = "";
+        };
     }, [open]);
 
-    const isActive = (href) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+    // Close menus on route change
+    useEffect(() => {
+        setOpen(false);
+        setMenuOpen(false);
+    }, [pathname]);
+
+    // Close dropdown on outside click / Escape
+    useEffect(() => {
+        if (!menuOpen) return;
+        const onClick = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                setMenuOpen(false);
+            }
+        };
+        const onKey = (e) => {
+            if (e.key === "Escape") setMenuOpen(false);
+        };
+        document.addEventListener("mousedown", onClick);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("mousedown", onClick);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [menuOpen]);
+
+    const isActive = (href) =>
+        href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+    async function handleSignOut() {
+        setMenuOpen(false);
+        setOpen(false);
+        await signOut({
+            fetchOptions: {
+                onSuccess: () => {
+                    router.push("/");
+                    router.refresh();
+                },
+            },
+        });
+    }
+
+    const drawerItems = showMyBookings
+        ? [...items, { label: "My bookings", href: "/bookings" }]
+        : items;
 
     return (
         <>
@@ -68,27 +133,112 @@ export default function Navbar({ settings, items = [], user = null }) {
                     </ul>
 
                     <div className="ml-auto flex items-center gap-2">
-                        <Link
-                            href="/bookings"
-                            className="hidden items-center gap-2 rounded-full px-3 py-2 text-[14px] font-medium text-ink-2 hover:bg-ink/5 hover:text-ink sm:inline-flex"
-                        >
-                            <Ticket className="h-4 w-4" />
-                            My bookings
-                        </Link>
+                        {showMyBookings && (
+                            <Link
+                                href="/bookings"
+                                className="hidden items-center gap-2 rounded-full px-3 py-2 text-[14px] font-medium text-ink-2 hover:bg-ink/5 hover:text-ink sm:inline-flex"
+                            >
+                                <Ticket className="h-4 w-4" />
+                                My bookings
+                            </Link>
+                        )}
 
                         {user ? (
-                            <Link
-                                href="/profile"
-                                aria-label="Your profile"
-                                className="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-grass text-sm font-bold text-pitch ring-2 ring-white"
-                            >
-                                {user.image ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={user.image} alt="" className="h-full w-full object-cover" />
-                                ) : (
-                                    user.name?.[0]
-                                )}
-                            </Link>
+                            <div className="relative" ref={menuRef}>
+                                <button
+                                    type="button"
+                                    onClick={() => setMenuOpen((v) => !v)}
+                                    aria-haspopup="menu"
+                                    aria-expanded={menuOpen}
+                                    aria-label="Your account"
+                                    className="flex items-center gap-1.5 rounded-full p-1 pr-2 hover:bg-ink/5"
+                                >
+                                    <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-grass text-sm font-bold text-pitch ring-2 ring-white">
+                                        {user.image ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img
+                                                src={user.image}
+                                                alt=""
+                                                className="h-full w-full object-cover"
+                                            />
+                                        ) : (
+                                            user.name?.[0]?.toUpperCase() ?? "U"
+                                        )}
+                                    </span>
+                                    <ChevronDown
+                                        className={cn(
+                                            "h-4 w-4 text-ink-3 transition-transform",
+                                            menuOpen && "rotate-180"
+                                        )}
+                                    />
+                                </button>
+
+                                <AnimatePresence>
+                                    {menuOpen && (
+                                        <motion.div
+                                            role="menu"
+                                            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                                            transition={{ duration: 0.15, ease: "easeOut" }}
+                                            className="absolute right-0 mt-2 w-60 overflow-hidden rounded-card border border-line bg-paper shadow-xl"
+                                        >
+                                            <div className="border-b border-line px-4 py-3">
+                                                <p className="truncate text-sm font-semibold text-ink">
+                                                    {user.name}
+                                                </p>
+                                                {user.email && (
+                                                    <p className="truncate text-xs text-ink-3">
+                                                        {user.email}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="p-1.5">
+                                                <Link
+                                                    href="/profile"
+                                                    role="menuitem"
+                                                    className="flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm text-ink hover:bg-grass"
+                                                >
+                                                    <UserIcon className="h-4 w-4 text-ink-3" />
+                                                    Your profile
+                                                </Link>
+                                                {showMyBookings && (
+                                                    <Link
+                                                        href="/bookings"
+                                                        role="menuitem"
+                                                        className="flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm text-ink hover:bg-grass"
+                                                    >
+                                                        <Ticket className="h-4 w-4 text-ink-3" />
+                                                        My bookings
+                                                    </Link>
+                                                )}
+                                                {(user.role === "admin" ||
+                                                    user.role === "editor") && (
+                                                        <Link
+                                                            href="/admin"
+                                                            role="menuitem"
+                                                            className="flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm text-ink hover:bg-grass"
+                                                        >
+                                                            <MapPin className="h-4 w-4 text-ink-3" />
+                                                            Admin panel
+                                                        </Link>
+                                                    )}
+                                            </div>
+                                            <div className="border-t border-line p-1.5">
+                                                <button
+                                                    type="button"
+                                                    role="menuitem"
+                                                    onClick={handleSignOut}
+                                                    className="flex w-full items-center gap-2.5 rounded-ctl px-3 py-2 text-left text-sm text-danger hover:bg-danger-soft"
+                                                >
+                                                    <LogOut className="h-4 w-4" />
+                                                    Sign out
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         ) : (
                             <Link
                                 href="/login"
@@ -99,7 +249,7 @@ export default function Navbar({ settings, items = [], user = null }) {
                         )}
 
                         <Button href="/book" size="md" className="hidden sm:inline-flex">
-                            Book a slot
+                            {bookLabel}
                         </Button>
 
                         <button
@@ -136,8 +286,35 @@ export default function Navbar({ settings, items = [], user = null }) {
                             </button>
                         </div>
 
+                        {user && (
+                            <div className="mx-4 mt-4 flex items-center gap-3 rounded-card border border-white/10 bg-white/5 px-4 py-3 sm:mx-6">
+                                <span className="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-grass text-sm font-bold text-pitch">
+                                    {user.image ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={user.image}
+                                            alt=""
+                                            className="h-full w-full object-cover"
+                                        />
+                                    ) : (
+                                        user.name?.[0]?.toUpperCase() ?? "U"
+                                    )}
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-white">
+                                        {user.name}
+                                    </p>
+                                    {user.email && (
+                                        <p className="truncate text-xs text-white/60">
+                                            {user.email}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         <ul className="mt-6 flex flex-col px-4 sm:px-6">
-                            {[...items, { label: "My bookings", href: "/bookings" }].map((item, i) => (
+                            {drawerItems.map((item, i) => (
                                 <motion.li
                                     key={item.href}
                                     initial={{ opacity: 0, x: -16 }}
@@ -149,7 +326,9 @@ export default function Navbar({ settings, items = [], user = null }) {
                                         onClick={() => setOpen(false)}
                                         className={cn(
                                             "display flex items-center justify-between border-b border-white/10 py-4 text-[34px]",
-                                            isActive(item.href) ? "text-white" : "text-white/55"
+                                            isActive(item.href)
+                                                ? "text-white"
+                                                : "text-white/55"
                                         )}
                                     >
                                         {item.label}
@@ -171,11 +350,22 @@ export default function Navbar({ settings, items = [], user = null }) {
                                 </p>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
-                                <Button href="/login" variant="outline-light" size="lg">
-                                    Sign in
-                                </Button>
+                                {user ? (
+                                    <button
+                                        type="button"
+                                        onClick={handleSignOut}
+                                        className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/25 px-5 text-sm font-semibold text-white hover:bg-white/10"
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                        Sign out
+                                    </button>
+                                ) : (
+                                    <Button href="/login" variant="outline-light" size="lg">
+                                        Sign in
+                                    </Button>
+                                )}
                                 <Button href="/book" size="lg">
-                                    Book a slot
+                                    {bookLabel}
                                 </Button>
                             </div>
                         </div>

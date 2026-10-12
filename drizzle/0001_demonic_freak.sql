@@ -1,0 +1,3 @@
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_pitch_id_pitches_id_fk" FOREIGN KEY ("pitch_id") REFERENCES "public"."pitches"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_time_block_id_time_blocks_id_fk" FOREIGN KEY ("time_block_id") REFERENCES "public"."time_blocks"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "bookings_active_slot_uq" ON "bookings" USING btree ("pitch_id","booking_date","start_time") WHERE "bookings"."status" in ('held', 'confirmed');

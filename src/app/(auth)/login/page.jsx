@@ -1,4 +1,5 @@
 // src/app/(auth)/login/page.jsx
+import { Suspense } from "react";
 import Link from "next/link";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { LoginForm } from "@/components/auth/AuthForms";
@@ -22,7 +23,10 @@ export default function LoginPage() {
                 </>
             }
         >
-            <LoginForm />
+            {/* Suspense is required because the form reads ?next= with useSearchParams */}
+            <Suspense fallback={<div className="h-[320px]" />}>
+                <LoginForm />
+            </Suspense>
         </AuthLayout>
     );
 }

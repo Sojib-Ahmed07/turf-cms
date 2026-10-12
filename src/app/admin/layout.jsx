@@ -1,10 +1,12 @@
 // src/app/admin/layout.jsx
 import AdminShell from "@/components/admin/AdminShell";
-import { adminUser } from "@/lib/admin-sample-data";
+import { requireRole } from "@/lib/guards";
 
 export const metadata = { title: "Admin" };
+export const dynamic = "force-dynamic";
 
-export default function AdminLayout({ children }) {
-    // Later: const user = await requireRole(["admin", "editor"]);
-    return <AdminShell user={adminUser}>{children}</AdminShell>;
+export default async function AdminLayout({ children }) {
+    // Real check (proxy.js only looks for the cookie). Players are sent to the home page.
+    const user = await requireRole(["admin", "editor"]);
+    return <AdminShell user={{ name: user.name, role: user.role }}>{children}</AdminShell>;
 }

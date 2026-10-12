@@ -1,4 +1,12 @@
 // src/lib/time.js
+// Time helpers. Everything is computed in Asia/Dhaka, never in the server's
+// own timezone (servers usually run in UTC).
+//
+// "Operating day": the venue opens at `openHour` (default 6) and runs past
+// midnight (close 3 am). A 01:30 slot on the sheet for Sat 11 Oct is played in
+// the early hours of Sun 12 Oct, but it belongs to Saturday's sheet and is
+// stored with bookingDate = "2026-10-11" (same as the prototype).
+
 const TZ = "Asia/Dhaka";
 
 const DHAKA_DATE = new Intl.DateTimeFormat("en-CA", {
@@ -21,7 +29,8 @@ export function dhakaDate(d = new Date()) {
 
 /** "HH:MM" in Asia/Dhaka for a given Date (defaults to now). */
 export function dhakaTime(d = new Date()) {
-    return DHAKA_TIME.format(d);
+    // Some runtimes print midnight as "24:00"
+    return DHAKA_TIME.format(d).replace(/^24:/, "00:");
 }
 
 /** "HH:MM" -> minutes since midnight. */
@@ -47,11 +56,48 @@ export function addDaysISO(iso, days) {
 }
 
 /**
- * A block whose start time is before the venue's close-hour is part of the
- * previous operating day (e.g. a 01:30 slot on a sheet headed "Sat 11 Oct"
- * is really Fri night). Returns the operating day in "YYYY-MM-DD".
+ * Minutes since the START of the operating day.
+ * With openHour 6: "06:00" -> 360, "23:00" -> 1380, "01:30" -> 1530 (after midnight).
  */
+export function operatingMinutes(hhmm, openHour = 6) {
+    const m = hhmmToMinutes(hhmm);
+    return m < openHour * 60 ? m + 1440 : m;
+}
+
+/**
+ * The operating day that is running right now, and how far into it we are.
+ * At 01:00 on 12 Oct (Dhaka) this returns { date: "2026-10-11", minutes: 1500 }.
+ */
+export function currentOperatingDay(openHour = 6, now = new Date()) {
+    const date = dhakaDate(now);
+    const time = dhakaTime(now);
+    const mins = hhmmToMinutes(time);
+    if (mins < openHour * 60) {
+        return { date: addDaysISO(date, -1), minutes: mins + 1440 };
+    }
+    return { date, minutes: mins };
+}
+
+/** True if a block on sheet `isoDate` starting at `startHHMM` has already started. */
+export function isBlockPast(isoDate, startHHMM, openHour = 6, now = new Date()) {
+    const today = currentOperatingDay(openHour, now);
+    if (isoDate < today.date) return true;
+    if (isoDate > today.date) return false;
+    return operatingMinutes(startHHMM, openHour) <= today.minutes;
+}
+
+/** Kept for older imports: the operating day a calendar date + start time belongs to. */
 export function operatingDay(isoDate, startHHMM, openHour = 6) {
     const startMin = hhmmToMinutes(startHHMM);
     return startMin < openHour * 60 ? addDaysISO(isoDate, -1) : isoDate;
+}
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-10-11" -> "Sun 11 Oct". Safe on server and client (no locale APIs). */
+export function shortDateLabel(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return `${DAYS[dt.getUTCDay()]} ${d} ${MONTHS[m - 1]}`;
 }

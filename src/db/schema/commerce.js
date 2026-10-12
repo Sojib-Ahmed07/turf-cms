@@ -1,4 +1,5 @@
 // src/db/schema/commerce.js
+import { sql } from "drizzle-orm";
 import {
     pgTable,
     text,
@@ -9,8 +10,10 @@ import {
     uuid,
     jsonb,
     index,
+    uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
+import { pitches, timeBlocks } from "./booking.js";
 
 export const coupons = pgTable("coupons", {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -38,8 +41,10 @@ export const bookings = pgTable(
         userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
         customerName: text("customer_name"),
         customerPhone: text("customer_phone"),
-        pitchId: uuid("pitch_id").notNull(),
-        timeBlockId: uuid("time_block_id"),
+        pitchId: uuid("pitch_id")
+            .notNull()
+            .references(() => pitches.id, { onDelete: "cascade" }),
+        timeBlockId: uuid("time_block_id").references(() => timeBlocks.id, { onDelete: "set null" }),
         bookingDate: text("booking_date").notNull(),
         startTime: text("start_time").notNull(),
         endTime: text("end_time").notNull(),
@@ -47,9 +52,9 @@ export const bookings = pgTable(
         discount: decimal("discount", { precision: 10, scale: 2 }).notNull().default("0"),
         totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
         couponId: uuid("coupon_id").references(() => coupons.id, { onDelete: "set null" }),
-        status: text("status").notNull().default("held"),
-        paymentStatus: text("payment_status").notNull().default("unpaid"),
-        source: text("source").notNull().default("online"),
+        status: text("status").notNull().default("held"), // held | confirmed | cancelled | expired | completed
+        paymentStatus: text("payment_status").notNull().default("unpaid"), // unpaid | paid | refund_due | refunded
+        source: text("source").notNull().default("online"), // online | walk_in
         holdExpiresAt: timestamp("hold_expires_at"),
         cancelledAt: timestamp("cancelled_at"),
         cancelReason: text("cancel_reason"),
@@ -57,6 +62,10 @@ export const bookings = pgTable(
         updatedAt: timestamp("updated_at").notNull().defaultNow(),
     },
     (t) => [
+        // One active booking per pitch + date + start time. Cancelled/expired rows don't block the slot.
+        uniqueIndex("bookings_active_slot_uq")
+            .on(t.pitchId, t.bookingDate, t.startTime)
+            .where(sql`${t.status} in ('held', 'confirmed')`),
         index("bookings_pitch_date_idx").on(t.pitchId, t.bookingDate),
         index("bookings_user_idx").on(t.userId),
         index("bookings_hold_expiry_idx").on(t.status, t.holdExpiresAt),

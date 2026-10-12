@@ -15,14 +15,23 @@ const STATUS = {
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** One booking drawn as a match ticket. */
-export default function BookingTicket({ booking }) {
+/**
+ * One booking drawn as a match ticket.
+ * onCancel(bookingId): shown for held bookings. payHref: shown for held bookings once payments are live.
+ */
+export default function BookingTicket({ booking, onCancel, payHref, busy = false, highlight = false }) {
     const d = new Date(`${booking.date}T00:00:00`);
     const s = STATUS[booking.status] ?? STATUS.confirmed;
     const dim = booking.status === "cancelled" || booking.status === "completed";
 
     return (
-        <article className={cn("relative flex flex-col overflow-hidden rounded-card bg-white ring-1 ring-line sm:flex-row", dim && "opacity-80")}>
+        <article
+            className={cn(
+                "relative flex flex-col overflow-hidden rounded-card bg-white sm:flex-row",
+                highlight ? "ring-2 ring-flare" : "ring-1 ring-line",
+                dim && "opacity-80"
+            )}
+        >
             {/* Date stub */}
             <div
                 className={cn(
@@ -83,9 +92,18 @@ export default function BookingTicket({ booking }) {
                         </Button>
                     )}
                     {booking.status === "held" && (
-                        <Button variant="flare" size="sm">
-                            Pay {taka(booking.total)}
-                        </Button>
+                        <div className="flex gap-2">
+                            {onCancel && (
+                                <Button variant="ghost" size="sm" disabled={busy} onClick={() => onCancel(booking.bookingId)}>
+                                    {busy ? "Cancelling…" : "Cancel"}
+                                </Button>
+                            )}
+                            {payHref && (
+                                <Button href={payHref} variant="flare" size="sm">
+                                    Pay {taka(booking.total)}
+                                </Button>
+                            )}
+                        </div>
                     )}
                     {(booking.status === "completed" || booking.status === "cancelled") && (
                         <Button href="/book" variant="outline" size="sm">

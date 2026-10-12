@@ -3,6 +3,7 @@
 
 import Image from "next/image";
 import { Check } from "lucide-react";
+import PitchLines from "@/components/site/PitchLines";
 import { cn, taka } from "@/lib/utils";
 
 export default function PitchPicker({ pitches = [], value, onChange }) {
@@ -23,7 +24,11 @@ export default function PitchPicker({ pitches = [], value, onChange }) {
                         )}
                     >
                         <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[14px] bg-pitch">
-                            <Image src={p.imageUrl} alt="" fill sizes="64px" className="object-cover" />
+                            {p.imageUrl ? (
+                                <Image src={p.imageUrl} alt="" fill sizes="64px" className="object-cover" />
+                            ) : (
+                                <PitchLines variant="half" className="absolute inset-0 h-full w-full text-white/25" />
+                            )}
                         </span>
                         <span className="min-w-0 flex-1">
                             <span className="display block truncate text-[19px] text-ink">{p.name}</span>

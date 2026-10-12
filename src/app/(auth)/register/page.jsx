@@ -1,4 +1,5 @@
 // src/app/(auth)/register/page.jsx
+import { Suspense } from "react";
 import Link from "next/link";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { RegisterForm } from "@/components/auth/AuthForms";
@@ -22,7 +23,10 @@ export default function RegisterPage() {
                 </>
             }
         >
-            <RegisterForm />
+            {/* Suspense is required because the form reads ?next= with useSearchParams */}
+            <Suspense fallback={<div className="h-[320px]" />}>
+                <RegisterForm />
+            </Suspense>
         </AuthLayout>
     );
 }

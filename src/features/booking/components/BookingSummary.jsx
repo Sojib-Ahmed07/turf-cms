@@ -6,12 +6,16 @@ import { CalendarDays, Clock3, Hourglass, Lock, MapPin, Tag, X } from "lucide-re
 import Button from "@/components/ui/Button";
 import { cn, taka, time12 } from "@/lib/utils";
 
-/** Right-hand checkout card. Pure UI: coupon "applies" a flat 20%. */
-export default function BookingSummary({ pitch, dateLabel, block }) {
+/**
+ * Right-hand checkout card.
+ * onPay/busy/error come from BookingClient. The promo code box is hidden
+ * until the coupons step (pass showCoupon to bring it back).
+ */
+export default function BookingSummary({ pitch, dateLabel, block, onPay, busy = false, error = "", isSignedIn = true, showCoupon = false }) {
     const [code, setCode] = useState("");
     const [applied, setApplied] = useState(null);
 
-    const subtotal = block?.price ?? 0;
+    const subtotal = Number(block?.price ?? 0);
     const discount = applied ? Math.round(subtotal * 0.2) : 0;
     const total = subtotal - discount;
 
@@ -42,7 +46,7 @@ export default function BookingSummary({ pitch, dateLabel, block }) {
                 </dl>
 
                 {/* Coupon */}
-                {applied ? (
+                {!showCoupon ? null : applied ? (
                     <div className="flex items-center justify-between rounded-ctl bg-brand-soft px-4 py-3">
                         <span className="flex items-center gap-2 text-[14px] font-semibold text-brand-deep">
                             <Tag className="h-4 w-4" />
@@ -82,9 +86,17 @@ export default function BookingSummary({ pitch, dateLabel, block }) {
                     </div>
                 </div>
 
-                <Button size="lg" className="h-14 w-full text-base" disabled={!block}>
+                {error && <p className="rounded-ctl bg-danger-soft px-4 py-3 text-[13px] font-medium text-danger">{error}</p>}
+
+                <Button size="lg" className="h-14 w-full text-base" disabled={!block || busy} onClick={onPay}>
                     <Lock className="h-4 w-4" />
-                    {block ? `Pay ${taka(total)}` : "Choose a slot to continue"}
+                    {!block
+                        ? "Choose a slot to continue"
+                        : busy
+                            ? "Reserving your slot…"
+                            : isSignedIn
+                                ? `Pay ${taka(total)}`
+                                : "Sign in to book"}
                 </Button>
 
                 <div className="space-y-3">

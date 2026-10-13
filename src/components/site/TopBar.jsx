@@ -9,14 +9,15 @@ import { X } from "lucide-react";
 export default function TopBar({ banner }) {
     const [open, setOpen] = useState(true);
     if (!banner || !open) return null;
+    const chip = banner.code ?? banner.badge; // coupon code if linked, otherwise the badge text
 
     return (
         <div className="relative bg-pitch text-white">
             <div className="mx-auto flex h-10 max-w-7xl items-center justify-center gap-3 px-10 text-[13px]">
                 <span className="truncate text-white/85">{banner.title}</span>
-                {banner.badge && (
+                {chip && (
                     <span className="hidden rounded-md border border-dashed border-flare/70 px-2 py-0.5 font-bold tracking-wide text-flare tnum sm:inline">
-                        {banner.badge}
+                        {chip}
                     </span>
                 )}
                 {banner.ctaHref && (
@@ -24,7 +25,7 @@ export default function TopBar({ banner }) {
                         href={banner.ctaHref}
                         className="shrink-0 font-semibold underline decoration-white/30 underline-offset-4 hover:decoration-white"
                     >
-                        {banner.ctaLabel}
+                        {banner.ctaLabel || "Book now"}
                     </Link>
                 )}
             </div>

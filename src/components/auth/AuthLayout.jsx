@@ -2,6 +2,7 @@
 import Image from "next/image";
 import Logo from "@/components/site/Logo";
 import PitchLines from "@/components/site/PitchLines";
+import { canOptimize } from "@/lib/utils";
 
 /** Split screen: photo panel on the left (desktop), form on the right. */
 export default function AuthLayout({ settings, imageUrl, title, subtitle, children, footer }) {
@@ -9,7 +10,7 @@ export default function AuthLayout({ settings, imageUrl, title, subtitle, childr
         <div className="grid min-h-svh lg:grid-cols-2">
             {/* Visual panel */}
             <div className="relative m-3 hidden overflow-hidden rounded-frame bg-pitch lg:block">
-                {imageUrl && <Image src={imageUrl} alt="" fill sizes="50vw" className="object-cover opacity-55" priority />}
+                {imageUrl && <Image src={imageUrl} alt="" fill sizes="50vw" unoptimized={!canOptimize(imageUrl)} className="object-cover opacity-55" priority />}
                 <div className="absolute inset-0 bg-gradient-to-t from-pitch via-pitch/40 to-pitch/20" />
                 <PitchLines className="absolute inset-0 h-full w-full text-white/10" />
 

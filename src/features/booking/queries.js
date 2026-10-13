@@ -5,7 +5,7 @@ import "server-only";
 import { and, asc, desc, eq, gt, lte, or, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, pitches, timeBlocks } from "@/db/schema";
-import { isBlockPast } from "@/lib/time";
+import { currentOperatingDay, isBlockPast } from "@/lib/time";
 
 export const HOLD_MINUTES = 15;
 
@@ -165,6 +165,32 @@ export async function getSlotBoard(pitchId, date, viewerId = null) {
 }
 
 /**
+ * Home page "Grounds open today": every active ground with the start times
+ * still free on today's operating day (not started, not booked, not on hold).
+ * Returns { date, pitches: [...toPitchView, freeToday: ["19:30", ...]], freeCount }.
+ */
+export async function getGroundsToday() {
+    const { date } = currentOperatingDay();
+    const rows = await db
+        .select()
+        .from(pitches)
+        .where(eq(pitches.isActive, true))
+        .orderBy(asc(pitches.sortOrder), asc(pitches.name));
+
+    const list = await Promise.all(
+        rows.map(async (p) => {
+            const [blocks, taken] = await Promise.all([getTimeBlocksForPitch(p, date), getTakenSlots(p.id, date)]);
+            const freeToday = blocks
+                .filter((b) => b.price > 0 && !taken.has(b.startTime) && !isBlockPast(date, b.startTime))
+                .map((b) => b.startTime);
+            return { ...toPitchView(p), freeToday };
+        })
+    );
+
+    return { date, pitches: list, freeCount: list.reduce((n, p) => n + p.freeToday.length, 0) };
+}
+
+/**
  * Mark held bookings whose 15 minutes ran out as expired.
  * Called lazily before creating a hold (and later by the cron job).
  */
@@ -231,6 +257,8 @@ export async function getMyBookings(userId) {
             discount: Number(r.discount ?? 0),
             status,
             paidWith: r.paymentStatus === "paid" ? "Online" : null,
+            refundDue: r.paymentStatus === "refund_due",
+            refunded: r.paymentStatus === "refunded",
             holdMinutesLeft:
                 status === "held" && r.holdExpiresAt
                     ? Math.max(1, Math.ceil((r.holdExpiresAt.getTime() - now) / 60000))

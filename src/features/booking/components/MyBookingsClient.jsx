@@ -7,6 +7,7 @@ import { CalendarPlus, Hourglass } from "lucide-react";
 import BookingTicket from "./BookingTicket";
 import Button from "@/components/ui/Button";
 import { cancelHeldBooking } from "@/features/booking/actions";
+import { payForBooking } from "@/features/payment/actions";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -20,13 +21,14 @@ const TABS = [
  *   bookings     from getMyBookings(userId)
  *   userName     first name for the greeting
  *   highlightCode booking code from ?held= (just reserved)
- *   paymentsLive  false until Step 2; hides the Pay button
+ *   paymentsLive  SSLCommerz is configured; shows the Pay button on held bookings
+ *   payFailed     ?pay=failed: the gateway couldn't be opened right after reserving
  */
-export default function MyBookingsClient({ bookings = [], userName, highlightCode, paymentsLive = false }) {
+export default function MyBookingsClient({ bookings = [], userName, highlightCode, paymentsLive = false, payFailed = false }) {
     const router = useRouter();
     const [tab, setTab] = useState("upcoming");
-    const [busyId, setBusyId] = useState(null);
-    const [error, setError] = useState("");
+    const [busy, setBusy] = useState(null); // { id, what: "cancel" | "pay" }
+    const [error, setError] = useState(payFailed ? "We couldn't open the payment page. Your slot is still held, so try Pay again." : "");
     const [, startTransition] = useTransition();
 
     const current = TABS.find((t) => t.key === tab);
@@ -35,15 +37,30 @@ export default function MyBookingsClient({ bookings = [], userName, highlightCod
 
     function onCancel(bookingId) {
         setError("");
-        setBusyId(bookingId);
+        setBusy({ id: bookingId, what: "cancel" });
         startTransition(async () => {
             const res = await cancelHeldBooking(bookingId);
-            setBusyId(null);
+            setBusy(null);
             if (!res.ok) {
                 setError(res.error);
                 return;
             }
             router.refresh();
+        });
+    }
+
+    function onPay(bookingId) {
+        setError("");
+        setBusy({ id: bookingId, what: "pay" });
+        startTransition(async () => {
+            const res = await payForBooking(bookingId);
+            if (res.ok) {
+                window.location.assign(res.data.url); // keep the button busy while the gateway loads
+                return;
+            }
+            setBusy(null);
+            setError(res.error);
+            if (res.expired) router.refresh();
         });
     }
 
@@ -111,8 +128,8 @@ export default function MyBookingsClient({ bookings = [], userName, highlightCod
                             booking={b}
                             highlight={b.id === highlightCode}
                             onCancel={onCancel}
-                            busy={busyId === b.bookingId}
-                            payHref={paymentsLive ? `/payment/start?b=${b.bookingId}` : undefined}
+                            onPay={paymentsLive ? onPay : undefined}
+                            busy={busy?.id === b.bookingId ? busy.what : false}
                         />
                     ))
                 ) : (

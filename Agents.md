@@ -27,7 +27,13 @@ grounds, open 6 am to 3 am, prices in BDT (৳).
 - **Step 3 (booking, admin side) delivered:** real overview (stats, today board, latest bookings), grounds list +
   add/edit ground, slot editor (default schedule + per-date custom days), bookings table (search, filters, cancel,
   refund done, walk-in bookings). Admin-only screens hidden from editors.
-- **Next:** Step 4, CMS read side (home page live), then Step 2, SSLCommerz payments (section 8).
+- **Step 4 (CMS read side) delivered:** the whole public site reads from the database: brand colour, logo, favicon
+  and SEO (root layout), menu, top bar, popup, hero slides, offer banners, home sections, footer, contact. Home
+  "Grounds open today" shows real free times; the QuickBook shortcut and "Still free today" times preselect a slot on `/book`.
+- **Step 2 (SSLCommerz payments) delivered:** Pay on `/book`, My bookings and the failed page opens SSLCommerz
+  hosted checkout; callbacks + IPN validate with the Validation API and confirm the booking once; late payments
+  revive the hold or become refund due; result pages are real; cron route re-checks lost payments and expires holds.
+- **Next:** Step 5, CMS write side (Cloudinary + admin editors), then Step 6 (section 8).
 
 ## 3. Stack in use
 
@@ -71,7 +77,7 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
 - **Past slots:** a block is past once its start time has passed on the current operating day (`isBlockPast`).
 - **Slot states:** `booked` (confirmed booking), `held` (held booking whose `holdExpiresAt` is in the future), `past`, `free`.
 - **Holds:** "Pay" creates a booking with `status = held`, `holdExpiresAt = now + 15 min`, price from the server.
-  Expired holds are marked `expired` lazily (`expireStaleHolds`) before a new hold, and by a cron job in Step 2.
+  Expired holds are marked `expired` lazily (`expireStaleHolds`) before a new hold, and daily by `/api/cron/expire-holds`.
 - **No double booking:** partial unique index `bookings_active_slot_uq` on `(pitch_id, booking_date, start_time)`
   where `status in ('held','confirmed')`. A collision returns "Someone just booked this slot."
 - **Limits:** max 2 active holds per player. Only held bookings can be cancelled by the player.
@@ -84,7 +90,7 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
 | File | Notes |
 |---|---|
 | `index.js` | neon-http Drizzle client (`db`) |
-| `pool.js` | `getTxDb()` WebSocket Pool for interactive transactions (Step 2 payment confirm) |
+| `pool.js` | `getTxDb()` WebSocket Pool for interactive transactions (not used: payments use a conditional-update claim instead) |
 | `schema/auth.js` | `user` (with `phone`, `role`), `session`, `account`, `verification` |
 | `schema/booking.js` | `pitches`, `time_blocks` |
 | `schema/commerce.js` | `coupons`, `bookings` (FKs to pitches/time_blocks, unique active slot index), `coupon_redemptions`, `payments`, `audit_log` |
@@ -115,6 +121,36 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
 | `components/BookingTicket.jsx` | `onCancel`, `payHref`, `busy`, `highlight` |
 | `components/DateStrip.jsx`, `SlotBoard.jsx` | Unchanged UI |
 
+### Payment feature (`src/features/payment/`) and `src/lib/sslcommerz.js`
+| File | What it does |
+|---|---|
+| `lib/sslcommerz.js` | `initSession`, `validateOrder(valId)`, `queryTransaction(tranId)`, `isSslczConfigured()`, `prettyMethod(cardType)`. Sandbox unless `SSLCZ_IS_LIVE=true`. `SSLCZ_API_BASE` is only for tests (local mock) |
+| `service.js` | `startPayment(bookingId, user)`, `confirmPayment({ tranId, valId })` (idempotent; outcomes confirmed / slot_lost / duplicate / invalid / pending / unknown), `recheckPayment(tranId)`, `recheckOpenPayments()`, `markPaymentClosed(tranId, status)`, `getPaymentResult(tranId)` |
+| `actions.js` | `payForBooking(bookingId)` → `{ ok, data: { url } }`; the client does `window.location.assign(url)` |
+| `result-page.js` | `loadPaymentResult(page, searchParams)` for the three result pages (re-checks once on success if still initiated) |
+| `components/PaymentResult.jsx` | States: success, pending, failed, cancelled, refund, missing. Google Calendar link |
+| `components/RetryPayButton.jsx` | "Try payment again" |
+
+Routes: `POST /api/payment/sslcommerz/[event]` (success, fail, cancel, ipn), `GET /api/cron/expire-holds`
+(Bearer `CRON_SECRET`; `vercel.json` runs it daily at 03:00 Dhaka).
+
+Payment rules:
+- `tran_id` = `<booking code>-<6 chars>`, one `payments` row per attempt (`initiated` → `paid` | `failed` | `cancelled` | `refund_due` | `refunded`).
+- Only the Validation API is trusted (status VALID/VALIDATED, same tran_id, currency BDT, same amount). Callback fields are never trusted.
+- Claim = `UPDATE payments SET status='paid' WHERE status <> 'paid' RETURNING`; only the winner touches the booking.
+- Booking held or expired → confirmed (the unique slot index decides if an expired one can be revived).
+  Slot gone / booking cancelled → booking cancelled + `refund_due`. Booking already paid → this payment `refund_due`.
+- Starting a payment stretches the hold to 15 min from now, never past 30 min after the hold was created.
+- Fail/cancel keep the booking held so the player can retry. Admin refunds are still manual (`markRefunded`); the SSLCommerz refund API needs the server IP whitelisted (Step 6).
+
+### CMS feature (`src/features/cms/`)
+| File | What it does |
+|---|---|
+| `queries.js` | Cached reads (`unstable_cache`, tags from `cache-tags.js`, 5 min safety revalidate): `getSiteSettings` (normalised, every field present), `getNavItems`, `getHeroSlides` (active + inside schedule), `getPromoBanners` (one live banner per placement; `code` only if the linked coupon is live; `endsAt` is a label "Ends 31 Oct"), `getSections` (`{ live_grounds, how_it_works, visit }` with `isVisible`), `getSiteChrome`, `brandInk(hex)`. Every getter falls back to defaults if the DB fails |
+
+Booking query added in Step 4: `getGroundsToday()` → `{ date, pitches: [...pitch, freeToday: ["19:30"]], freeCount }`.
+`src/lib/utils.js` `canOptimize(src)`: pass `unoptimized={!canOptimize(url)}` to every `next/image` whose URL the admin can type.
+
 ### Admin feature (`src/features/admin/`)
 | File | What it does |
 |---|---|
@@ -133,11 +169,11 @@ Shared: `src/components/ui/Dialog.jsx` (modal), `src/components/admin/TonightBoa
 ### Routes
 | Route | Status |
 |---|---|
-| `/` | UI with sample data (CMS read side in Step 4) |
-| `/book` | **Live** (`(site)/book/page.jsx`) |
+| `/` | **Live** (CMS + live free slots) |
+| `/book` | **Live** (`?pitch=&date=&t=HH:MM&part=morning|day|evening|late`) |
 | `/bookings` | **Live**, requires sign-in |
-| `/payment/*` | UI with sample data (Step 2) |
-| `/login`, `/register` | **Live** (Better Auth), forms wrapped in Suspense |
+| `/payment/success|failed|cancelled` | **Live** (`?tran=`), no sign-in needed (shows no personal data) |
+| `/login`, `/register` | **Live** (Better Auth, logo + side photo from CMS), forms wrapped in Suspense |
 | `/admin` | **Live** overview |
 | `/admin/pitches`, `/admin/pitches/[id]` | **Live**, admin only |
 | `/admin/bookings` | **Live**, admin only (`?range=today|upcoming|week|all&q=&pitch=&status=&page=&walkin=1`) |
@@ -158,22 +194,16 @@ Fixed in Step 1:
 Still open:
 - `.gitignore` has `.env*`, which also ignores `.env.example`. Add a line `!.env.example`.
 - `src/lib/env.js` is not imported anywhere yet; import it in `src/lib/auth.js` and `src/db/index.js` when convenient.
-- Home page "Grounds open today" still shows sample grounds (Step 4).
-- `BookingSummary` shows a fixed venue line ("Mirpur 12, Dhaka"); switch to `site_settings.contact.address` in Step 4.
+- Seeded banners show the NIGHT20 code before coupons work at checkout (Step 6). The FIRST200 popup is seeded switched off.
+- `sample-data.js` is now only used by admin content screens (Step 5) and can be deleted after that.
 
 ## 8. Step plan
 
 - [x] **Step 0. UI, schema, auth** (done before 12 Oct)
 - [x] **Step 1. Booking, player side** (12 Oct): schema fix + migration, time helpers, slot engine port, booking queries/actions, `/api/booked-slots`, `/book`, `/bookings`, admin guard, build fix.
-- [ ] **Step 2. SSLCommerz payments**
-  - `src/lib/sslcommerz.js` (initSession, validate, refund; sandbox/live by `SSLCZ_IS_LIVE`)
-  - `src/features/payment/actions.js` `initPayment(bookingId)`; `/payment/start` page that redirects to the gateway
-  - Route handlers `src/app/api/payment/sslcommerz/{success,fail,cancel,ipn}/route.js` (POST)
-  - `src/features/payment/confirm.js` `validateAndConfirm()` (idempotent, amount/tran_id/currency checks, transaction)
-  - `src/app/api/cron/expire-holds/route.js` + cron setup
-  - Real `/payment/success|failed|cancelled` pages; turn on `paymentsLive` and the Pay button
+- [x] **Step 2. SSLCommerz payments** (13 Oct): `lib/sslcommerz.js`, `features/payment/*`, one dynamic callback route `api/payment/sslcommerz/[event]` (success, fail, cancel, ipn), cron route + `vercel.json`, real result pages, Pay buttons live when the store is configured. See "Payment rules" in section 6.
 - [x] **Step 3. Admin bookings side** (13 Oct): port prototype `admin.js`, `PitchesManager`, `SlotEditor` into `/admin/pitches` (ground editor, default blocks, per-date overrides); real `/admin/bookings` (filters, cancel, walk-in); real overview stats + `TonightBoard`.
-- [ ] **Step 4. CMS read side**: `features/cms/queries.js` (settings, nav, hero, banners, sections) with cache tags; replace sample data in `(site)` layout/home; `--brand` + metadata from settings; `LiveGrounds` with real pitches + free slots tonight.
+- [x] **Step 4. CMS read side** (13 Oct): `features/cms/queries.js` (settings, nav, hero, banners, sections) with cache tags; replace sample data in `(site)` layout/home; `--brand` + metadata from settings; `LiveGrounds` with real pitches + free slots tonight.
 - [ ] **Step 5. CMS write side**: Cloudinary signed upload, media library, server actions + forms for branding, navigation, hero, banners, sections, footer/SEO; dnd-kit ordering; toasts.
 - [ ] **Step 6. Coupons, users, payments admin, polish, deploy**: coupons in checkout, users/roles page, payments table + re-check/refund, loading/error pages, SEO, production env, live SSLCommerz.
 
@@ -188,6 +218,11 @@ Still open:
 | Hydration error on dates | Use `shortDateLabel()` / fixed arrays, not locale APIs |
 | "Today" looks a day behind for a ground that opens late | Don't pass `openHour` to time helpers; `DAY_START_HOUR` is fixed at 6 |
 | Editor can't see Grounds/Bookings | By design: those are `adminOnly`; set `role = admin` in `db:studio` |
+| Admin edit doesn't show on the site | Step 5 actions must call `revalidateTag(TAGS.x, "max")` (two arguments in Next 16) or `updateTag` for read-your-own-writes |
+| `next/image` error "hostname is not configured" | Use `unoptimized={!canOptimize(src)}`, or add the host to `next.config.mjs` |
+| Pay button missing | `SSLCZ_STORE_ID` / `SSLCZ_STORE_PASSWORD` not set in `.env.local` (restart dev after editing) |
+| IPN never arrives locally | Expected: SSLCommerz can't reach localhost. The browser success callback confirms instead; IPN works once deployed |
+| Vercel deploy fails on cron schedule | Hobby plan allows daily crons only; keep `vercel.json` daily or use an external cron with the Bearer header |
 | Stale styles | Delete `.next`, restart dev |
 
 ## 10. Changelog
@@ -195,6 +230,8 @@ Still open:
 - Before 2026-10-12 (Said): schema split into auth/booking/cms/commerce, first migration, seed, Better Auth, auth forms, navbar session, guards, proxy, env, action wrapper.
 - 2026-10-12: Review + Step 1 (booking, player side). Fixed auth route location, bookings FKs + double-booking index, build failure on /login, env file mismatch, admin guard.
 - 2026-10-13: Step 3 (booking, admin side). Admin queries/actions, grounds + slot editor, bookings table + walk-ins, real overview, Dialog component, admin-only nav. Fixed operating day to a fixed 6 am start (`DAY_START_HOUR`).
+- 2026-10-13: Step 4 (CMS read side). `features/cms/queries.js`, root layout reads brand/SEO, site layout/home/book/auth pages read the CMS, live "free today", working QuickBook + slot preselect, seed adds hero slides, banners and coupons. Root layout is `force-dynamic`, so builds no longer need the database.
+- 2026-10-13: Step 2 (SSLCommerz). lib/sslcommerz, payment service/actions, callback + IPN route, real result pages, Pay on /book + My bookings, cron route + vercel.json. 38 payment tests (race, forged val_id, amount mismatch, duplicate, slot lost, lost callback, gateway down) + browser e2e against a mock gateway.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

@@ -4,7 +4,7 @@
 import Image from "next/image";
 import { Check } from "lucide-react";
 import PitchLines from "@/components/site/PitchLines";
-import { cn, taka } from "@/lib/utils";
+import { canOptimize, cn, taka } from "@/lib/utils";
 
 export default function PitchPicker({ pitches = [], value, onChange }) {
     return (
@@ -25,7 +25,7 @@ export default function PitchPicker({ pitches = [], value, onChange }) {
                     >
                         <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[14px] bg-pitch">
                             {p.imageUrl ? (
-                                <Image src={p.imageUrl} alt="" fill sizes="64px" className="object-cover" />
+                                <Image src={p.imageUrl} alt="" fill sizes="64px" unoptimized={!canOptimize(p.imageUrl)} className="object-cover" />
                             ) : (
                                 <PitchLines variant="half" className="absolute inset-0 h-full w-full text-white/25" />
                             )}

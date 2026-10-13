@@ -2,6 +2,7 @@
 import MyBookingsClient from "@/features/booking/components/MyBookingsClient";
 import { getMyBookings } from "@/features/booking/queries";
 import { requireUser } from "@/lib/guards";
+import { isSslczConfigured } from "@/lib/sslcommerz";
 
 export const metadata = { title: "My bookings" };
 export const dynamic = "force-dynamic";
@@ -16,7 +17,8 @@ export default async function MyBookingsPage({ searchParams }) {
             bookings={bookings}
             userName={user.name?.split(" ")[0]}
             highlightCode={typeof params?.held === "string" ? params.held : null}
-            paymentsLive={false}
+            paymentsLive={isSslczConfigured()}
+            payFailed={params?.pay === "failed"}
         />
     );
 }

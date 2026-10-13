@@ -113,7 +113,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
 
                     <ul className="ml-4 hidden items-center gap-1 lg:flex">
                         {items.map((item) => (
-                            <li key={item.href}>
+                            <li key={item.id ?? item.href}>
                                 <Link
                                     href={item.href}
                                     className={cn(
@@ -316,7 +316,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                         <ul className="mt-6 flex flex-col px-4 sm:px-6">
                             {drawerItems.map((item, i) => (
                                 <motion.li
-                                    key={item.href}
+                                    key={item.id ?? item.href}
                                     initial={{ opacity: 0, x: -16 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: 0.15 + i * 0.05, duration: 0.4 }}

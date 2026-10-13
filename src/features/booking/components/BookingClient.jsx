@@ -1,7 +1,7 @@
 // src/features/booking/components/BookingClient.jsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Lock, RefreshCw } from "lucide-react";
 import PitchPicker from "./PitchPicker";
@@ -11,10 +11,37 @@ import BookingSummary from "./BookingSummary";
 import PromoBanner from "@/components/site/PromoBanner";
 import Button from "@/components/ui/Button";
 import { createBookingHold } from "@/features/booking/actions";
-import { addDaysISO, shortDateLabel } from "@/lib/time";
+import { payForBooking } from "@/features/payment/actions";
+import { addDaysISO, operatingMinutes, shortDateLabel } from "@/lib/time";
 import { taka, time12 } from "@/lib/utils";
 
 const DAYS_AHEAD = 14;
+
+// ?part= from the home page shortcut. Minutes since the 6 am day start (after midnight continues past 1440).
+const PARTS = {
+    morning: [6 * 60, 12 * 60],
+    day: [12 * 60, 17 * 60],
+    evening: [17 * 60, 22 * 60],
+    late: [22 * 60, 30 * 60],
+};
+
+/** First free block matching ?t=HH:MM, or the first free one inside ?part=. */
+function pickInitialBlock(blocks, time, part) {
+    const free = blocks.filter((b) => b.state === "free");
+    if (time) {
+        const exact = free.find((b) => b.start === time);
+        if (exact) return exact.id;
+    }
+    const range = PARTS[part];
+    if (range) {
+        const hit = free.find((b) => {
+            const m = operatingMinutes(b.start);
+            return m >= range[0] && m < range[1];
+        });
+        if (hit) return hit.id;
+    }
+    return null;
+}
 
 /**
  * Booking page. Same flow as the prototype:
@@ -25,12 +52,29 @@ const DAYS_AHEAD = 14;
  *   startDate      today's operating day "YYYY-MM-DD" (Asia/Dhaka), from the server
  *   initialPitchId optional ?pitch= from the URL
  *   initialDate    optional ?date= from the URL
+ *   initialTime    optional ?t=HH:MM (from "Still free today" on the home page): selects that slot if free
+ *   initialPart    optional ?part=morning|day|evening|late (home page shortcut): selects the first free slot in it
  *   banner         promo banner for placement "booking_page" (optional)
+ *   venue          venue line for the summary card (site address)
  *   isSignedIn     boolean
+ *   paymentsLive   SSLCommerz is configured: Pay goes straight to the gateway
  */
-export default function BookingClient({ pitches, startDate, initialPitchId, initialDate, banner, isSignedIn }) {
+export default function BookingClient({
+    pitches,
+    startDate,
+    initialPitchId,
+    initialDate,
+    initialTime = null,
+    initialPart = null,
+    banner,
+    venue = "",
+    isSignedIn,
+    paymentsLive = false,
+}) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
+    const [leaving, setLeaving] = useState(false); // on the way to the payment page
+    const busy = isPending || leaving;
 
     const [pitchId, setPitchId] = useState(() =>
         pitches.some((p) => p.id === initialPitchId) ? initialPitchId : pitches[0]?.id
@@ -46,6 +90,8 @@ export default function BookingClient({ pitches, startDate, initialPitchId, init
     const [blockId, setBlockId] = useState(null);
     const [payError, setPayError] = useState("");
     const [reloadKey, setReloadKey] = useState(0);
+    // The ?t= / ?part= preselect applies once, to the first board that loads.
+    const preselect = useRef(initialTime || initialPart ? { time: initialTime, part: initialPart } : null);
 
     const pitch = pitches.find((p) => p.id === pitchId);
     const date = useMemo(() => addDaysISO(startDate, dayIndex), [startDate, dayIndex]);
@@ -66,7 +112,14 @@ export default function BookingClient({ pitches, startDate, initialPitchId, init
             .then(async (res) => {
                 if (!res.ok) throw new Error("Failed to load slots");
                 const data = await res.json();
-                if (!cancelled) setBlocks(data.blocks ?? []);
+                if (cancelled) return;
+                const list = data.blocks ?? [];
+                setBlocks(list);
+                if (preselect.current) {
+                    const id = pickInitialBlock(list, preselect.current.time, preselect.current.part);
+                    preselect.current = null;
+                    if (id) setBlockId(id);
+                }
             })
             .catch(() => {
                 if (!cancelled) {
@@ -106,9 +159,20 @@ export default function BookingClient({ pitches, startDate, initialPitchId, init
                 reload(); // slot may have been taken, refresh the board
                 return;
             }
-            // Step 2 (SSLCommerz) will redirect to the payment gateway here.
-            // Until then, the held booking shows up in My bookings.
-            router.push(`/bookings?held=${res.data.code}`);
+            if (!paymentsLive) {
+                // Gateway not configured yet: the held booking waits in My bookings.
+                router.push(`/bookings?held=${res.data.code}`);
+                return;
+            }
+            // Slot is held; open the SSLCommerz payment page.
+            const pay = await payForBooking(res.data.bookingId);
+            if (pay.ok) {
+                setLeaving(true);
+                window.location.assign(pay.data.url);
+                return;
+            }
+            // Couldn't open the gateway: the hold is still there, so send them to pay from My bookings.
+            router.push(`/bookings?held=${res.data.code}&pay=failed`);
         });
     }
 
@@ -174,9 +238,10 @@ export default function BookingClient({ pitches, startDate, initialPitchId, init
                             dateLabel={dateLabel}
                             block={block}
                             onPay={handlePay}
-                            busy={isPending}
+                            busy={busy}
                             error={payError}
                             isSignedIn={isSignedIn}
+                            venue={venue}
                         />
                     </div>
                 </div>
@@ -192,9 +257,9 @@ export default function BookingClient({ pitches, startDate, initialPitchId, init
                         </p>
                         <p className="display text-[24px] text-ink tnum">{taka(block?.price ?? 0)}</p>
                     </div>
-                    <Button size="lg" disabled={!block || isPending} onClick={handlePay}>
+                    <Button size="lg" disabled={!block || busy} onClick={handlePay}>
                         <Lock className="h-4 w-4" />
-                        {isPending ? "Reserving…" : isSignedIn ? "Continue" : "Sign in to book"}
+                        {busy ? "Reserving…" : isSignedIn ? `Pay ${taka(block?.price ?? 0)}` : "Sign in to book"}
                     </Button>
                 </div>
             </div>

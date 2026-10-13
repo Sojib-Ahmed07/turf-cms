@@ -5,8 +5,10 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { eq, sql } from "drizzle-orm";
 import * as schema from "./schema/index.js";
 
-const { siteSettings, navItems, pageSections, pitches, user } = schema;
+const { siteSettings, navItems, pageSections, pitches, user, heroSlides, promoBanners, coupons } = schema;
 const db = drizzle(neon(process.env.DATABASE_URL), { schema });
+
+const img = (id, w = 1800) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
 
 const DEFAULT_BLOCKS_A = [
     { startTime: "06:00", endTime: "07:30", price: "1500", sortOrder: 0 },
@@ -148,6 +150,102 @@ async function main() {
                 defaultBlocks: DEFAULT_BLOCKS_A,
                 sortOrder: 2,
                 isActive: true,
+            },
+        ]);
+    }
+
+    // Hero slides (sample content; the admin replaces these in Admin > Hero slides)
+    const slideCount = await db.select({ c: sql`count(*)` }).from(heroSlides);
+    if (Number(slideCount[0].c) === 0) {
+        await db.insert(heroSlides).values([
+            {
+                imageUrl: img("1487466365202-1afdb86c764e"),
+                alt: "Floodlit football turf at night",
+                eyebrow: "Open till 3 am",
+                heading: "Your game starts when the lights come on",
+                subheading: "Floodlit turf in Mirpur 12. Pick a slot, pay online, and walk straight onto the pitch.",
+                ctaLabel: "Book a slot",
+                ctaHref: "/book",
+                sortOrder: 0,
+            },
+            {
+                imageUrl: img("1517747614396-d21a78b850e8"),
+                alt: "Aerial view of a lit football field",
+                eyebrow: "7-a-side",
+                heading: "More room to run on Pitch B",
+                subheading: "A wider ground for weekend leagues, with LED floodlights.",
+                ctaLabel: "See evening slots",
+                ctaHref: "/book?part=evening",
+                sortOrder: 1,
+            },
+            {
+                imageUrl: img("1570498839593-e565b39455fc"),
+                alt: "Football resting on green turf",
+                eyebrow: "Morning slots",
+                heading: "Beat the heat with a 6 am kickoff",
+                subheading: "Morning slots are the cheapest of the day.",
+                ctaLabel: "See morning slots",
+                ctaHref: "/book?part=morning",
+                sortOrder: 2,
+            },
+        ]);
+    }
+
+    // Coupons + offer banners (sample content; Admin > Coupons and Offer banners later)
+    const bannerCount = await db.select({ c: sql`count(*)` }).from(promoBanners);
+    if (Number(bannerCount[0].c) === 0) {
+        await db
+            .insert(coupons)
+            .values([
+                { code: "NIGHT20", type: "percent", value: "20", maxDiscount: "600" },
+                { code: "FIRST200", type: "fixed", value: "200", perUserLimit: 1 },
+            ])
+            .onConflictDoNothing();
+        const codes = await db.select({ id: coupons.id, code: coupons.code }).from(coupons);
+        const couponId = (code) => codes.find((c) => c.code === code)?.id ?? null;
+
+        await db.insert(promoBanners).values([
+            {
+                placement: "top_bar",
+                title: "Weekend nights are 20% off",
+                ctaLabel: "Book now",
+                ctaHref: "/book?part=late",
+                couponId: couponId("NIGHT20"),
+            },
+            {
+                placement: "home_after_hero",
+                imageUrl: img("1601701089287-2a4fa78d091b", 1200),
+                badge: "20% off",
+                title: "Friday and Saturday after 9 pm",
+                body: "Bring the squad for late games and save on every slot. Use the code below at checkout.",
+                ctaLabel: "Book a night slot",
+                ctaHref: "/book?part=late",
+                couponId: couponId("NIGHT20"),
+            },
+            {
+                placement: "home_mid",
+                badge: "Tournament",
+                title: "Mirpur 5-a-side Cup is coming",
+                body: "16 teams, one weekend. Call the desk to register your team.",
+                ctaLabel: "Call the desk",
+                ctaHref: "/#visit",
+            },
+            {
+                placement: "booking_page",
+                badge: "20% off",
+                title: "Friday and Saturday after 9 pm",
+                couponId: couponId("NIGHT20"),
+            },
+            {
+                placement: "popup",
+                imageUrl: img("1459865264687-595d652de67e", 900),
+                badge: "First booking",
+                title: "৳200 off your first game",
+                body: "Create an account and use the code at checkout. One use per player.",
+                ctaLabel: "Book my first slot",
+                ctaHref: "/book",
+                couponId: couponId("FIRST200"),
+                isActive: false, // switch on in Admin > Offer banners when coupons work at checkout
             },
         ]);
     }

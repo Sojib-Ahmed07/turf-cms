@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { CouponCode } from "./PromoBanner";
+import { canOptimize } from "@/lib/utils";
 
 /** Shows once per visitor (placement: popup). `delayMs` before opening. */
 export default function PromoPopup({ banner, delayMs = 2500 }) {
@@ -17,7 +18,7 @@ export default function PromoPopup({ banner, delayMs = 2500 }) {
         let seen = false;
         try {
             seen = localStorage.getItem(`promo-${banner.id}`) === "1";
-        } catch {}
+        } catch { }
         if (seen) return;
         const t = setTimeout(() => setOpen(true), delayMs);
         return () => clearTimeout(t);
@@ -27,7 +28,7 @@ export default function PromoPopup({ banner, delayMs = 2500 }) {
         setOpen(false);
         try {
             localStorage.setItem(`promo-${banner.id}`, "1");
-        } catch {}
+        } catch { }
     };
 
     return (
@@ -53,12 +54,14 @@ export default function PromoPopup({ banner, delayMs = 2500 }) {
                     >
                         <div className="relative h-48 bg-pitch">
                             {banner.imageUrl && (
-                                <Image src={banner.imageUrl} alt="" fill sizes="440px" className="object-cover opacity-70" />
+                                <Image src={banner.imageUrl} alt="" fill sizes="440px" unoptimized={!canOptimize(banner.imageUrl)} className="object-cover opacity-70" />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-pitch to-transparent" />
-                            <span className="absolute bottom-5 left-6 rounded-full bg-flare px-3 py-1 text-[13px] font-bold text-ink">
-                                {banner.badge}
-                            </span>
+                            {banner.badge && (
+                                <span className="absolute bottom-5 left-6 rounded-full bg-flare px-3 py-1 text-[13px] font-bold text-ink">
+                                    {banner.badge}
+                                </span>
+                            )}
                             <button
                                 type="button"
                                 onClick={close}
@@ -73,9 +76,11 @@ export default function PromoPopup({ banner, delayMs = 2500 }) {
                             {banner.body && <p className="mt-3 text-[15px] leading-relaxed text-ink-3">{banner.body}</p>}
                             <div className="mt-6 flex flex-col gap-3">
                                 {banner.code && <CouponCode code={banner.code} />}
-                                <Button href={banner.ctaHref} size="lg" onClick={close}>
-                                    {banner.ctaLabel}
-                                </Button>
+                                {banner.ctaHref && (
+                                    <Button href={banner.ctaHref} size="lg" onClick={close}>
+                                        {banner.ctaLabel || "Book now"}
+                                    </Button>
+                                )}
                                 <button type="button" onClick={close} className="py-1 text-[13px] font-medium text-ink-3 hover:text-ink">
                                     Maybe later
                                 </button>

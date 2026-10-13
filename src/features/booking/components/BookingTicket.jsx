@@ -17,9 +17,11 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
 
 /**
  * One booking drawn as a match ticket.
- * onCancel(bookingId): shown for held bookings. payHref: shown for held bookings once payments are live.
+ * onCancel(bookingId): shown for held bookings.
+ * onPay(bookingId): shown for held bookings once payments are live (payHref is the older link form).
+ * busy: "cancel" | "pay" | false
  */
-export default function BookingTicket({ booking, onCancel, payHref, busy = false, highlight = false }) {
+export default function BookingTicket({ booking, onCancel, onPay, payHref, busy = false, highlight = false }) {
     const d = new Date(`${booking.date}T00:00:00`);
     const s = STATUS[booking.status] ?? STATUS.confirmed;
     const dim = booking.status === "cancelled" || booking.status === "completed";
@@ -81,7 +83,17 @@ export default function BookingTicket({ booking, onCancel, payHref, busy = false
                     <div className="md:text-right">
                         <p className="text-[20px] font-bold text-ink tnum">{taka(booking.total)}</p>
                         <p className="text-[12px] text-ink-3">
-                            {booking.paidWith ? `Paid with ${booking.paidWith}` : booking.status === "held" ? "Not paid yet" : "No charge"}
+                            {booking.refundDue
+                                ? "Paid, refund on the way"
+                                : booking.refunded
+                                    ? "Refunded"
+                                    : booking.paidWith
+                                        ? booking.paidWith === "Online"
+                                            ? "Paid online"
+                                            : `Paid with ${booking.paidWith}`
+                                        : booking.status === "held"
+                                            ? "Not paid yet"
+                                            : "No charge"}
                             {booking.discount > 0 && `, saved ${taka(booking.discount)}`}
                         </p>
                     </div>
@@ -94,11 +106,16 @@ export default function BookingTicket({ booking, onCancel, payHref, busy = false
                     {booking.status === "held" && (
                         <div className="flex gap-2">
                             {onCancel && (
-                                <Button variant="ghost" size="sm" disabled={busy} onClick={() => onCancel(booking.bookingId)}>
-                                    {busy ? "Cancelling…" : "Cancel"}
+                                <Button variant="ghost" size="sm" disabled={Boolean(busy)} onClick={() => onCancel(booking.bookingId)}>
+                                    {busy === "cancel" || busy === true ? "Cancelling…" : "Cancel"}
                                 </Button>
                             )}
-                            {payHref && (
+                            {onPay && (
+                                <Button variant="flare" size="sm" disabled={Boolean(busy)} onClick={() => onPay(booking.bookingId)}>
+                                    {busy === "pay" ? "Opening payment…" : `Pay ${taka(booking.total)}`}
+                                </Button>
+                            )}
+                            {!onPay && payHref && (
                                 <Button href={payHref} variant="flare" size="sm">
                                     Pay {taka(booking.total)}
                                 </Button>

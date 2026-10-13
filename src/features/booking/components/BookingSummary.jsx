@@ -11,7 +11,7 @@ import { cn, taka, time12 } from "@/lib/utils";
  * onPay/busy/error come from BookingClient. The promo code box is hidden
  * until the coupons step (pass showCoupon to bring it back).
  */
-export default function BookingSummary({ pitch, dateLabel, block, onPay, busy = false, error = "", isSignedIn = true, showCoupon = false }) {
+export default function BookingSummary({ pitch, dateLabel, block, onPay, busy = false, error = "", isSignedIn = true, showCoupon = false, venue = "" }) {
     const [code, setCode] = useState("");
     const [applied, setApplied] = useState(null);
 
@@ -42,7 +42,7 @@ export default function BookingSummary({ pitch, dateLabel, block, onPay, busy = 
                         value={block ? `${time12(block.start)} to ${time12(block.end)}` : "Choose a slot"}
                         muted={!block}
                     />
-                    <Line icon={MapPin} label="Venue" value="Mirpur 12, Dhaka" />
+                    {venue && <Line icon={MapPin} label="Venue" value={venue} />}
                 </dl>
 
                 {/* Coupon */}

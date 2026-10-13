@@ -20,10 +20,12 @@ export default function Footer({ settings, items = [] }) {
                 <div className="relative mx-auto grid max-w-7xl grid-cols-2 gap-10 px-6 py-14 sm:px-10 lg:grid-cols-12 lg:px-12">
                     <div className="col-span-2 lg:col-span-4">
                         <Logo settings={settings} tone="light" />
-                        <p className="mt-4 max-w-[30ch] text-[15px] leading-relaxed text-white/60">{settings.tagline}</p>
+                        {settings.tagline && (
+                            <p className="mt-4 max-w-[30ch] text-[15px] leading-relaxed text-white/60">{settings.tagline}</p>
+                        )}
                         <ul className="mt-6 flex gap-2">
                             {socials.map((s) => (
-                                <li key={s.platform}>
+                                <li key={s.url}>
                                     <a
                                         href={s.url}
                                         target="_blank"
@@ -40,7 +42,7 @@ export default function Footer({ settings, items = [] }) {
 
                     <FooterCol title="Explore" className="lg:col-span-2">
                         {items.map((i) => (
-                            <li key={i.href}>
+                            <li key={i.id ?? i.href}>
                                 <Link href={i.href} className="hover:text-white">
                                     {i.label}
                                 </Link>
@@ -56,14 +58,20 @@ export default function Footer({ settings, items = [] }) {
                     </FooterCol>
 
                     <FooterCol title="Visit" className="col-span-2 lg:col-span-4">
-                        <li>{contact.address}</li>
-                        <li>{contact.hours}</li>
-                        <li>
-                            <a href={`tel:${contact.phone}`} className="hover:text-white">{contact.phone}</a>
-                        </li>
-                        <li>
-                            <a href={`mailto:${contact.email}`} className="hover:text-white">{contact.email}</a>
-                        </li>
+                        {contact.address && <li>{contact.address}</li>}
+                        {contact.hours && <li>{contact.hours}</li>}
+                        {contact.phone && (
+                            <li>
+                                <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} className="hover:text-white">
+                                    {contact.phone}
+                                </a>
+                            </li>
+                        )}
+                        {contact.email && (
+                            <li>
+                                <a href={`mailto:${contact.email}`} className="hover:text-white">{contact.email}</a>
+                            </li>
+                        )}
                     </FooterCol>
                 </div>
 

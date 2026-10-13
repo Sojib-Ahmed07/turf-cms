@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Check, Copy, Clock3, Trophy } from "lucide-react";
 import Button from "@/components/ui/Button";
 import PitchLines from "./PitchLines";
-import { cn } from "@/lib/utils";
+import { canOptimize, cn } from "@/lib/utils";
 
 /**
  * One component, three looks, picked by placement:
@@ -29,7 +29,7 @@ function TicketCard({ banner, className }) {
                 {/* Stub */}
                 <div className="relative min-h-[220px] overflow-hidden bg-pitch">
                     {banner.imageUrl && (
-                        <Image src={banner.imageUrl} alt="" fill sizes="(min-width:768px) 40vw, 100vw" className="object-cover opacity-60" />
+                        <Image src={banner.imageUrl} alt="" fill sizes="(min-width:768px) 40vw, 100vw" unoptimized={!canOptimize(banner.imageUrl)} className="object-cover opacity-60" />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-tr from-pitch via-pitch/70 to-transparent" />
                     <div className="relative flex h-full flex-col justify-end p-7 sm:p-9">
@@ -59,7 +59,7 @@ function TicketCard({ banner, className }) {
                         {banner.code && <CouponCode code={banner.code} />}
                         {banner.ctaHref && (
                             <Button href={banner.ctaHref} variant="ink" size="lg">
-                                {banner.ctaLabel}
+                                {banner.ctaLabel || "Book now"}
                             </Button>
                         )}
                     </div>
@@ -77,15 +77,17 @@ function Band({ banner, className }) {
                 <PitchLines variant="box" className="absolute -right-10 top-0 w-[420px] text-white/10" />
                 <div className="relative mx-auto flex max-w-6xl flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
                     <div className="max-w-2xl">
-                        <span className="inline-flex items-center gap-2 rounded-full bg-flare px-3 py-1 text-[13px] font-bold text-ink">
-                            <Trophy className="h-3.5 w-3.5" /> {banner.badge}
-                        </span>
-                        <h2 className="display mt-5 text-balance text-[clamp(30px,4.4vw,56px)]">{banner.title}</h2>
+                        {banner.badge && (
+                            <span className="mb-5 inline-flex items-center gap-2 rounded-full bg-flare px-3 py-1 text-[13px] font-bold text-ink">
+                                <Trophy className="h-3.5 w-3.5" /> {banner.badge}
+                            </span>
+                        )}
+                        <h2 className="display text-balance text-[clamp(30px,4.4vw,56px)]">{banner.title}</h2>
                         {banner.body && <p className="mt-4 text-[15px] text-white/70 sm:text-base">{banner.body}</p>}
                     </div>
                     {banner.ctaHref && (
                         <Button href={banner.ctaHref} variant="flare" size="lg">
-                            {banner.ctaLabel}
+                            {banner.ctaLabel || "Book now"}
                         </Button>
                     )}
                 </div>

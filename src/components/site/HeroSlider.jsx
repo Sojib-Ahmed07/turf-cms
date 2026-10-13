@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Button from "@/components/ui/Button";
 import PitchLines from "./PitchLines";
-import { cn } from "@/lib/utils";
+import { canOptimize, cn } from "@/lib/utils";
 
 const FALLBACK = {
     id: "fallback",
@@ -22,17 +22,18 @@ const FALLBACK = {
 };
 
 /**
+ * Slides come from Admin > Hero slides (getHeroSlides).
  * 0 slides  -> branded placeholder
  * 1 slide   -> static banner (no controls)
  * 2+ slides -> crossfading slider with autoplay + swipe
  */
-export default function HeroSlider({ slides = [], autoplayMs = 6000, liveNote }) {
+export default function HeroSlider({ slides = [], autoplayMs = 6000, pauseOnHover = true, liveNote }) {
     const list = slides.length ? slides : [FALLBACK];
     const isSlider = list.length > 1;
 
     const [emblaRef, emblaApi] = useEmblaCarousel(
         { loop: true, duration: 30, watchDrag: isSlider },
-        isSlider ? [Fade(), Autoplay({ delay: autoplayMs, stopOnInteraction: false, stopOnMouseEnter: true })] : []
+        isSlider ? [Fade(), Autoplay({ delay: autoplayMs, stopOnInteraction: false, stopOnMouseEnter: pauseOnHover })] : []
     );
     const [index, setIndex] = useState(0);
     const [paused, setPaused] = useState(false);
@@ -54,7 +55,7 @@ export default function HeroSlider({ slides = [], autoplayMs = 6000, liveNote })
         <section className="px-3 pt-1 sm:px-4">
             <div
                 className="relative isolate h-[clamp(580px,86svh,860px)] overflow-hidden rounded-frame bg-pitch"
-                onMouseEnter={() => setPaused(true)}
+                onMouseEnter={() => pauseOnHover && setPaused(true)}
                 onMouseLeave={() => setPaused(false)}
             >
                 {/* Images */}
@@ -63,17 +64,36 @@ export default function HeroSlider({ slides = [], autoplayMs = 6000, liveNote })
                         {list.map((s, i) => (
                             <div key={s.id} className="relative h-full min-w-0 flex-[0_0_100%]">
                                 {s.imageUrl ? (
-                                    <Image
-                                        src={s.imageUrl}
-                                        alt={s.alt ?? ""}
-                                        fill
-                                        priority={i === 0}
-                                        sizes="100vw"
-                                        className={cn(
-                                            "object-cover transition-transform duration-[7000ms] ease-out",
-                                            index === i ? "scale-[1.06]" : "scale-100"
+                                    <>
+                                        <Image
+                                            src={s.imageUrl}
+                                            alt={s.alt ?? ""}
+                                            fill
+                                            priority={i === 0}
+                                            sizes="100vw"
+                                            unoptimized={!canOptimize(s.imageUrl)}
+                                            className={cn(
+                                                "object-cover transition-transform duration-[7000ms] ease-out",
+                                                index === i ? "scale-[1.06]" : "scale-100",
+                                                s.mobileImageUrl && "hidden sm:block"
+                                            )}
+                                        />
+                                        {/* Optional portrait image for phones */}
+                                        {s.mobileImageUrl && (
+                                            <Image
+                                                src={s.mobileImageUrl}
+                                                alt={s.alt ?? ""}
+                                                fill
+                                                priority={i === 0}
+                                                sizes="100vw"
+                                                unoptimized={!canOptimize(s.mobileImageUrl)}
+                                                className={cn(
+                                                    "object-cover transition-transform duration-[7000ms] ease-out sm:hidden",
+                                                    index === i ? "scale-[1.06]" : "scale-100"
+                                                )}
+                                            />
                                         )}
-                                    />
+                                    </>
                                 ) : (
                                     <div className="grain absolute inset-0 bg-pitch" />
                                 )}

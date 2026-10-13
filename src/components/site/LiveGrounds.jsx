@@ -3,10 +3,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { Ruler, Layers } from "lucide-react";
 import Button from "@/components/ui/Button";
-import { cn, taka, time12 } from "@/lib/utils";
+import PitchLines from "./PitchLines";
+import { canOptimize, cn, taka, time12 } from "@/lib/utils";
 
-/** Home section: first ground featured, the rest as compact rows. */
-export default function LiveGrounds({ content, pitches = [] }) {
+/**
+ * Home section: first ground featured, the rest as compact rows.
+ * pitches come from getGroundsToday(): each has freeToday = ["19:30", ...] for `date`.
+ */
+export default function LiveGrounds({ content, pitches = [], date }) {
     const [featured, ...rest] = pitches;
 
     return (
@@ -14,7 +18,9 @@ export default function LiveGrounds({ content, pitches = [] }) {
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
                     <h2 className="display text-[clamp(36px,5vw,64px)] text-ink">{content.heading}</h2>
-                    <p className="mt-4 max-w-[52ch] text-[16px] leading-relaxed text-ink-3">{content.body}</p>
+                    {content.body && (
+                        <p className="mt-4 max-w-[52ch] text-[16px] leading-relaxed text-ink-3">{content.body}</p>
+                    )}
                 </div>
                 <Button href="/book" variant="outline" size="lg">
                     See the full schedule
@@ -31,12 +37,10 @@ export default function LiveGrounds({ content, pitches = [] }) {
                     {/* Featured */}
                     <article className="group overflow-hidden rounded-card bg-white ring-1 ring-line lg:col-span-7">
                         <div className="relative aspect-[16/10] overflow-hidden bg-pitch">
-                            <Image
-                                src={featured.imageUrl}
-                                alt={featured.name}
-                                fill
+                            <GroundPhoto
+                                pitch={featured}
                                 sizes="(min-width:1024px) 58vw, 100vw"
-                                className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                                className="transition-transform duration-700 ease-out group-hover:scale-[1.03]"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-pitch/90 via-pitch/10 to-transparent" />
                             <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-6 sm:p-8">
@@ -52,7 +56,7 @@ export default function LiveGrounds({ content, pitches = [] }) {
                         </div>
                         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
                             <Specs pitch={featured} />
-                            <FreeTimes pitch={featured} />
+                            <FreeTimes pitch={featured} date={date} />
                         </div>
                     </article>
 
@@ -61,14 +65,14 @@ export default function LiveGrounds({ content, pitches = [] }) {
                         {rest.map((p) => (
                             <article key={p.id} className="group flex flex-1 gap-5 rounded-card bg-white p-4 ring-1 ring-line sm:p-5">
                                 <div className="relative w-28 shrink-0 overflow-hidden rounded-[14px] bg-pitch sm:w-40">
-                                    <Image src={p.imageUrl} alt={p.name} fill sizes="160px" className="object-cover transition-transform duration-700 group-hover:scale-105" />
+                                    <GroundPhoto pitch={p} sizes="160px" className="transition-transform duration-700 group-hover:scale-105" />
                                 </div>
                                 <div className="flex min-w-0 flex-1 flex-col justify-between gap-4 py-1">
                                     <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                                         <div>
                                             <h3 className="display text-[24px] text-ink sm:text-[26px]">{p.name}</h3>
                                             <p className="mt-1 text-[13px] text-ink-3">
-                                                {p.format}, {p.size}
+                                                {[p.format, p.size].filter(Boolean).join(", ")}
                                             </p>
                                         </div>
                                         <p className="shrink-0 text-[15px] font-bold text-ink tnum">
@@ -76,7 +80,7 @@ export default function LiveGrounds({ content, pitches = [] }) {
                                             <span className="font-medium text-ink-3">/hr</span>
                                         </p>
                                     </div>
-                                    <FreeTimes pitch={p} compact />
+                                    <FreeTimes pitch={p} date={date} compact />
                                 </div>
                             </article>
                         ))}
@@ -88,35 +92,66 @@ export default function LiveGrounds({ content, pitches = [] }) {
 }
 
 function Specs({ pitch }) {
+    if (!pitch.size && !pitch.surface) return <div />;
     return (
         <dl className="flex gap-6 text-[14px]">
-            <div className="flex items-center gap-2 text-ink-2">
-                <Ruler className="h-4 w-4 text-ink-4" />
-                <dt className="sr-only">Size</dt>
-                <dd>{pitch.size}</dd>
-            </div>
-            <div className="flex items-center gap-2 text-ink-2">
-                <Layers className="h-4 w-4 text-ink-4" />
-                <dt className="sr-only">Surface</dt>
-                <dd>{pitch.surface}</dd>
-            </div>
+            {pitch.size && (
+                <div className="flex items-center gap-2 text-ink-2">
+                    <Ruler className="h-4 w-4 text-ink-4" />
+                    <dt className="sr-only">Size</dt>
+                    <dd>{pitch.size}</dd>
+                </div>
+            )}
+            {pitch.surface && (
+                <div className="flex items-center gap-2 text-ink-2">
+                    <Layers className="h-4 w-4 text-ink-4" />
+                    <dt className="sr-only">Surface</dt>
+                    <dd>{pitch.surface}</dd>
+                </div>
+            )}
         </dl>
     );
 }
 
-function FreeTimes({ pitch, compact = false }) {
-    const times = pitch.freeTonight ?? [];
-    if (!times.length) {
-        return <p className="text-[13px] font-medium text-ink-3">Fully booked tonight</p>;
+/** Ground photo, or chalk pitch lines when the admin hasn't added one. */
+function GroundPhoto({ pitch, sizes, className }) {
+    if (!pitch.imageUrl) {
+        return (
+            <div className="absolute inset-0 grid place-items-center bg-pitch">
+                <PitchLines className={cn("h-full w-full text-white/20", className)} />
+            </div>
+        );
     }
     return (
+        <Image
+            src={pitch.imageUrl}
+            alt={pitch.name}
+            fill
+            sizes={sizes}
+            unoptimized={!canOptimize(pitch.imageUrl)}
+            className={cn("object-cover", className)}
+        />
+    );
+}
+
+function FreeTimes({ pitch, date, compact = false }) {
+    const times = pitch.freeToday ?? [];
+    if (!times.length) {
+        return (
+            <Link href={`/book?pitch=${pitch.id}`} className="text-[13px] font-medium text-ink-3 hover:text-ink">
+                No free slots left today. See other days
+            </Link>
+        );
+    }
+    const dateParam = date ? `&date=${date}` : "";
+    return (
         <div>
-            {!compact && <p className="mb-2 text-xs font-medium text-ink-3">Free tonight</p>}
+            {!compact && <p className="mb-2 text-xs font-medium text-ink-3">Still free today</p>}
             <ul className="flex flex-wrap gap-1.5">
                 {times.slice(0, compact ? 3 : 4).map((t) => (
                     <li key={t}>
                         <Link
-                            href={`/book?pitch=${pitch.id}&t=${t}`}
+                            href={`/book?pitch=${pitch.id}${dateParam}&t=${t}`}
                             className={cn(
                                 "inline-flex rounded-full bg-brand-soft px-3 py-1.5 text-[13px] font-semibold text-brand-deep tnum",
                                 "ring-1 ring-inset ring-transparent transition hover:bg-brand hover:text-brand-ink"

@@ -11,7 +11,7 @@ import Switch from "@/components/ui/Switch";
 import PitchLines from "@/components/site/PitchLines";
 import PitchForm, { EMPTY_PITCH } from "./PitchForm";
 import { togglePitchActive } from "@/features/admin/actions/pitches";
-import { cn, taka, time12 } from "@/lib/utils";
+import { canOptimize, cn, taka, time12 } from "@/lib/utils";
 
 /** /admin/pitches — ground cards (prototype: PitchesManager list). */
 export default function GroundsList({ pitches = [] }) {
@@ -64,7 +64,7 @@ export default function GroundsList({ pitches = [] }) {
                         <article key={p.id} className={cn("overflow-hidden rounded-card bg-white ring-1 ring-line", !p.isActive && "opacity-75")}>
                             <div className="relative aspect-[16/9] bg-pitch">
                                 {p.imageUrl ? (
-                                    <Image src={p.imageUrl} alt="" fill sizes="420px" className="object-cover" />
+                                    <Image src={p.imageUrl} alt="" fill sizes="420px" unoptimized={!canOptimize(p.imageUrl)} className="object-cover" />
                                 ) : (
                                     <PitchLines className="absolute inset-0 h-full w-full text-white/15" />
                                 )}

@@ -6,43 +6,53 @@ import Button from "@/components/ui/Button";
  * "Find us" section. The map is a styled illustration; swap it for a
  * Google Maps <iframe> later if the client wants a live map.
  */
-export default function VenueInfo({ content, contact }) {
+export default function VenueInfo({ content, contact, siteName = "TurfZone" }) {
+    const phoneHref = contact.phone ? `tel:${contact.phone.replace(/[^\d+]/g, "")}` : null;
+
     return (
         <section id="visit" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
             <div className="grid gap-10 lg:grid-cols-12 lg:gap-16">
                 <div className="lg:col-span-5">
                     <h2 className="display text-[clamp(36px,4.8vw,60px)] text-ink">{content.heading}</h2>
-                    <p className="mt-4 max-w-[46ch] text-[16px] leading-relaxed text-ink-3">{content.body}</p>
+                    {content.body && (
+                        <p className="mt-4 max-w-[46ch] text-[16px] leading-relaxed text-ink-3">{content.body}</p>
+                    )}
 
                     <dl className="mt-10 divide-y divide-line border-y border-line">
-                        <Row icon={MapPin} label="Address" value={contact.address} />
-                        <Row icon={Clock3} label="Hours" value={contact.hours} />
-                        <Row icon={Phone} label="Phone" value={contact.phone} />
+                        {contact.address && <Row icon={MapPin} label="Address" value={contact.address} />}
+                        {contact.hours && <Row icon={Clock3} label="Hours" value={contact.hours} />}
+                        {contact.phone && <Row icon={Phone} label="Phone" value={contact.phone} />}
                     </dl>
 
                     <div className="mt-8 flex flex-wrap gap-3">
-                        <Button href={contact.mapUrl} variant="ink" size="lg" target="_blank" rel="noreferrer">
-                            <Navigation className="h-4 w-4" />
-                            Get directions
-                        </Button>
-                        <Button href={`tel:${contact.phone.replace(/\s|-/g, "")}`} variant="outline" size="lg">
-                            Call the desk
-                        </Button>
+                        {contact.mapUrl && (
+                            <Button href={contact.mapUrl} variant="ink" size="lg" target="_blank" rel="noreferrer">
+                                <Navigation className="h-4 w-4" />
+                                Get directions
+                            </Button>
+                        )}
+                        {phoneHref && (
+                            <Button href={phoneHref} variant="outline" size="lg">
+                                Call the desk
+                            </Button>
+                        )}
                     </div>
                 </div>
 
                 <div className="flex flex-col gap-4 lg:col-span-7">
-                    <MapArt />
-                    <ul className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-card bg-white p-6 ring-1 ring-line sm:grid-cols-3">
-                        {content.facilities.map((f) => (
-                            <li key={f} className="flex items-center gap-2.5 text-[14px] font-medium text-ink-2">
-                                <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-soft text-brand-deep">
-                                    <Check className="h-3 w-3" strokeWidth={3} />
-                                </span>
-                                {f}
-                            </li>
-                        ))}
-                    </ul>
+                    <MapArt name={siteName} />
+                    {content.facilities.length > 0 && (
+                        <ul className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-card bg-white p-6 ring-1 ring-line sm:grid-cols-3">
+                            {content.facilities.map((f) => (
+                                <li key={f} className="flex items-center gap-2.5 text-[14px] font-medium text-ink-2">
+                                    <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-soft text-brand-deep">
+                                        <Check className="h-3 w-3" strokeWidth={3} />
+                                    </span>
+                                    {f}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
             </div>
         </section>
@@ -61,7 +71,7 @@ function Row({ icon: Icon, label, value }) {
     );
 }
 
-function MapArt() {
+function MapArt({ name }) {
     return (
         <div className="relative aspect-[16/10] overflow-hidden rounded-card bg-[#e9eee6] ring-1 ring-line">
             <svg viewBox="0 0 800 500" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
@@ -95,7 +105,7 @@ function MapArt() {
                     <span className="grid h-7 w-7 place-items-center rounded-full bg-brand">
                         <MapPin className="h-3.5 w-3.5" />
                     </span>
-                    TurfZone
+                    {name}
                 </div>
                 <span className="mx-auto block h-3 w-[2px] bg-pitch" />
                 <span className="mx-auto block h-2.5 w-2.5 rounded-full border-2 border-white bg-pitch" />

@@ -13,7 +13,7 @@ export default async function BookPage({ searchParams }) {
     const [pitches, session] = await Promise.all([getPitches(), getSession()]);
 
     // "Today" is the venue's operating day in Asia/Dhaka (after midnight still counts as the previous day until 6 am).
-    const { date: startDate } = currentOperatingDay(pitches[0]?.openHour ?? 6);
+    const { date: startDate } = currentOperatingDay();
 
     return (
         <BookingClient

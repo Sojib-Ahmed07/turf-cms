@@ -2,10 +2,14 @@
 // Time helpers. Everything is computed in Asia/Dhaka, never in the server's
 // own timezone (servers usually run in UTC).
 //
-// "Operating day": the venue opens at `openHour` (default 6) and runs past
-// midnight (close 3 am). A 01:30 slot on the sheet for Sat 11 Oct is played in
-// the early hours of Sun 12 Oct, but it belongs to Saturday's sheet and is
-// stored with bookingDate = "2026-10-11" (same as the prototype).
+// "Operating day": the booking day starts at DAY_START_HOUR (6 am) for every
+// ground, whatever its opening hours, and runs past midnight (close 3 am).
+// A 01:30 slot on the sheet for Sat 11 Oct is played in the early hours of
+// Sun 12 Oct, but it belongs to Saturday's sheet and is stored with
+// bookingDate = "2026-10-11" (same rule as the prototype: start < 6:00 = after midnight).
+// Don't pass a ground's openHour here: a ground opening at 4 pm must not shift "today".
+
+export const DAY_START_HOUR = 6;
 
 const TZ = "Asia/Dhaka";
 
@@ -59,7 +63,7 @@ export function addDaysISO(iso, days) {
  * Minutes since the START of the operating day.
  * With openHour 6: "06:00" -> 360, "23:00" -> 1380, "01:30" -> 1530 (after midnight).
  */
-export function operatingMinutes(hhmm, openHour = 6) {
+export function operatingMinutes(hhmm, openHour = DAY_START_HOUR) {
     const m = hhmmToMinutes(hhmm);
     return m < openHour * 60 ? m + 1440 : m;
 }
@@ -68,7 +72,7 @@ export function operatingMinutes(hhmm, openHour = 6) {
  * The operating day that is running right now, and how far into it we are.
  * At 01:00 on 12 Oct (Dhaka) this returns { date: "2026-10-11", minutes: 1500 }.
  */
-export function currentOperatingDay(openHour = 6, now = new Date()) {
+export function currentOperatingDay(openHour = DAY_START_HOUR, now = new Date()) {
     const date = dhakaDate(now);
     const time = dhakaTime(now);
     const mins = hhmmToMinutes(time);
@@ -79,7 +83,7 @@ export function currentOperatingDay(openHour = 6, now = new Date()) {
 }
 
 /** True if a block on sheet `isoDate` starting at `startHHMM` has already started. */
-export function isBlockPast(isoDate, startHHMM, openHour = 6, now = new Date()) {
+export function isBlockPast(isoDate, startHHMM, openHour = DAY_START_HOUR, now = new Date()) {
     const today = currentOperatingDay(openHour, now);
     if (isoDate < today.date) return true;
     if (isoDate > today.date) return false;
@@ -87,7 +91,7 @@ export function isBlockPast(isoDate, startHHMM, openHour = 6, now = new Date()) 
 }
 
 /** Kept for older imports: the operating day a calendar date + start time belongs to. */
-export function operatingDay(isoDate, startHHMM, openHour = 6) {
+export function operatingDay(isoDate, startHHMM, openHour = DAY_START_HOUR) {
     const startMin = hhmmToMinutes(startHHMM);
     return startMin < openHour * 60 ? addDaysISO(isoDate, -1) : isoDate;
 }

@@ -57,7 +57,7 @@ export async function createBookingHold(input) {
         const block = await resolveBlock(pitch, date, blockId);
         if (!block) return { ok: false, error: "That time slot no longer exists. Pick another time." };
 
-        if (isBlockPast(date, block.startTime, pitch.openHour)) {
+        if (isBlockPast(date, block.startTime)) {
             return { ok: false, error: "That slot has already started. Pick a later time." };
         }
 

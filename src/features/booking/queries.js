@@ -152,7 +152,7 @@ export async function getSlotBoard(pitchId, date, viewerId = null) {
         let state = "free";
         if (t?.status === "confirmed") state = "booked";
         else if (t?.status === "held") state = "held";
-        else if (isBlockPast(date, b.startTime, pitch.openHour)) state = "past";
+        else if (isBlockPast(date, b.startTime)) state = "past";
         return {
             id: b.id,
             start: b.startTime,
@@ -217,7 +217,7 @@ export async function getMyBookings(userId) {
         // A hold whose time ran out counts as expired even before the cleanup runs.
         if (status === "held" && r.holdExpiresAt && r.holdExpiresAt.getTime() <= now) status = "expired";
         // A confirmed booking whose start time has passed is shown as played.
-        if (status === "confirmed" && isBlockPast(r.bookingDate, r.startTime, r.openHour)) status = "completed";
+        if (status === "confirmed" && isBlockPast(r.bookingDate, r.startTime)) status = "completed";
 
         return {
             id: r.code,

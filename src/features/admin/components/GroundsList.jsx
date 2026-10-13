@@ -1,69 +1,126 @@
 // src/features/admin/components/GroundsList.jsx
-// Ground overview cards. Plug your prototype's SlotEditor into "Edit slots".
+"use client";
+
+import { useState, useTransition } from "react";
 import Image from "next/image";
-import { Clock3, Plus, SlidersHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Clock3, Pencil, Plus, SlidersHorizontal } from "lucide-react";
 import { PageHeader } from "@/components/admin/Kit";
 import Button from "@/components/ui/Button";
 import Switch from "@/components/ui/Switch";
-import { taka } from "@/lib/utils";
+import PitchLines from "@/components/site/PitchLines";
+import PitchForm, { EMPTY_PITCH } from "./PitchForm";
+import { togglePitchActive } from "@/features/admin/actions/pitches";
+import { cn, taka, time12 } from "@/lib/utils";
 
+/** /admin/pitches — ground cards (prototype: PitchesManager list). */
 export default function GroundsList({ pitches = [] }) {
+    const router = useRouter();
+    const [editing, setEditing] = useState(null);
+    const [busyId, setBusyId] = useState(null);
+    const [error, setError] = useState("");
+    const [, startTransition] = useTransition();
+
+    function toggle(id) {
+        setError("");
+        setBusyId(id);
+        startTransition(async () => {
+            const res = await togglePitchActive(id);
+            setBusyId(null);
+            if (!res.ok) setError(res.error);
+            router.refresh();
+        });
+    }
+
+    const openCount = pitches.filter((p) => p.isActive).length;
+
     return (
         <div className="mx-auto max-w-[1280px]">
             <PageHeader
                 title="Grounds & slots"
-                description="Each ground has its own photo, price and daily time blocks."
+                description={`${pitches.length} ground${pitches.length === 1 ? "" : "s"}, ${openCount} open for booking. Each ground has its own photo, price and daily time slots.`}
                 actions={
-                    <Button variant="ink">
+                    <Button variant="ink" onClick={() => setEditing({ ...EMPTY_PITCH })}>
                         <Plus className="h-4 w-4" />
                         Add ground
                     </Button>
                 }
             />
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {pitches.map((p) => (
-                    <article key={p.id} className="overflow-hidden rounded-card bg-white ring-1 ring-line">
-                        <div className="relative aspect-[16/9] bg-pitch">
-                            <Image src={p.imageUrl} alt="" fill sizes="420px" className="object-cover" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-pitch/80 to-transparent" />
-                            <div className="absolute bottom-4 left-5 text-white">
-                                <p className="text-[13px] text-white/70">{p.format}</p>
-                                <p className="display text-[30px]">{p.name}</p>
+
+            {error && <p className="mb-6 rounded-ctl bg-danger-soft px-4 py-3 text-[14px] font-medium text-danger">{error}</p>}
+
+            {pitches.length === 0 ? (
+                <div className="rounded-card border-2 border-dashed border-line px-6 py-16 text-center">
+                    <p className="display text-[28px] text-ink">No grounds yet</p>
+                    <p className="mx-auto mt-2 max-w-sm text-[15px] text-ink-3">Add your first ground to start taking bookings.</p>
+                    <Button className="mt-6" onClick={() => setEditing({ ...EMPTY_PITCH })}>
+                        <Plus className="h-4 w-4" />
+                        Add ground
+                    </Button>
+                </div>
+            ) : (
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    {pitches.map((p) => (
+                        <article key={p.id} className={cn("overflow-hidden rounded-card bg-white ring-1 ring-line", !p.isActive && "opacity-75")}>
+                            <div className="relative aspect-[16/9] bg-pitch">
+                                {p.imageUrl ? (
+                                    <Image src={p.imageUrl} alt="" fill sizes="420px" className="object-cover" />
+                                ) : (
+                                    <PitchLines className="absolute inset-0 h-full w-full text-white/15" />
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-pitch/85 to-transparent" />
+                                <div className="absolute bottom-4 left-5 text-white">
+                                    <p className="text-[13px] text-white/70">{p.format || p.sport}</p>
+                                    <p className="display text-[30px]">{p.name}</p>
+                                </div>
+                                <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full bg-white/95 py-1 pl-3 pr-1 text-[12px] font-semibold text-ink">
+                                    {p.isActive ? "Open for booking" : "Closed"}
+                                    <Switch
+                                        size="sm"
+                                        checked={p.isActive}
+                                        onChange={() => busyId !== p.id && toggle(p.id)}
+                                        label={`${p.name} open for booking`}
+                                    />
+                                </div>
                             </div>
-                            <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full bg-white/95 py-1 pl-3 pr-1 text-[12px] font-semibold text-ink">
-                                Open for booking
-                                <Switch size="sm" defaultChecked label={`${p.name} open for booking`} />
+
+                            <dl className="grid grid-cols-3 divide-x divide-line border-b border-line text-center">
+                                <Stat label="Base price" value={`${taka(p.hourlyRate)}/hr`} />
+                                <Stat label="Slots a day" value={p.blockCount} />
+                                <Stat label="Slot length" value={`${p.defaultSlotMinutes} min`} />
+                            </dl>
+
+                            <div className="flex items-center justify-between gap-3 p-4">
+                                <p className="flex items-center gap-1.5 text-[13px] text-ink-3">
+                                    <Clock3 className="h-3.5 w-3.5" />
+                                    {p.firstStart && p.lastEnd ? `${time12(p.firstStart)} to ${time12(p.lastEnd)}` : "No slots yet"}
+                                </p>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setEditing(p)}>
+                                        <Pencil className="h-3.5 w-3.5" />
+                                        Edit
+                                    </Button>
+                                    <Button size="sm" variant="ink" href={`/admin/pitches/${p.id}`}>
+                                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                                        Edit slots
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                        <dl className="grid grid-cols-3 divide-x divide-line border-b border-line text-center">
-                            <div className="px-3 py-4">
-                                <dt className="text-[11px] font-medium text-ink-3">Base price</dt>
-                                <dd className="mt-1 text-[15px] font-bold text-ink tnum">{taka(p.hourlyRate)}/hr</dd>
-                            </div>
-                            <div className="px-3 py-4">
-                                <dt className="text-[11px] font-medium text-ink-3">Slots a day</dt>
-                                <dd className="mt-1 text-[15px] font-bold text-ink tnum">14</dd>
-                            </div>
-                            <div className="px-3 py-4">
-                                <dt className="text-[11px] font-medium text-ink-3">Size</dt>
-                                <dd className="mt-1 text-[15px] font-bold text-ink tnum">{p.size}</dd>
-                            </div>
-                        </dl>
-                        <div className="flex items-center justify-between gap-3 p-4">
-                            <p className="flex items-center gap-1.5 text-[13px] text-ink-3">
-                                <Clock3 className="h-3.5 w-3.5" />6 am to 3 am
-                            </p>
-                            <div className="flex gap-2">
-                                <Button variant="outline" size="sm">Edit</Button>
-                                <Button size="sm" variant="ink">
-                                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                                    Edit slots
-                                </Button>
-                            </div>
-                        </div>
-                    </article>
-                ))}
-            </div>
+                        </article>
+                    ))}
+                </div>
+            )}
+
+            <PitchForm pitch={editing} onClose={() => setEditing(null)} />
+        </div>
+    );
+}
+
+function Stat({ label, value }) {
+    return (
+        <div className="px-3 py-4">
+            <dt className="text-[11px] font-medium text-ink-3">{label}</dt>
+            <dd className="mt-1 text-[15px] font-bold text-ink tnum">{value}</dd>
         </div>
     );
 }

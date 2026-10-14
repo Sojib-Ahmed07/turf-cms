@@ -1,9 +1,11 @@
 // src/app/admin/branding/page.jsx
 import BrandingForm from "@/features/cms/admin/BrandingForm";
-import { siteSettings } from "@/lib/sample-data";
+import { getBrandingAdmin } from "@/features/cms/admin-queries";
+import { requireRole } from "@/lib/guards";
 
 export const metadata = { title: "Branding" };
 
-export default function Page() {
-    return <BrandingForm settings={siteSettings} />;
+export default async function Page() {
+    await requireRole(["admin"]);
+    return <BrandingForm initial={await getBrandingAdmin()} />;
 }

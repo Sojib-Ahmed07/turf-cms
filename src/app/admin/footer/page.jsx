@@ -1,9 +1,11 @@
 // src/app/admin/footer/page.jsx
 import FooterSeoForm from "@/features/cms/admin/FooterSeoForm";
-import { siteSettings } from "@/lib/sample-data";
+import { getFooterSeoAdmin } from "@/features/cms/admin-queries";
+import { requireRole } from "@/lib/guards";
 
 export const metadata = { title: "Footer & SEO" };
 
-export default function Page() {
-    return <FooterSeoForm settings={siteSettings} />;
+export default async function Page() {
+    await requireRole(["admin", "editor"]);
+    return <FooterSeoForm initial={await getFooterSeoAdmin()} />;
 }

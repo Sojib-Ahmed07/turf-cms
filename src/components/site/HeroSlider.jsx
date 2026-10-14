@@ -12,6 +12,13 @@ import Button from "@/components/ui/Button";
 import PitchLines from "./PitchLines";
 import { canOptimize, cn } from "@/lib/utils";
 
+// "Shade over the image" from Admin > Hero slides. The bottom fade always stays so the text is readable.
+const SHADE = {
+    dark: "bg-[linear-gradient(100deg,rgb(6_28_20/0.92)_0%,rgb(6_28_20/0.65)_38%,rgb(6_28_20/0.05)_75%)]",
+    light: "bg-[linear-gradient(100deg,rgb(6_28_20/0.6)_0%,rgb(6_28_20/0.3)_40%,transparent_75%)]",
+    none: "",
+};
+
 const FALLBACK = {
     id: "fallback",
     imageUrl: null,
@@ -103,7 +110,7 @@ export default function HeroSlider({ slides = [], autoplayMs = 6000, pauseOnHove
                 </div>
 
                 {/* Readability + chalk lines */}
-                <div className="pointer-events-none absolute inset-0 -z-[5] bg-[linear-gradient(100deg,rgb(6_28_20/0.92)_0%,rgb(6_28_20/0.65)_38%,rgb(6_28_20/0.05)_75%)]" />
+                <div className={cn("pointer-events-none absolute inset-0 -z-[5] transition-opacity duration-700", SHADE[active.overlay] ?? SHADE.dark)} />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 -z-[5] h-1/2 bg-gradient-to-t from-[rgb(6_28_20/0.85)] to-transparent" />
                 <PitchLines className="absolute inset-0 -z-[4] h-full w-full text-white/[0.13]" />
 

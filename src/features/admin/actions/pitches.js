@@ -98,6 +98,7 @@ const pitchSchema = z.object({
         .optional()
         .default("")
         .refine((v) => v === "" || /^https:\/\//.test(v), "Image link must start with https://"),
+    imagePublicId: z.string().trim().max(300).optional().default(""),
     isActive: z.boolean().optional().default(true),
 });
 
@@ -124,6 +125,7 @@ export async function upsertPitch(input) {
             closeHour: v.closeHour,
             defaultSlotMinutes: v.defaultSlotMinutes,
             imageUrl: v.imageUrl || null,
+            imagePublicId: v.imageUrl ? v.imagePublicId || null : null,
             isActive: v.isActive,
         };
 

@@ -1,10 +1,11 @@
 // src/app/admin/banners/page.jsx
 import BannersEditor from "@/features/cms/admin/BannersEditor";
-import { promoBanners } from "@/lib/sample-data";
-import { coupons } from "@/lib/admin-sample-data";
+import { getBannersAdmin } from "@/features/cms/admin-queries";
+import { requireRole } from "@/lib/guards";
 
 export const metadata = { title: "Offer banners" };
 
-export default function Page() {
-    return <BannersEditor banners={promoBanners} coupons={coupons} />;
+export default async function Page() {
+    await requireRole(["admin", "editor"]);
+    return <BannersEditor initial={await getBannersAdmin()} />;
 }

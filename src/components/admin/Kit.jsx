@@ -1,5 +1,6 @@
 // src/components/admin/Kit.jsx
 // Small layout pieces shared by every admin page.
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Title row at the top of each admin page. */
@@ -55,20 +56,35 @@ export function Label({ children, htmlFor, optional }) {
     );
 }
 
-/** Sticky bar shown when a form has unsaved changes. */
-export function SaveBar({ message = "You have unsaved changes", children }) {
+/** Sticky bar shown when a form has unsaved changes. Render it only while dirty. */
+export function SaveBar({ message = "You have unsaved changes", error, children }) {
     return (
         <div className="sticky bottom-4 z-20 mt-8 flex items-center justify-between gap-4 rounded-full bg-ink py-2 pl-6 pr-2 text-white shadow-[0_20px_40px_-16px_rgb(0_0_0/0.5)]">
-            <p className="flex items-center gap-2.5 text-[14px] font-medium">
-                <span className="h-2 w-2 rounded-full bg-flare" />
-                {message}
+            <p className={cn("flex min-w-0 items-center gap-2.5 text-[14px] font-medium", error && "text-[#ffb4a8]")}>
+                <span className={cn("h-2 w-2 shrink-0 rounded-full", error ? "bg-danger" : "bg-flare")} />
+                <span className="truncate">{error || message}</span>
             </p>
             <div className="flex gap-2">{children}</div>
         </div>
     );
 }
 
-/** Grip icon used on reorderable rows (wire up dnd-kit later). */
+/** Up/down buttons for reorderable rows. onMove(-1 | 1). */
+export function OrderButtons({ onMove, first, last, disabled, label = "item" }) {
+    const btn = "grid h-6 w-7 place-items-center rounded-md text-ink-3 hover:bg-ink/5 hover:text-ink disabled:pointer-events-none disabled:opacity-30";
+    return (
+        <span className="flex shrink-0 flex-col" onClick={(e) => e.stopPropagation()}>
+            <button type="button" aria-label={`Move ${label} up`} disabled={disabled || first} onClick={() => onMove(-1)} className={btn}>
+                <ChevronUp className="h-4 w-4" />
+            </button>
+            <button type="button" aria-label={`Move ${label} down`} disabled={disabled || last} onClick={() => onMove(1)} className={btn}>
+                <ChevronDown className="h-4 w-4" />
+            </button>
+        </span>
+    );
+}
+
+/** Grip icon (decorative; ordering uses OrderButtons). */
 export function DragHandle() {
     return (
         <span aria-hidden="true" className="grid h-8 w-6 cursor-grab place-items-center text-ink-4 hover:text-ink-2">

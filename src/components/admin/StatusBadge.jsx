@@ -15,6 +15,7 @@ const MAP = {
     active: ["brand", "Live"],
     scheduled: ["flare", "Scheduled"],
     hidden: ["neutral", "Hidden"],
+    ended: ["neutral", "Ended"],
 };
 
 export default function StatusBadge({ status }) {

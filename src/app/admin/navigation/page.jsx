@@ -1,9 +1,11 @@
 // src/app/admin/navigation/page.jsx
 import NavigationEditor from "@/features/cms/admin/NavigationEditor";
-import { navItems } from "@/lib/sample-data";
+import { getNavAdmin } from "@/features/cms/admin-queries";
+import { requireRole } from "@/lib/guards";
 
 export const metadata = { title: "Navigation" };
 
-export default function Page() {
-    return <NavigationEditor items={navItems} />;
+export default async function Page() {
+    await requireRole(["admin"]);
+    return <NavigationEditor initial={await getNavAdmin()} />;
 }

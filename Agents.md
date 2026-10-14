@@ -33,7 +33,10 @@ grounds, open 6 am to 3 am, prices in BDT (৳).
 - **Step 2 (SSLCommerz payments) delivered:** Pay on `/book`, My bookings and the failed page opens SSLCommerz
   hosted checkout; callbacks + IPN validate with the Validation API and confirm the booking once; late payments
   revive the hold or become refund due; result pages are real; cron route re-checks lost payments and expires holds.
-- **Next:** Step 5, CMS write side (Cloudinary + admin editors), then Step 6 (section 8).
+- **Step 5 (CMS write side) delivered:** Cloudinary uploads (signed, verified), media library, and live editors for
+  branding, navigation, hero slides, offer banners, home sections, footer & SEO; ground photos upload too. Saves show
+  on the site immediately (`updateTag`).
+- **Next:** Step 6, coupons + admin tables + missing pages + deploy (section 8).
 
 ## 3. Stack in use
 
@@ -151,6 +154,20 @@ Payment rules:
 Booking query added in Step 4: `getGroundsToday()` → `{ date, pitches: [...pitch, freeToday: ["19:30"]], freeCount }`.
 `src/lib/utils.js` `canOptimize(src)`: pass `unoptimized={!canOptimize(url)}` to every `next/image` whose URL the admin can type.
 
+### CMS write side (Step 5)
+| File | What it does |
+|---|---|
+| `lib/cloudinary.js` | No SDK: `isCloudinaryConfigured`, `createUploadSignature(folder)`, `verifyUploadResult(result)` (SHA-1/SHA-256 response signature + our cloud's URL), `destroyImage(publicId)` |
+| `features/cms/server-utils.js` | `requireRoles`, `ADMIN_ONLY`, `CONTENT_ROLES`, `DENIED`, `firstIssue`, Zod pieces (`text`, `requiredText`, `link`, `image`, `hexColor`, `isoDate`), `dhakaDayStart/End` |
+| `features/cms/admin-queries.js` | Uncached admin reads: `getBrandingAdmin`, `getNavAdmin`, `getFooterSeoAdmin`, `getHeroAdmin`, `getBannersAdmin`, `getSectionsAdmin`, `getMediaAdmin`, `getMediaPickerItems`, `getMediaUsage`, `scheduleStatus` |
+| `features/cms/actions/settings.js` | `saveBranding` (admin), `saveMenu` (admin), `saveFooterSeo`, `saveSliderSettings` |
+| `features/cms/actions/hero.js`, `banners.js`, `sections.js` | Save/toggle/delete/move slides and banners; save all home sections |
+| `features/cms/actions/media.js` | `getUploadSignature`, `saveMedia`, `listMediaForPicker`, `updateMediaAlt`, `deleteMedia` (refuses while used) |
+| `features/cms/upload-client.js` | Browser: `uploadImage(file, folder, onProgress)` (10 MB, image types) |
+| `components/admin/ImageUploader.jsx` | Controlled `{ value, onChange, folder, ratio, hint, fit, dark }`; upload, replace, remove, pick from library |
+| `components/admin/MediaPicker.jsx`, `Toast.jsx` | Library picker dialog; `useToast()` |
+| `features/cms/admin/*.jsx` | Seven editors, each takes `initial` from its admin query; SaveBar only when dirty |
+
 ### Admin feature (`src/features/admin/`)
 | File | What it does |
 |---|---|
@@ -158,7 +175,7 @@ Booking query added in Step 4: `getGroundsToday()` → `{ date, pitches: [...pit
 | `actions/pitches.js` | Admin only: `upsertPitch`, `togglePitchActive`, `replaceDefaultBlocks`, `replaceDateBlocks`, `resetDateToDefault`, `regenerateDefaultBlocks`, `seedDateFromDefault` |
 | `actions/bookings.js` | Admin only: `adminCancelBooking({ bookingId, reason })` (paid becomes `refund_due`), `markRefunded`, `createWalkInBooking` (confirmed, `source = walk_in`, BD phone check) |
 | `components/GroundsList.jsx` | Ground cards, open switch, Edit (PitchForm), Edit slots link, empty state |
-| `components/PitchForm.jsx` | Add/edit ground dialog (`EMPTY_PITCH`); photo is a link for now (Cloudinary in Step 5) |
+| `components/PitchForm.jsx` | Add/edit ground dialog (`EMPTY_PITCH`); photo via ImageUploader (folder `pitches`) |
 | `components/SlotEditor.jsx` | Tabs: Default schedule + 30 days; price, ±15/30 min, delete, add; custom day / reset / rebuild; sticky save bar |
 | `components/BookingsTable.jsx` | URL-driven range tabs + filters, cancel dialog, mark refunded, pagination |
 | `components/WalkInDialog.jsx` | Walk-in/phone booking form; slots from `/api/booked-slots` |
@@ -177,7 +194,9 @@ Shared: `src/components/ui/Dialog.jsx` (modal), `src/components/admin/TonightBoa
 | `/admin` | **Live** overview |
 | `/admin/pitches`, `/admin/pitches/[id]` | **Live**, admin only |
 | `/admin/bookings` | **Live**, admin only (`?range=today|upcoming|week|all&q=&pitch=&status=&page=&walkin=1`) |
-| other `/admin/*` | Protected by `requireRole(["admin","editor"])`; still sample data (Steps 5 and 6) |
+| `/admin/{branding,navigation}` | **Live**, admin only |
+| `/admin/{hero,banners,sections,footer,media}` | **Live**, admin or editor |
+| `/admin/{coupons,payments,users}` | Admin only; still sample data (Step 6) |
 | `/api/auth/[...all]` | Better Auth handler |
 | `/api/booked-slots` | **Live** slot board JSON |
 
@@ -192,10 +211,10 @@ Fixed in Step 1:
 - Prototype bug not carried over: it checked "past slots" with the server's local clock (UTC on hosting). Now Asia/Dhaka.
 
 Still open:
-- `.gitignore` has `.env*`, which also ignores `.env.example`. Add a line `!.env.example`.
+- `.gitignore` already has `!.env.example` (fixed by Said).
 - `src/lib/env.js` is not imported anywhere yet; import it in `src/lib/auth.js` and `src/db/index.js` when convenient.
 - Seeded banners show the NIGHT20 code before coupons work at checkout (Step 6). The FIRST200 popup is seeded switched off.
-- `sample-data.js` is now only used by admin content screens (Step 5) and can be deleted after that.
+- `sample-data.js` / `admin-sample-data.js` are now only used by the coupons, payments and users pages (Step 6).
 
 ## 8. Step plan
 
@@ -204,7 +223,7 @@ Still open:
 - [x] **Step 2. SSLCommerz payments** (13 Oct): `lib/sslcommerz.js`, `features/payment/*`, one dynamic callback route `api/payment/sslcommerz/[event]` (success, fail, cancel, ipn), cron route + `vercel.json`, real result pages, Pay buttons live when the store is configured. See "Payment rules" in section 6.
 - [x] **Step 3. Admin bookings side** (13 Oct): port prototype `admin.js`, `PitchesManager`, `SlotEditor` into `/admin/pitches` (ground editor, default blocks, per-date overrides); real `/admin/bookings` (filters, cancel, walk-in); real overview stats + `TonightBoard`.
 - [x] **Step 4. CMS read side** (13 Oct): `features/cms/queries.js` (settings, nav, hero, banners, sections) with cache tags; replace sample data in `(site)` layout/home; `--brand` + metadata from settings; `LiveGrounds` with real pitches + free slots tonight.
-- [ ] **Step 5. CMS write side**: Cloudinary signed upload, media library, server actions + forms for branding, navigation, hero, banners, sections, footer/SEO; dnd-kit ordering; toasts.
+- [x] **Step 5. CMS write side** (14 Oct): Cloudinary signed upload (no SDK) with verified results, media library + picker, server actions + live editors for branding, navigation, hero, banners, sections, footer/SEO, ground photos; up/down ordering; toasts; hero "shade" setting honoured on the site.
 - [ ] **Step 6. Coupons, users, payments admin, polish, deploy**: coupons in checkout, users/roles page, payments table + re-check/refund, loading/error pages, SEO, production env, live SSLCommerz.
 
 ## 9. Gotchas
@@ -218,7 +237,8 @@ Still open:
 | Hydration error on dates | Use `shortDateLabel()` / fixed arrays, not locale APIs |
 | "Today" looks a day behind for a ground that opens late | Don't pass `openHour` to time helpers; `DAY_START_HOUR` is fixed at 6 |
 | Editor can't see Grounds/Bookings | By design: those are `adminOnly`; set `role = admin` in `db:studio` |
-| Admin edit doesn't show on the site | Step 5 actions must call `revalidateTag(TAGS.x, "max")` (two arguments in Next 16) or `updateTag` for read-your-own-writes |
+| Admin edit doesn't show on the site | The save action must call `updateTag(TAGS.x)` (server actions) for the tag the public read uses |
+| Upload: "isn't set up" / "couldn't be verified" | Cloudinary keys missing, or the secret doesn't match the cloud name and key |
 | `next/image` error "hostname is not configured" | Use `unoptimized={!canOptimize(src)}`, or add the host to `next.config.mjs` |
 | Pay button missing | `SSLCZ_STORE_ID` / `SSLCZ_STORE_PASSWORD` not set in `.env.local` (restart dev after editing) |
 | IPN never arrives locally | Expected: SSLCommerz can't reach localhost. The browser success callback confirms instead; IPN works once deployed |
@@ -232,6 +252,7 @@ Still open:
 - 2026-10-13: Step 3 (booking, admin side). Admin queries/actions, grounds + slot editor, bookings table + walk-ins, real overview, Dialog component, admin-only nav. Fixed operating day to a fixed 6 am start (`DAY_START_HOUR`).
 - 2026-10-13: Step 4 (CMS read side). `features/cms/queries.js`, root layout reads brand/SEO, site layout/home/book/auth pages read the CMS, live "free today", working QuickBook + slot preselect, seed adds hero slides, banners and coupons. Root layout is `force-dynamic`, so builds no longer need the database.
 - 2026-10-13: Step 2 (SSLCommerz). lib/sslcommerz, payment service/actions, callback + IPN route, real result pages, Pay on /book + My bookings, cron route + vercel.json. 38 payment tests (race, forged val_id, amount mismatch, duplicate, slot lost, lost callback, gateway down) + browser e2e against a mock gateway.
+- 2026-10-14: Step 5 (CMS write side). lib/cloudinary, cms actions + admin queries, 7 live editors, ImageUploader/MediaPicker/Toast, ground photo upload, admin-only page guards on coupons/payments/users, admin sidebar shows the site name. 58 CMS tests + browser e2e (production build, mock Cloudinary).
 
 <!-- BEGIN:nextjs-agent-rules -->
 

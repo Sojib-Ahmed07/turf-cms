@@ -2,7 +2,7 @@
 
 Paste this whole file into a new chat (Claude, Gemini, DeepSeek, any model) before asking for work,
 then attach the source files the task touches. It is self-contained: everything a new model needs to
-continue the project without the old chat. Last updated **13 Oct 2026**, after Steps 1 to 4 and Step 2.
+continue the project without the old chat. Last updated **14 Oct 2026**, after Steps 1 to 5.
 
 In the repo, `Agents.md` holds the same facts in more detail (file tables, changelog) and `CLAUDE.md`
 holds Claude Code's working rules. If this file and the code disagree, the code wins; fix this file.
@@ -44,23 +44,25 @@ the booking logic was ported from Said's earlier prototype (`turf.zip`, bKash re
 | 3 | Booking, admin side: overview, grounds + slot editor, bookings table, walk-ins, cancel/refund | Done |
 | 4 | CMS read side: whole public site reads settings/nav/hero/banners/sections from the DB | Done |
 | 2 | SSLCommerz payments: pay, callbacks, IPN, result pages, retry, lost-payment recheck, cron | Done (build + 38 integration tests + browser e2e against a mock gateway; Said is testing in the real sandbox) |
-| **5** | **CMS write side: Cloudinary uploads + admin editors** | **Next** |
-| 6 | Coupons at checkout, coupons/payments/users admin, profile/terms pages, polish, deploy | To do |
+| 5 | CMS write side: Cloudinary uploads, media library, branding, navigation, hero, banners, sections, footer/SEO editors | Done (build + 58 integration tests + browser e2e against a mock Cloudinary on a production server) |
+| **6** | **Coupons at checkout, coupons/payments/users admin, profile/terms pages, polish, deploy** | **Next** |
 
-Said's current project was checked file by file on 13 Oct: identical to the delivered code (his
+Said's project was checked file by file on 14 Oct (before Step 5): identical to the delivered code (his
 editor reformats whitespace; that's fine).
 
 Open items on Said's side:
 - `.env.local` still has placeholders for `SEED_ADMIN_EMAIL` and `CRON_SECRET`. To get an admin:
   set his real email, register on the site, run `npm run db:seed` again.
 - SSLCommerz sandbox: store ID/password go in `.env.local`; Pay buttons stay hidden until both are set.
+- Cloudinary keys are set in his `.env.local`; real uploads haven't been confirmed on his machine yet.
 
 ## 4. Stack and commands
 
 Next.js **16.4** (App Router, webpack dev), React **19.3**, Tailwind **v4**, Drizzle ORM 0.45 +
 drizzle-kit 0.31, **Neon Postgres** (`@neondatabase/serverless`, neon-http driver), **Better Auth** 1.7
 (email/password + Google, `role` and `phone` extra fields), Zod 4, framer-motion, lucide-react,
-embla-carousel (hero), clsx + tailwind-merge. Planned: Cloudinary (Step 5), Vercel hosting.
+embla-carousel (hero), clsx + tailwind-merge. Cloudinary is used without its SDK (signed REST calls,
+`src/lib/cloudinary.js`). Planned: Vercel hosting.
 
 ```
 npm run dev          # next dev --webpack  (Turbopack crashes on his machine; keep --webpack)
@@ -90,7 +92,7 @@ read `node_modules/next/dist/docs/` before writing code.
 | `SSLCZ_STORE_ID`, `SSLCZ_STORE_PASSWORD`, `SSLCZ_IS_LIVE` | Payments (`false` = sandbox) |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_FOLDER` | Step 5 uploads |
 
-`SSLCZ_API_BASE` exists only to point tests at a mock gateway; never set it in real env files.
+`SSLCZ_API_BASE` and `CLOUDINARY_API_BASE` exist only to point tests at mocks; never set them in real env files.
 Never print, log or commit `.env.local`.
 
 ## 6. Project map
@@ -104,9 +106,9 @@ src/
                                /payment/success|failed|cancelled
     (auth)/                    /login, /register
     admin/                     layout (requireRole admin|editor, AdminShell); page (overview);
-                               pitches/, pitches/[id]/ (slot editor), bookings/  ← live
-                               branding, navigation, hero, banners, sections, footer, media,
-                               coupons, payments, users                         ← still sample data
+                               pitches/, pitches/[id]/ (slot editor), bookings/,
+                               branding, navigation, hero, banners, sections, footer, media  ← live
+                               coupons, payments, users  ← still sample data (admin-only already)
     api/auth/[...all]/route.js           Better Auth
     api/booked-slots/route.js            slot board JSON for /book and walk-ins
     api/payment/sslcommerz/[event]/route.js   POST success | fail | cancel | ipn
@@ -115,18 +117,20 @@ src/
     ui/          Button, Badge, Dialog, Field/Input, Inputs (CharInput, TextInput, Select, Segmented), Switch
     site/        Navbar, TopBar, Footer, FooterCta, Logo, HeroSlider, QuickBook, PromoBanner,
                  PromoPopup, LiveGrounds, HowItWorks, VenueInfo, PitchLines
-    admin/       AdminShell, Kit (PageHeader, Panel, SettingRow, Label, SaveBar, DragHandle, Table/Th/Td,
-                 Toolbar), ImageUploader (UI only), StatusBadge, TonightBoard
+    admin/       AdminShell, Kit (PageHeader, Panel, SettingRow, Label, SaveBar, OrderButtons, Table/Th/Td,
+                 Toolbar), ImageUploader (Cloudinary upload + library picker), MediaPicker, Toast (useToast),
+                 StatusBadge, TonightBoard
     auth/        AuthForms, AuthLayout
   features/
     booking/     queries.js, actions.js, slots.js (pure slot engine), components/
     admin/       queries.js, actions/pitches.js, actions/bookings.js, components/
-    cms/         queries.js (cached public reads), admin/ (editor UIs, sample data, Step 5 wires them)
+    cms/         queries.js (cached public reads), admin-queries.js (uncached admin reads), server-utils.js,
+                 actions/{settings,hero,banners,sections,media}.js, upload-client.js, admin/ (7 editors)
     payment/     service.js, actions.js, result-page.js, components/PaymentResult + RetryPayButton
   db/            index.js (neon-http db), pool.js (unused WebSocket pool), schema/{auth,booking,commerce,cms}.js,
                  seed.js
-  lib/           auth, auth-client, guards, action, time, utils, cache-tags, sslcommerz, env (unused),
-                 sample-data, admin-sample-data
+  lib/           auth, auth-client, guards, action, time, utils, cache-tags, sslcommerz, cloudinary,
+                 env (unused), sample-data + admin-sample-data (only coupons/payments/users pages now)
 drizzle/         0000 initial schema, 0001 booking FKs + unique active-slot index
 vercel.json      cron
 ```
@@ -255,6 +259,23 @@ defaults if the DB fails (the site never crashes on CMS errors). **Step 5 saves 
 `home_after_hero`, `home_mid`, `booking_page`, `popup`), filtered by `isActive` and `startsAt/endsAt`; the
 code shown comes from the linked coupon only if that coupon is live.
 
+### CMS writes and uploads (Step 5)
+- Save actions in `src/features/cms/actions/`: `settings.js` (`saveBranding` admin, `saveMenu` admin,
+  `saveFooterSeo`, `saveSliderSettings`), `hero.js` (`saveHeroSlide`, `setHeroSlideActive`, `deleteHeroSlide`,
+  `moveHeroSlide`), `banners.js` (`saveBanner`, `setBannerActive`, `deleteBanner`, `moveBanner` within a placement),
+  `sections.js` (`saveSections`), `media.js` (`getUploadSignature`, `saveMedia`, `listMediaForPicker`,
+  `updateMediaAlt`, `deleteMedia`). Every save calls `updateTag(TAGS.x)` and the public site shows the change on the
+  next request (verified on a production build). Shared Zod pieces and `requireRoles` are in `cms/server-utils.js`.
+- Links typed by admins must start with `/` (not `//`) or `https://` (also `tel:`/`mailto:`); images must be https.
+- Schedules are Dhaka calendar dates: "Show from" = that day 00:00 Dhaka, "Hide after" = stored as the next midnight.
+  Status shown in the admin: active, scheduled, ended, hidden.
+- Navigation: labels, visibility and order of the existing links only (the URLs are fixed by design).
+- Uploads: browser gets a signature from `getUploadSignature(folder)` (folders: branding, hero, banners, pitches,
+  seo, misc, inside `CLOUDINARY_FOLDER`), posts the file straight to Cloudinary, then `saveMedia` stores it **only
+  if Cloudinary's response signature verifies** (SHA-1 or SHA-256 of `public_id` + `version` + secret) and the URL
+  is on our cloud. `deleteMedia` refuses while the image is used (logo, favicon, share image, hero, banner, ground).
+- Ordering uses up/down buttons (`OrderButtons`), no drag-and-drop library.
+
 ## 10. Database (Drizzle, `src/db/schema/`)
 
 - **auth.js:** `user` (id text, name, email, image, `phone`, `role`), `session`, `account`, `verification`.
@@ -302,33 +323,11 @@ Schema changes: edit the schema file → `npm run db:generate` → `npm run db:m
 
 ## 12. Remaining work
 
-### Step 5: CMS write side (next)
+### Step 5: CMS write side (done 14 Oct)
 
-Goal: every admin content screen saves to the database and the public site updates immediately.
+See "CMS writes and uploads" in section 9. Ground photos in `PitchForm` also use the uploader now.
 
-1. **Cloudinary uploads.** `npm i cloudinary`. `src/lib/cloudinary.js` (server only) configured from env.
-   Server action `getUploadSignature({ folder })` (admin or editor) signs `timestamp` + `folder` with
-   `cloudinary.utils.api_sign_request`. Client uploads the file directly to
-   `https://api.cloudinary.com/v1_1/<cloud>/image/upload` (signature, timestamp, api_key, folder), then calls
-   `saveMedia(result)` which inserts into `media` and returns `{ url, publicId }`. Make
-   `components/admin/ImageUploader.jsx` real (it has idle/uploading/done states already). Limit type
-   (jpg/png/webp/svg for logos) and size (e.g. 5 MB). Media library: list, copy URL, delete (also
-   `cloudinary.uploader.destroy`; warn if the image is still used).
-2. **Actions** under `src/features/cms/actions/`: settings (branding: name, tagline, logos, favicon, brand
-   colour `#rrggbb`, menu button label, show My bookings; footer & SEO: contact, socials, seo, slider
-   timing), navigation (add, edit, hide, reorder, delete), hero slides (CRUD, reorder, show/hide, schedule,
-   mobile image), offer banners (CRUD per placement, link a coupon, schedule), home sections (texts, steps,
-   facilities, visibility), media. Zod: links start with `/` or `https://`; length limits matching the
-   editors' `CharInput max`. Every save: `updateTag(TAGS.x)` + `revalidatePath` of the admin page.
-3. **Admin reads** (not cached, include hidden/inactive rows) in `src/features/cms/admin-queries.js`, and
-   replace the sample-data imports in `src/app/admin/{branding,navigation,hero,banners,sections,footer,media}/page.jsx`.
-   Branding and Navigation pages: `requireRole(["admin"])`.
-4. Wire the editor components in `src/features/cms/admin/*` (they are UI-only now): controlled state, the
-   `SaveBar` from Kit when dirty, success/error feedback. Reordering: up/down buttons are fine; `@dnd-kit`
-   optional.
-5. When nothing imports `src/lib/sample-data.js` any more, delete it (`admin-sample-data.js` goes in Step 6).
-
-### Step 6: coupons, admin tables, missing pages, polish, deploy
+### Step 6: coupons, admin tables, missing pages, polish, deploy (next)
 
 - **Coupons at checkout:** `BookingSummary` has a hidden coupon box (`showCoupon`, currently fake 20%).
   Add a server `previewCoupon({ code, pitchId, blockId, date })` and pass `couponCode` into
@@ -340,7 +339,8 @@ Goal: every admin content screen saves to the database and the public site updat
 - **Coupons admin** (`CouponsManager`), **Payments admin** (`PaymentsTable`: payments joined to bookings,
   filters, "Check with SSLCommerz" button → `recheckPayment`, risk flag when `riskLevel = "1"`, refund-due
   list), **Users admin** (`UsersTable`: role change, admin only, can't demote yourself or the last admin).
-  Add `requireRole(["admin"])` to `/admin/coupons`, `/admin/payments`, `/admin/users` pages.
+  (Those three pages already call `requireRole(["admin"])`.) When nothing imports the sample data files any more,
+  delete `src/lib/sample-data.js` and `src/lib/admin-sample-data.js`.
 - **Missing pages:** `/profile` (name, phone; linked from navbar and footer, currently 404) and `/terms`
   (booking terms, footer link, 404). The "Show ticket" button on confirmed tickets does nothing yet
   (show a ticket dialog with the code, optionally a QR).
@@ -358,7 +358,10 @@ Goal: every admin content screen saves to the database and the public site updat
 | Issue | Fix / note |
 |---|---|
 | `SEED_ADMIN_EMAIL`, `CRON_SECRET` are placeholders in Said's `.env.local` | Set real values (section 3) |
-| `/admin/{coupons,payments,users,branding,navigation}` hidden from editors in the menu but not role-checked on the page | Add `requireRole(["admin"])` when wiring them (Steps 5 and 6) |
+| Upload says "Image uploads aren't set up yet" | Cloudinary keys missing in `.env.local`; restart dev after adding |
+| Upload says "couldn't be verified" | `CLOUDINARY_API_SECRET` doesn't match the cloud name/key, or the account signs with another key |
+| Change saved but home page still old | Make sure the action calls `updateTag(TAGS.x)` for the tag the public read uses |
+| Seeded SEO title still says "TurfZone" after renaming | By design: Footer & SEO > Page title overrides the site name; edit or clear it there |
 | `src/lib/action.js` turns `requireRole` redirects into a generic error | Don't use it (section 7, rule 10) |
 | `npm run lint`: 8 errors, 2 warnings (`react-hooks/set-state-in-effect`, unescaped `'`) | Pre-existing; fix in Step 6 |
 | `src/lib/env.js`, `src/db/pool.js` not used | Leave or wire up in Step 6 |

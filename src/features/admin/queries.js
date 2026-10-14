@@ -339,6 +339,7 @@ function toPitchAdmin(p) {
         closeHour: p.closeHour,
         defaultSlotMinutes: p.defaultSlotMinutes,
         imageUrl: p.imageUrl ?? "",
+        imagePublicId: p.imagePublicId ?? "",
         sortOrder: p.sortOrder,
         isActive: p.isActive,
         blockCount: blocks.length,

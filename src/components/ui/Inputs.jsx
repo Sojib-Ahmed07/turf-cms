@@ -67,16 +67,22 @@ export function Select({ options = [], className, ...props }) {
     );
 }
 
-/** Pill-style single choice. */
-export function Segmented({ options = [], defaultValue, className }) {
-    const [value, setValue] = useState(defaultValue ?? options[0]?.value);
+/** Pill-style single choice. Uncontrolled (defaultValue) or controlled (value + onChange). */
+export function Segmented({ options = [], defaultValue, value: controlled, onChange, className }) {
+    const [inner, setInner] = useState(defaultValue ?? options[0]?.value);
+    const value = controlled ?? inner;
     return (
-        <div className={cn("inline-flex rounded-full bg-ink/5 p-1", className)}>
+        <div className={cn("inline-flex rounded-full bg-ink/5 p-1", className)} role="radiogroup">
             {options.map((o) => (
                 <button
                     key={o.value}
                     type="button"
-                    onClick={() => setValue(o.value)}
+                    role="radio"
+                    aria-checked={value === o.value}
+                    onClick={() => {
+                        setInner(o.value);
+                        onChange?.(o.value);
+                    }}
                     className={cn(
                         "rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors",
                         value === o.value ? "bg-white text-ink shadow-[0_1px_2px_rgb(0_0_0/0.08)]" : "text-ink-3 hover:text-ink"

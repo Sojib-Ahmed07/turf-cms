@@ -7,6 +7,7 @@ import Dialog from "@/components/ui/Dialog";
 import Button from "@/components/ui/Button";
 import Switch from "@/components/ui/Switch";
 import { Label } from "@/components/admin/Kit";
+import ImageUploader from "@/components/admin/ImageUploader";
 import { TextInput, Select, CharInput } from "@/components/ui/Inputs";
 import { upsertPitch } from "@/features/admin/actions/pitches";
 import { hourOptions } from "@/features/booking/slots";
@@ -34,6 +35,7 @@ export const EMPTY_PITCH = {
     closeHour: 3,
     defaultSlotMinutes: 90,
     imageUrl: "",
+    imagePublicId: "",
     isActive: true,
 };
 
@@ -161,13 +163,14 @@ export default function PitchForm({ pitch, onClose }) {
                 </div>
 
                 <div>
-                    <Label optional>Photo link</Label>
-                    <TextInput
-                        value={form.imageUrl}
-                        onChange={set("imageUrl")}
-                        placeholder="https://res.cloudinary.com/…"
+                    <Label optional>Photo</Label>
+                    <ImageUploader
+                        value={form.imageUrl ? { url: form.imageUrl, publicId: form.imagePublicId || null } : null}
+                        onChange={(img) => setForm((f) => ({ ...f, imageUrl: img?.url ?? "", imagePublicId: img?.publicId ?? "" }))}
+                        folder="pitches"
+                        ratio="16/10"
+                        hint="1600 × 1000 px. Without a photo, the ground shows chalk pitch lines."
                     />
-                    <p className="mt-1.5 text-[12px] text-ink-3">Photo upload comes with the media library. For now, paste an https image link.</p>
                 </div>
 
                 <label className="flex items-center justify-between gap-4 rounded-ctl bg-chalk px-4 py-3">

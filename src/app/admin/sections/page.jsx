@@ -1,9 +1,11 @@
 // src/app/admin/sections/page.jsx
 import SectionsEditor from "@/features/cms/admin/SectionsEditor";
-import { sections } from "@/lib/sample-data";
+import { getSectionsAdmin } from "@/features/cms/admin-queries";
+import { requireRole } from "@/lib/guards";
 
 export const metadata = { title: "Home sections" };
 
-export default function Page() {
-    return <SectionsEditor sections={sections} />;
+export default async function Page() {
+    await requireRole(["admin", "editor"]);
+    return <SectionsEditor initial={await getSectionsAdmin()} />;
 }

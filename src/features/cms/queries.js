@@ -117,7 +117,8 @@ const readSettings = unstable_cache(
     { tags: [TAGS.settings], revalidate: REVALIDATE }
 );
 
-function toSettings(row) {
+/** Row -> settings with every field present (also used by the admin editors). */
+export function toSettings(row) {
     if (!row) return DEFAULT_SETTINGS;
     const contact = obj(row.contact);
     const seo = obj(row.seo);
@@ -299,7 +300,8 @@ const readSections = unstable_cache(
     { tags: [TAGS.sections], revalidate: REVALIDATE }
 );
 
-function toSections(rows) {
+/** Rows -> { live_grounds, how_it_works, visit } merged with defaults (also used by the admin editors). */
+export function toSections(rows) {
     const byKey = Object.fromEntries(rows.map((r) => [r.key, r]));
     const out = {};
     for (const [key, def] of Object.entries(DEFAULT_SECTIONS)) {

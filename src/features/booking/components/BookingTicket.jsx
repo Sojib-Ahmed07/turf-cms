@@ -1,5 +1,5 @@
 // src/features/booking/components/BookingTicket.jsx
-import { Hourglass, QrCode, RotateCcw } from "lucide-react";
+import { Hourglass, RotateCcw, Ticket } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { cn, taka, time12 } from "@/lib/utils";
@@ -19,9 +19,10 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
  * One booking drawn as a match ticket.
  * onCancel(bookingId): shown for held bookings.
  * onPay(bookingId): shown for held bookings once payments are live (payHref is the older link form).
+ * onShow(booking): shown for confirmed bookings; opens the ticket to show at the desk.
  * busy: "cancel" | "pay" | false
  */
-export default function BookingTicket({ booking, onCancel, onPay, payHref, busy = false, highlight = false }) {
+export default function BookingTicket({ booking, onCancel, onPay, onShow, payHref, busy = false, highlight = false }) {
     const d = new Date(`${booking.date}T00:00:00`);
     const s = STATUS[booking.status] ?? STATUS.confirmed;
     const dim = booking.status === "cancelled" || booking.status === "completed";
@@ -97,9 +98,9 @@ export default function BookingTicket({ booking, onCancel, onPay, payHref, busy 
                             {booking.discount > 0 && `, saved ${taka(booking.discount)}`}
                         </p>
                     </div>
-                    {booking.status === "confirmed" && (
-                        <Button variant="ink" size="sm">
-                            <QrCode className="h-4 w-4" />
+                    {booking.status === "confirmed" && onShow && (
+                        <Button variant="ink" size="sm" onClick={() => onShow(booking)}>
+                            <Ticket className="h-4 w-4" />
                             Show ticket
                         </Button>
                     )}

@@ -58,6 +58,7 @@ export async function checkCouponForSlot({ code, pitchId, block, date, userId })
         pitchId,
         date,
         startTime: block.startTime,
+        dayStart: block.dayStart,
         now: Date.now(),
         ...uses,
     });

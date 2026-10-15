@@ -144,7 +144,7 @@ export async function createWalkInBooking(input) {
 
         const block = await resolveBlock(pitch, v.date, v.blockId);
         if (!block) return { ok: false, error: "That time slot no longer exists." };
-        if (isBlockPast(v.date, block.startTime)) return { ok: false, error: "That slot has already started." };
+        if (isBlockPast(v.date, block.startTime, block.dayStart)) return { ok: false, error: "That slot has already started." };
 
         await expireStaleHolds({ pitchId: v.pitchId, date: v.date });
 

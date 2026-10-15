@@ -5,16 +5,13 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ChevronDown, MapPin, Search } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { PARTS } from "@/features/booking/parts";
 import { addDaysISO, shortDateLabel } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
-// Value is passed to /book as ?part= and picks the first free slot in that range.
-const TIMES = [
-    { value: "morning", label: "Morning" },
-    { value: "day", label: "Day" },
-    { value: "evening", label: "Evening" },
-    { value: "late", label: "Late night" },
-];
+// Value is passed to /book as ?part= and picks the first free slot in that part of the day.
+// Only parts the chosen ground (or any ground) actually has slots in are shown.
+const SHORT = { morning: "Morning", day: "Day", evening: "Evening", late: "Late night" };
 const DAYS = 7;
 
 /**
@@ -25,7 +22,7 @@ export default function QuickBook({ pitches = [], startDate }) {
     const router = useRouter();
     const [pitchId, setPitchId] = useState("");
     const [date, setDate] = useState(startDate ?? "");
-    const [part, setPart] = useState("evening");
+    const [picked, setPicked] = useState("evening");
     const [busy, setBusy] = useState(false);
 
     const dates = useMemo(() => {
@@ -41,6 +38,10 @@ export default function QuickBook({ pitches = [], startDate }) {
     }, [startDate]);
 
     const pitch = pitches.find((p) => p.id === pitchId);
+    const available = new Set((pitch ? [pitch] : pitches).flatMap((p) => p.parts ?? PARTS.map((x) => x.key)));
+    const times = PARTS.filter((p) => available.has(p.key)).map((p) => ({ value: p.key, label: SHORT[p.key] }));
+    // keep the player's choice when this ground has it, otherwise the nearest sensible part
+    const part = times.some((t) => t.value === picked) ? picked : (times.find((t) => t.value === "evening") ?? times[0])?.value ?? "";
     const pitchLabel = pitch ? [pitch.name, pitch.format].filter(Boolean).join(", ") : "Any ground";
     const dateLabel = dates.find((d) => d.value === date)?.label ?? "Pick a date";
 
@@ -49,7 +50,7 @@ export default function QuickBook({ pitches = [], startDate }) {
         const q = new URLSearchParams();
         if (pitchId) q.set("pitch", pitchId);
         if (date) q.set("date", date);
-        q.set("part", part);
+        if (part) q.set("part", part);
         setBusy(true);
         router.push(`/book?${q.toString()}`);
     }
@@ -95,13 +96,13 @@ export default function QuickBook({ pitches = [], startDate }) {
                 <div className="col-span-2 bg-white px-5 py-3.5 lg:col-span-1">
                     <span className="text-xs font-medium text-ink-3">Time of day</span>
                     <div className="mt-1.5 flex gap-1 rounded-full bg-chalk p-1" role="radiogroup" aria-label="Time of day">
-                        {TIMES.map((t) => (
+                        {times.map((t) => (
                             <button
                                 key={t.value}
                                 type="button"
                                 role="radio"
                                 aria-checked={part === t.value}
-                                onClick={() => setPart(t.value)}
+                                onClick={() => setPicked(t.value)}
                                 className={cn(
                                     "flex-1 rounded-full px-2 py-1.5 text-[13px] font-semibold transition-colors",
                                     part === t.value ? "bg-ink text-white" : "text-ink-3 hover:text-ink"

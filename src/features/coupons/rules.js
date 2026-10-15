@@ -51,7 +51,7 @@ function weekday(isoDate) {
 
 /**
  * Can this coupon be used for this slot, and how much does it take off?
- * ctx: { subtotal, pitchId, date "YYYY-MM-DD" (operating day), startTime "HH:MM",
+ * ctx: { subtotal, pitchId, date "YYYY-MM-DD" (sheet date), startTime "HH:MM", dayStart (minutes, sheet's first slot),
  *        now (ms), usesTotal, usesByUser (null when the player isn't signed in yet) }
  * Returns { ok: true, discount, total } or { ok: false, error }.
  */
@@ -81,9 +81,10 @@ export function evaluateCoupon(c, ctx) {
         if (Array.isArray(tw.days) && tw.days.length && tw.days.length < 7 && !tw.days.includes(weekday(ctx.date))) {
             return no(`This code only works ${label}.`);
         }
-        const start = operatingMinutes(ctx.startTime);
-        const from = tw.from ? operatingMinutes(tw.from) : 0;
-        const to = tw.to ? operatingMinutes(tw.to) : 48 * 60;
+        // Compare on the sheet's clock, so "from 9 pm to 2 am" covers the after-midnight slots too.
+        const start = operatingMinutes(ctx.startTime, ctx.dayStart);
+        const from = tw.from ? operatingMinutes(tw.from, ctx.dayStart) : 0;
+        const to = tw.to ? operatingMinutes(tw.to, ctx.dayStart) : 48 * 60;
         if (start < from || start >= to) return no(`This code only works ${label}.`);
     }
 

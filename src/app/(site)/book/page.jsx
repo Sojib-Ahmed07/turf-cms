@@ -1,10 +1,9 @@
 // src/app/(site)/book/page.jsx
 import BookingClient from "@/features/booking/components/BookingClient";
-import { getPitches } from "@/features/booking/queries";
+import { currentVenueDay, getPitches } from "@/features/booking/queries";
 import { getPromoBanners, getSiteSettings } from "@/features/cms/queries";
 import { getSession } from "@/lib/guards";
 import { isSslczConfigured } from "@/lib/sslcommerz";
-import { currentOperatingDay } from "@/lib/time";
 
 export const metadata = { title: "Book a slot" };
 export const dynamic = "force-dynamic";
@@ -20,8 +19,8 @@ export default async function BookPage({ searchParams }) {
         getSiteSettings(),
     ]);
 
-    // "Today" is the venue's operating day in Asia/Dhaka (after midnight still counts as the previous day until 6 am).
-    const { date: startDate } = currentOperatingDay();
+    // "Today" is the venue day in Asia/Dhaka: just after midnight it stays yesterday while late slots are still running.
+    const { date: startDate } = await currentVenueDay();
 
     return (
         <BookingClient

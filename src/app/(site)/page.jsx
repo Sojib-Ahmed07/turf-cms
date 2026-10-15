@@ -6,7 +6,7 @@ import LiveGrounds from "@/components/site/LiveGrounds";
 import HowItWorks from "@/components/site/HowItWorks";
 import VenueInfo from "@/components/site/VenueInfo";
 import { getHeroSlides, getPromoBanners, getSections, getSiteSettings } from "@/features/cms/queries";
-import { getGroundsToday } from "@/features/booking/queries";
+import { getGroundsToday, withVenueHours } from "@/features/booking/queries";
 
 // Live availability: render on every request (CMS content itself is cached).
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ async function groundsTodaySafe() {
 
 export default async function HomePage() {
     const [settings, slides, banners, sections, today] = await Promise.all([
-        getSiteSettings(),
+        getSiteSettings().then(withVenueHours),
         getHeroSlides(),
         getPromoBanners(),
         getSections(),

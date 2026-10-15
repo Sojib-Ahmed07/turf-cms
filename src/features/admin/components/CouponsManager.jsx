@@ -17,11 +17,14 @@ import { shortDateLabel } from "@/lib/time";
 import { cn, taka, time12 } from "@/lib/utils";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-// Half-hour times on the venue clock: 6 am through 5:30 am the next morning.
-const TIMES = Array.from({ length: 48 }, (_, i) => {
-    const m = (6 * 60 + i * 30) % (24 * 60);
-    return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-});
+/** Half-hour times on the venue clock, from the earliest opening (dayStart, minutes) round to the next morning. */
+function timeOptions(dayStart) {
+    const first = Math.floor(dayStart / 30) * 30;
+    return Array.from({ length: 48 }, (_, i) => {
+        const m = (first + i * 30) % (24 * 60);
+        return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    });
+}
 
 const EMPTY = {
     id: null,
@@ -72,6 +75,7 @@ function randomCode() {
 export default function CouponsManager({ initial }) {
     const router = useRouter();
     const { coupons, grounds } = initial;
+    const TIMES = useMemo(() => timeOptions(initial.dayStart ?? 360), [initial.dayStart]);
     const [selectedId, setSelectedId] = useState(coupons[0]?.id ?? "new");
     const selected = coupons.find((c) => c.id === selectedId) ?? null;
     const baseline = useMemo(() => toDraft(selected), [selected]);

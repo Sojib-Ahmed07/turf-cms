@@ -3,7 +3,7 @@ import { Check, CalendarPlus, Hourglass, Loader2, X, Minus, RotateCcw } from "lu
 import Button from "@/components/ui/Button";
 import PitchLines from "@/components/site/PitchLines";
 import RetryPayButton from "./RetryPayButton";
-import { calendarUrl } from "@/features/booking/calendar";
+import { calendarUrl, playDate } from "@/features/booking/calendar";
 import { shortDateLabel } from "@/lib/time";
 import { cn, taka, time12 } from "@/lib/utils";
 
@@ -82,7 +82,7 @@ export default function PaymentResult({ status = "success", booking = null, canR
                         <div className="p-8">
                             <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
                                 <Item label="Ground" value={booking.pitch} />
-                                <Item label="Date" value={shortDateLabel(booking.date)} />
+                                <Item label="Date" value={shortDateLabel(playDate(booking))} />
                                 <Item label="Time" value={`${time12(booking.start)} to ${time12(booking.end)}`} />
                                 <Item label="Booking ID" value={booking.id} />
                                 {(status === "success" || status === "refund") && (

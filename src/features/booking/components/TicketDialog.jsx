@@ -59,7 +59,7 @@ export default function TicketDialog({ booking, onClose, playerName = "", venue 
 }
 
 function Ticket({ booking: b, playerName, venue, onClose }) {
-    const late = isAfterMidnight(b.start);
+    const late = isAfterMidnight(b);
     const paid = b.paidWith ? `${taka(b.total)} paid${b.paidWith === "Online" ? " online" : ` with ${b.paidWith}`}` : b.total > 0 ? taka(b.total) : "No charge";
 
     return (

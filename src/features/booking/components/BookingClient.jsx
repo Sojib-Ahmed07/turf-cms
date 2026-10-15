@@ -12,18 +12,11 @@ import PromoBanner from "@/components/site/PromoBanner";
 import Button from "@/components/ui/Button";
 import { createBookingHold, previewCoupon } from "@/features/booking/actions";
 import { payForBooking } from "@/features/payment/actions";
-import { addDaysISO, operatingMinutes, shortDateLabel } from "@/lib/time";
+import { addDaysISO, shortDateLabel } from "@/lib/time";
+import { partOf } from "@/features/booking/parts";
 import { taka, time12 } from "@/lib/utils";
 
 const DAYS_AHEAD = 14;
-
-// ?part= from the home page shortcut. Minutes since the 6 am day start (after midnight continues past 1440).
-const PARTS = {
-    morning: [6 * 60, 12 * 60],
-    day: [12 * 60, 17 * 60],
-    evening: [17 * 60, 22 * 60],
-    late: [22 * 60, 30 * 60],
-};
 
 /** First free block matching ?t=HH:MM, or the first free one inside ?part=. */
 function pickInitialBlock(blocks, time, part) {
@@ -32,12 +25,9 @@ function pickInitialBlock(blocks, time, part) {
         const exact = free.find((b) => b.start === time);
         if (exact) return exact.id;
     }
-    const range = PARTS[part];
-    if (range) {
-        const hit = free.find((b) => {
-            const m = operatingMinutes(b.start);
-            return m >= range[0] && m < range[1];
-        });
+    if (part) {
+        // ?part= from the home page search: first free slot in that part of the day
+        const hit = free.find((b) => partOf(b.start, b.late) === part);
         if (hit) return hit.id;
     }
     return null;

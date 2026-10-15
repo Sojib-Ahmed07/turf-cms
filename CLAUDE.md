@@ -106,7 +106,9 @@ component using `useSearchParams()` in `<Suspense>`.
 DB fails (see `src/features/cms/queries.js`). Writes in Step 5 must call `updateTag(TAGS.x)` (server
 actions only, expires at once) for the same tag, plus `revalidatePath` for the admin page.
 
-**Time:** only `src/lib/time.js` (Asia/Dhaka, operating day starts 06:00, `DAY_START_HOUR`).
+**Time:** only `src/lib/time.js` (Asia/Dhaka). A sheet's day starts at its first slot: pass `dayStart`
+(`dayStartOf(blocks)`, `block.dayStart` from `resolveBlock`, `getSheetDayStarts` for bookings) to `isBlockPast` and friends.
+"Today" = `currentVenueDay()`. Never hard-code 6 am.
 Never `new Date().getHours()` or `toLocaleDateString` on the server.
 
 **Images the admin can set:** `<Image unoptimized={!canOptimize(src)} />`. Allowed remote hosts in

@@ -18,7 +18,7 @@ import { and, eq, inArray, lt, gt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, payments, pitches } from "@/db/schema";
 import { initSession, queryTransaction, validateOrder } from "@/lib/sslcommerz";
-import { HOLD_MINUTES } from "@/features/booking/queries";
+import { HOLD_MINUTES, getSheetDayStarts } from "@/features/booking/queries";
 import { redeemCoupon } from "@/features/coupons/service";
 import { shortDateLabel } from "@/lib/time";
 import { time12 } from "@/lib/utils";
@@ -318,6 +318,7 @@ export async function getPaymentResult(tranId) {
             cardType: payments.cardType,
             bankTranId: payments.bankTranId,
             bookingId: bookings.id,
+            pitchId: bookings.pitchId,
             code: bookings.code,
             status: bookings.status,
             bookingPayment: bookings.paymentStatus,
@@ -335,6 +336,7 @@ export async function getPaymentResult(tranId) {
         .limit(1);
     if (!r) return null;
 
+    const dayStart = (await getSheetDayStarts([{ pitchId: r.pitchId, date: r.date }])).get(`${r.pitchId}|${r.date}`);
     const now = Date.now();
     const holdLeft =
         r.status === "held" && r.holdExpiresAt ? Math.ceil((new Date(r.holdExpiresAt).getTime() - now) / 60000) : 0;
@@ -352,6 +354,7 @@ export async function getPaymentResult(tranId) {
             date: r.date,
             start: r.start,
             end: r.end,
+            dayStart,
             total: Number(r.total),
             paidWith: r.cardType,
             trxId: r.bankTranId,

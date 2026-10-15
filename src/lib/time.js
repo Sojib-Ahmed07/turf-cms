@@ -2,13 +2,15 @@
 // Time helpers. Everything is computed in Asia/Dhaka, never in the server's
 // own timezone (servers usually run in UTC).
 //
-// "Operating day": the booking day starts at DAY_START_HOUR (6 am) for every
-// ground, whatever its opening hours, and runs past midnight (close 3 am).
-// A 01:30 slot on the sheet for Sat 11 Oct is played in the early hours of
-// Sun 12 Oct, but it belongs to Saturday's sheet and is stored with
-// bookingDate = "2026-10-11" (same rule as the prototype: start < 6:00 = after midnight).
-// Don't pass a ground's openHour here: a ground opening at 4 pm must not shift "today".
+// "Sheet" = one ground's list of slots for one date (its default schedule, or a custom one for that date).
+// A sheet's day starts at its FIRST slot (e.g. 05:00, 06:00 or 16:00) and runs past midnight:
+// a slot that starts earlier than the first slot (e.g. 01:30 on a 06:00 sheet) is played after
+// midnight, on the next calendar day, but belongs to that sheet and is stored with its date.
+// Pass the sheet's day start (minutes, from dayStartOf(blocks)) to the helpers below.
+// DEFAULT_DAY_START (6 am) is only a fallback for a ground with no slots.
 
+export const DEFAULT_DAY_START = 6 * 60;
+/** @deprecated use DEFAULT_DAY_START (minutes). */
 export const DAY_START_HOUR = 6;
 
 const TZ = "Asia/Dhaka";
@@ -59,41 +61,67 @@ export function addDaysISO(iso, days) {
     return dt.toISOString().slice(0, 10);
 }
 
+/** Minutes after midnight of a sheet's first slot. blocks: [{ startTime } | { start }] in sheet order. */
+export function dayStartOf(blocks, fallback = DEFAULT_DAY_START) {
+    const first = Array.isArray(blocks) ? blocks[0] : null;
+    const t = first?.startTime ?? first?.start;
+    return typeof t === "string" && /^\d{2}:\d{2}$/.test(t) ? hhmmToMinutes(t) : fallback;
+}
+
+/** True if a slot starting at hhmm on a sheet that starts at dayStart is played after midnight. */
+export function isAfterMidnight(hhmm, dayStart = DEFAULT_DAY_START) {
+    return hhmmToMinutes(hhmm) < dayStart;
+}
+
 /**
- * Minutes since the START of the operating day.
- * With openHour 6: "06:00" -> 360, "23:00" -> 1380, "01:30" -> 1530 (after midnight).
+ * Minutes on the sheet's clock: after-midnight times continue past 1440.
+ * With dayStart 06:00: "06:00" -> 360, "23:00" -> 1380, "01:30" -> 1530.
  */
-export function operatingMinutes(hhmm, openHour = DAY_START_HOUR) {
+export function operatingMinutes(hhmm, dayStart = DEFAULT_DAY_START) {
     const m = hhmmToMinutes(hhmm);
-    return m < openHour * 60 ? m + 1440 : m;
+    return m < dayStart ? m + 1440 : m;
+}
+
+/** The calendar date a slot is actually played on (next day for after-midnight slots). */
+export function playDateOf(isoDate, startHHMM, dayStart = DEFAULT_DAY_START) {
+    return isAfterMidnight(startHHMM, dayStart) ? addDaysISO(isoDate, 1) : isoDate;
+}
+
+/** True once a slot (sheet date + start time) has started, compared with the real time in Dhaka. */
+export function isBlockPast(isoDate, startHHMM, dayStart = DEFAULT_DAY_START, now = new Date()) {
+    const starts = `${playDateOf(isoDate, startHHMM, dayStart)} ${startHHMM}`;
+    return starts <= `${dhakaDate(now)} ${dhakaTime(now)}`;
 }
 
 /**
- * The operating day that is running right now, and how far into it we are.
- * At 01:00 on 12 Oct (Dhaka) this returns { date: "2026-10-11", minutes: 1500 }.
+ * When a sheet's after-midnight part ends (minutes after midnight, 0 if nothing runs past midnight).
+ * A 06:00 sheet whose last slot is 01:30-03:00 -> 180.
  */
-export function currentOperatingDay(openHour = DAY_START_HOUR, now = new Date()) {
-    const date = dhakaDate(now);
-    const time = dhakaTime(now);
-    const mins = hhmmToMinutes(time);
-    if (mins < openHour * 60) {
-        return { date: addDaysISO(date, -1), minutes: mins + 1440 };
+export function nightEndOf(blocks, dayStart = dayStartOf(blocks)) {
+    let end = 0;
+    for (const b of Array.isArray(blocks) ? blocks : []) {
+        const s = b.startTime ?? b.start;
+        const e = b.endTime ?? b.end;
+        if (typeof s !== "string" || typeof e !== "string") continue;
+        const sm = hhmmToMinutes(s);
+        const em = hhmmToMinutes(e);
+        // ends after midnight: starts after midnight, or crosses midnight (end before start)
+        if (sm < dayStart || em <= sm) end = Math.max(end, em);
     }
+    return end;
+}
+
+/**
+ * The venue day that is running right now. Until `nightEnd` (minutes after midnight, the end of the
+ * latest after-midnight slot of any ground) yesterday's sheets are still "today".
+ * At 01:00 on 12 Oct with nightEnd 180 -> { date: "2026-10-11", minutes: 1500 }.
+ * With nightEnd 0 (no ground runs past midnight) "today" is simply the calendar date.
+ */
+export function currentOperatingDay(nightEnd = 0, now = new Date()) {
+    const date = dhakaDate(now);
+    const mins = hhmmToMinutes(dhakaTime(now));
+    if (mins < nightEnd) return { date: addDaysISO(date, -1), minutes: mins + 1440 };
     return { date, minutes: mins };
-}
-
-/** True if a block on sheet `isoDate` starting at `startHHMM` has already started. */
-export function isBlockPast(isoDate, startHHMM, openHour = DAY_START_HOUR, now = new Date()) {
-    const today = currentOperatingDay(openHour, now);
-    if (isoDate < today.date) return true;
-    if (isoDate > today.date) return false;
-    return operatingMinutes(startHHMM, openHour) <= today.minutes;
-}
-
-/** Kept for older imports: the operating day a calendar date + start time belongs to. */
-export function operatingDay(isoDate, startHHMM, openHour = DAY_START_HOUR) {
-    const startMin = hhmmToMinutes(startHHMM);
-    return startMin < openHour * 60 ? addDaysISO(isoDate, -1) : isoDate;
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

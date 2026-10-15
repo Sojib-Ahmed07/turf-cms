@@ -2,6 +2,7 @@
 import { Hourglass, RotateCcw, Ticket } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import { isAfterMidnight, playDate } from "@/features/booking/calendar";
 import { cn, taka, time12 } from "@/lib/utils";
 
 const STATUS = {
@@ -23,7 +24,10 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
  * busy: "cancel" | "pay" | false
  */
 export default function BookingTicket({ booking, onCancel, onPay, onShow, payHref, busy = false, highlight = false }) {
-    const d = new Date(`${booking.date}T00:00:00`);
+    // The stub shows the day the game is actually played (after-midnight slots: the next calendar day).
+    const [y, m, day] = playDate(booking).split("-").map(Number);
+    const d = new Date(Date.UTC(y, m - 1, day));
+    const late = isAfterMidnight(booking);
     const s = STATUS[booking.status] ?? STATUS.confirmed;
     const dim = booking.status === "cancelled" || booking.status === "completed";
 
@@ -42,10 +46,10 @@ export default function BookingTicket({ booking, onCancel, onPay, onShow, payHre
                     dim ? "bg-chalk text-ink-2" : "bg-pitch text-white"
                 )}
             >
-                <span className={cn("text-[13px] font-medium", dim ? "text-ink-3" : "text-white/60")}>{DAY[d.getDay()]}</span>
-                <span className="display text-[48px] leading-none tnum sm:mt-1">{d.getDate()}</span>
+                <span className={cn("text-[13px] font-medium", dim ? "text-ink-3" : "text-white/60")}>{DAY[d.getUTCDay()]}</span>
+                <span className="display text-[48px] leading-none tnum sm:mt-1">{d.getUTCDate()}</span>
                 <span className={cn("text-[13px] font-semibold sm:mt-1", dim ? "text-ink-3" : "text-white/80")}>
-                    {MON[d.getMonth()]} {d.getFullYear()}
+                    {MON[d.getUTCMonth()]} {d.getUTCFullYear()}
                 </span>
             </div>
 
@@ -70,7 +74,10 @@ export default function BookingTicket({ booking, onCancel, onPay, onShow, payHre
                     </h3>
                     <p className="mt-1 text-[15px] text-ink-2 tnum">
                         {time12(booking.start)} to {time12(booking.end)}
-                        <span className="text-ink-4">, {booking.format}</span>
+                        <span className="text-ink-4">
+                            , {booking.format}
+                            {late && ", after midnight"}
+                        </span>
                     </p>
                     {booking.status === "held" && (
                         <p className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-flare-deep">

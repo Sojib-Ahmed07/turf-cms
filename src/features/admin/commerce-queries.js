@@ -6,7 +6,8 @@ import { db } from "@/db";
 import { bookings, couponRedemptions, coupons, payments, pitches, promoBanners, user } from "@/db/schema";
 import { discountLabel, timeWindowLabel } from "@/features/coupons/rules";
 import { prettyMethod } from "@/lib/sslcommerz";
-import { dhakaDate, dhakaTime, shortDateLabel } from "@/lib/time";
+import { dayStartOf, DEFAULT_DAY_START, dhakaDate, dhakaTime, shortDateLabel } from "@/lib/time";
+import { defaultSheet } from "@/features/booking/queries";
 import { time12 } from "@/lib/utils";
 
 export const PAYMENTS_PAGE_SIZE = 25;
@@ -47,7 +48,10 @@ export async function getCouponsAdmin() {
             .where(and(eq(bookings.status, "held"), or(isNull(bookings.holdExpiresAt), gt(bookings.holdExpiresAt, now))))
             .groupBy(bookings.couponId),
         db.select({ couponId: promoBanners.couponId, title: promoBanners.title }).from(promoBanners),
-        db.select({ id: pitches.id, name: pitches.name }).from(pitches).orderBy(asc(pitches.sortOrder), asc(pitches.name)),
+        db
+            .select({ id: pitches.id, name: pitches.name, isActive: pitches.isActive, defaultBlocks: pitches.defaultBlocks })
+            .from(pitches)
+            .orderBy(asc(pitches.sortOrder), asc(pitches.name)),
     ]);
     const givenBy = new Map(given.map((g) => [g.couponId, Number(g.total ?? 0)]));
     const holdsBy = new Map(holds.map((h) => [h.couponId, Number(h.n)]));
@@ -81,7 +85,9 @@ export async function getCouponsAdmin() {
                 banners: banners.filter((b) => b.couponId === c.id).map((b) => b.title),
             };
         }),
-        grounds,
+        grounds: grounds.map((g) => ({ id: g.id, name: g.name })),
+        // Earliest first slot of the open grounds: the coupon hour picker starts here.
+        dayStart: Math.min(...grounds.filter((g) => g.isActive).map((g) => dayStartOf(defaultSheet(g))), DEFAULT_DAY_START),
     };
 }
 

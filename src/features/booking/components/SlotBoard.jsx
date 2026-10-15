@@ -2,19 +2,11 @@
 "use client";
 
 import { Check, Moon, Sun, Sunrise, Sunset } from "lucide-react";
+import { PARTS, partOf } from "@/features/booking/parts";
 import { cn, taka, time12 } from "@/lib/utils";
 
-const GROUPS = [
-    { key: "morning", label: "Morning", icon: Sunrise, from: 5, to: 12 },
-    { key: "day", label: "Afternoon", icon: Sun, from: 12, to: 17 },
-    { key: "evening", label: "Evening", icon: Sunset, from: 17, to: 22 },
-    { key: "late", label: "Late night", icon: Moon, from: 22, to: 29 }, // 22:00 -> 05:00
-];
-
-const hourOf = (hhmm) => {
-    const h = Number(hhmm.split(":")[0]);
-    return h < 5 ? h + 24 : h;
-};
+const ICONS = { morning: Sunrise, day: Sun, evening: Sunset, late: Moon };
+const GROUPS = PARTS.map((p) => ({ ...p, icon: ICONS[p.key] }));
 
 const minutes = (a, b) => {
     const [ah, am] = a.split(":").map(Number);
@@ -24,7 +16,7 @@ const minutes = (a, b) => {
     return d;
 };
 
-/** Time blocks grouped by part of day. state: free | booked | held | past */
+/** Time blocks grouped by part of day. state: free | booked | held | past; late = played after midnight */
 export default function SlotBoard({ blocks = [], selectedId, onSelect }) {
     return (
         <div>
@@ -37,10 +29,8 @@ export default function SlotBoard({ blocks = [], selectedId, onSelect }) {
 
             <div className="space-y-8">
                 {GROUPS.map((g) => {
-                    const items = blocks.filter((b) => {
-                        const h = hourOf(b.start);
-                        return h >= g.from && h < g.to;
-                    });
+                    // grouped by when the slot starts; after-midnight slots (b.late) are always "Late night"
+                    const items = blocks.filter((b) => partOf(b.start, b.late) === g.key);
                     if (!items.length) return null;
                     const free = items.filter((b) => b.state === "free").length;
                     const Icon = g.icon;
@@ -82,7 +72,7 @@ function SlotTile({ block, selected, onSelect }) {
                 block.state === "free" && !selected && "bg-white ring-1 ring-line hover:-translate-y-0.5 hover:ring-2 hover:ring-brand",
                 selected && "bg-pitch text-white shadow-[0_14px_30px_-14px_rgb(11_59_44/0.8)]",
                 block.state === "booked" &&
-                    "cursor-not-allowed bg-[repeating-linear-gradient(135deg,rgb(15_31_25/0.04)_0_6px,transparent_6px_12px)] ring-1 ring-line",
+                "cursor-not-allowed bg-[repeating-linear-gradient(135deg,rgb(15_31_25/0.04)_0_6px,transparent_6px_12px)] ring-1 ring-line",
                 block.state === "held" && "cursor-not-allowed bg-flare-soft ring-1 ring-flare/50",
                 block.state === "past" && "cursor-not-allowed opacity-40 ring-1 ring-line"
             )}

@@ -228,10 +228,18 @@ hides them from editors). Editors: Hero slides, Offer banners, Home sections, Fo
 ### Booking (ported from the prototype)
 - Each pitch has `defaultBlocks` JSON `[{ startTime, endTime, price, sortOrder }]`, ids `default-<i>`.
   A date with rows in `time_blocks` uses those instead (per-date custom schedule, uuid ids).
-- **Operating day starts at a fixed `DAY_START_HOUR = 6` for every ground.** Slots starting before 6:00
-  belong to the previous day's sheet and keep that `bookingDate`. Never pass a ground's `openHour` to time
-  helpers (that bug shifted "today" for late-opening grounds).
-- A block is past once its start time passed on the current operating day (`isBlockPast`).
+- **Day start (per sheet):** a "sheet" is one ground's slots for one date (default schedule, or a custom one for that
+  date). Its day starts at its **first slot** (`dayStartOf(blocks)`, minutes), e.g. 05:00, 06:00 or 16:00. A slot starting
+  earlier than that (01:30 on a 06:00 sheet) is played after midnight on the next calendar day but stays on that sheet and
+  is stored with its `bookingDate`. There is no fixed 6 am any more (`DEFAULT_DAY_START` is only the fallback for an empty sheet).
+- **Past slots:** `isBlockPast(date, start, dayStart)` compares the slot's real start (date + time, next day if after
+  midnight) with the time in Dhaka. Always pass the sheet's `dayStart`: `resolveBlock()` returns it as `block.dayStart`,
+  `getSheetDayStarts([{ pitchId, date }])` gives it for booking rows, and booking views carry `dayStart`.
+- **"Today":** `currentVenueDay()` (booking queries). Yesterday stays "today" only while an open ground's sheet for
+  yesterday still has after-midnight slots running (`nightEndOf`); a 5 am to 10 pm venue switches at midnight.
+- Parts of the day: `features/booking/parts.js` (morning < 12, afternoon < 17, evening < 22, late = 22+ or after midnight).
+- Editing a ground's hours or slot length in the Edit form rebuilds its default slots (same-time slots keep their price).
+- Footer/"Find us" hours: typed text in Footer & SEO wins; empty = automatic from the grounds (`withVenueHours`).
 - Slot states: `free`, `held` (unexpired hold), `booked` (confirmed), `past`.
 - Hold: `status = held`, `holdExpiresAt = now + 15 min`, price from the server. Max 2 active holds per
   player. Expired holds are ignored live, marked `expired` lazily and by the daily cron.
@@ -346,9 +354,10 @@ Schema changes: edit the schema file → `npm run db:generate` → `npm run db:m
 
 ## 11. Key module APIs (use these, don't re-invent)
 
-- `lib/time.js`: `DAY_START_HOUR`, `dhakaDate()`, `dhakaTime()`, `hhmmToMinutes`, `minutesToHHMM`,
-  `addDaysISO(iso, n)`, `operatingMinutes(hhmm)`, `currentOperatingDay()` → `{ date, minutes }`,
-  `isBlockPast(date, start)`, `shortDateLabel(iso)` → "Tue 13 Oct".
+- `lib/time.js`: `DEFAULT_DAY_START` (fallback only), `dhakaDate()`, `dhakaTime()`, `hhmmToMinutes`, `minutesToHHMM`,
+  `addDaysISO(iso, n)`, `dayStartOf(blocks)`, `isAfterMidnight(hhmm, dayStart)`, `operatingMinutes(hhmm, dayStart)`,
+  `playDateOf`, `isBlockPast(date, start, dayStart)`, `nightEndOf(blocks)`, `currentOperatingDay(nightEnd)` → `{ date, minutes }`,
+  `shortDateLabel(iso)` → "Tue 13 Oct". "Today" for pages: `currentVenueDay()` in `features/booking/queries.js`.
 - `lib/guards.js`: `getSession()`, `requireUser(next)`, `requireRole(roles)` (redirects; for pages only).
 - `lib/sslcommerz.js`: `isSslczConfigured`, `initSession`, `validateOrder`, `queryTransaction`, `prettyMethod`.
 - `features/booking/queries.js`: `getPitches`, `getPitchById`, `toPitchView`, `getTimeBlocksForPitch`,

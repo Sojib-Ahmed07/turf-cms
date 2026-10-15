@@ -10,7 +10,7 @@ import { createUploadSignature, destroyImage, isCloudinaryConfigured, verifyUplo
 import { getMediaPickerItems, getMediaUsage } from "../admin-queries";
 import { CONTENT_ROLES, DENIED, requireRoles } from "../server-utils";
 
-/** Folders inside CLOUDINARY_FOLDER. The media library filters by these. */
+/** Folders inside CLOUDINARY_FOLDER (default "turfzone"). The media library filters by these. */
 const FOLDERS = ["branding", "hero", "banners", "pitches", "seo", "misc"];
 const NOT_SET_UP = { ok: false, error: "Image uploads aren't set up yet. Add the Cloudinary keys to .env.local." };
 

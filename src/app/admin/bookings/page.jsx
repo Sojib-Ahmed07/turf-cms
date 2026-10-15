@@ -2,8 +2,8 @@
 import { Suspense } from "react";
 import BookingsTable from "@/features/admin/components/BookingsTable";
 import { getAdminBookings, getAllPitchesAdmin } from "@/features/admin/queries";
+import { currentVenueDay } from "@/features/booking/queries";
 import { requireRole } from "@/lib/guards";
-import { currentOperatingDay } from "@/lib/time";
 
 export const metadata = { title: "Bookings" };
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function AdminBookingsPage({ searchParams }) {
     };
 
     const [data, pitches] = await Promise.all([getAdminBookings(filters), getAllPitchesAdmin()]);
-    const { date: startDate } = currentOperatingDay();
+    const { date: startDate } = await currentVenueDay();
 
     return (
         // Suspense: BookingsTable reads the URL with useSearchParams

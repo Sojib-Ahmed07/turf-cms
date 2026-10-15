@@ -1,24 +1,31 @@
 // src/features/booking/calendar.js
 // Pure helpers for showing a booking's real calendar date and adding it to Google Calendar.
 // Safe on the server and in the browser (works from the "YYYY-MM-DD" string, no time zone maths).
-import { addDaysISO, hhmmToMinutes, DAY_START_HOUR } from "@/lib/time";
+import { addDaysISO, DEFAULT_DAY_START, hhmmToMinutes, isAfterMidnight as afterMidnight } from "@/lib/time";
 
-/** Slots that start before 6 am belong to the previous day's sheet but are played after midnight. */
-export const isAfterMidnight = (start) => hhmmToMinutes(start) < DAY_START_HOUR * 60;
+// Bookings carry `dayStart` (minutes after midnight of their sheet's first slot). A slot that starts
+// before it, e.g. 01:30 on a sheet that opens at 06:00, is played after midnight on the next calendar day.
+const startOf = (b) => (typeof b.dayStart === "number" ? b.dayStart : DEFAULT_DAY_START);
+
+/** True if the booking { start, dayStart } is played after midnight. */
+export const isAfterMidnight = (b) => afterMidnight(b.start, startOf(b));
 
 /** The calendar day the slot is actually played on. */
-export const playDate = (b) => (isAfterMidnight(b.start) ? addDaysISO(b.date, 1) : b.date);
+export const playDate = (b) => (isAfterMidnight(b) ? addDaysISO(b.date, 1) : b.date);
 
-/** Google Calendar "add event" link for { id, pitch, date, start, end }. */
+/** Google Calendar "add event" link for { id, pitch, date, start, end, dayStart }. */
 export function calendarUrl(b) {
-    const stamp = (time) => {
-        const day = isAfterMidnight(time) ? addDaysISO(b.date, 1) : b.date;
+    const startDay = playDate(b);
+    const stamp = (time, isEnd) => {
+        // the end is on the next day when the slot crosses midnight (e.g. 23:00 to 00:30)
+        const crosses = isEnd && hhmmToMinutes(time) <= hhmmToMinutes(b.start);
+        const day = crosses ? addDaysISO(startDay, 1) : startDay;
         return `${day.replaceAll("-", "")}T${time.replace(":", "")}00`;
     };
     const q = new URLSearchParams({
         action: "TEMPLATE",
         text: `${b.pitch} booking (${b.id})`,
-        dates: `${stamp(b.start)}/${stamp(b.end)}`,
+        dates: `${stamp(b.start, false)}/${stamp(b.end, true)}`,
         ctz: "Asia/Dhaka",
         details: `Booking ${b.id}. Show your ticket at the desk.`,
     });

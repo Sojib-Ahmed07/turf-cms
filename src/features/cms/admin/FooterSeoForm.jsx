@@ -82,8 +82,11 @@ export default function FooterSeoForm({ initial }) {
                             <CharInput max={100} multiline rows={2} value={form.contact.address} onChange={(e) => setContact({ address: e.target.value })} />
                         </div>
                         <div>
-                            <Label htmlFor="c-hours">Opening hours</Label>
-                            <TextInput id="c-hours" value={form.contact.hours} onChange={(e) => setContact({ hours: e.target.value })} placeholder="Every day, 6 am to 3 am" maxLength={60} />
+                            <Label htmlFor="c-hours" optional>
+                                Opening hours
+                            </Label>
+                            <TextInput id="c-hours" value={form.contact.hours} onChange={(e) => setContact({ hours: e.target.value })} placeholder="Automatic from Grounds & slots" maxLength={60} />
+                            <p className="mt-1.5 text-[12px] text-ink-3">Leave empty to show the real hours of your grounds, updated whenever you change their slots.</p>
                         </div>
                         <div>
                             <Label htmlFor="c-map">Google Maps link</Label>

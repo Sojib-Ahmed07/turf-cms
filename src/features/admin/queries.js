@@ -5,8 +5,8 @@ import "server-only";
 import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql, gt, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, pitches, timeBlocks, user, heroSlides, coupons } from "@/db/schema";
-import { addDaysISO, currentOperatingDay, dhakaTime, isBlockPast, shortDateLabel } from "@/lib/time";
-import { getTimeBlocksForPitch } from "@/features/booking/queries";
+import { addDaysISO, dayStartOf, isAfterMidnight, isBlockPast, operatingMinutes, shortDateLabel } from "@/lib/time";
+import { currentVenueDay, getSheetDayStarts, getTimeBlocksForPitch } from "@/features/booking/queries";
 import { time12 } from "@/lib/utils";
 
 export const EDITOR_DAYS = 30; // slot editor shows today + next 29 days
@@ -36,7 +36,7 @@ export async function countActiveHolds() {
 /* -------------------------------------------------------------- */
 
 export async function getDashboardStats() {
-    const { date: today } = currentOperatingDay();
+    const { date: today } = await currentVenueDay();
     const monthStart = today.slice(0, 8) + "01";
 
     // Same period last month, e.g. 1–13 Sep when today is 13 Oct.
@@ -83,9 +83,9 @@ export async function getDashboardStats() {
  * plus occupancy % and the time range to draw.
  */
 export async function getTodayBoard() {
-    const { date: today } = currentOperatingDay();
+    const { date: today, minutes: nowMinutes } = await currentVenueDay();
     const active = await db.select().from(pitches).where(eq(pitches.isActive, true)).orderBy(asc(pitches.sortOrder), asc(pitches.name));
-    if (active.length === 0) return { rows: [], occupancy: 0, freeCount: 0, from: null, to: null, now: dhakaTime(), date: today };
+    if (active.length === 0) return { rows: [], occupancy: 0, freeCount: 0, from: null, to: null, now: nowMinutes, date: today };
 
     const taken = await db
         .select({
@@ -104,31 +104,33 @@ export async function getTodayBoard() {
     let total = 0;
     let used = 0;
     let freeCount = 0;
+    // Everything is placed on one clock: minutes since midnight of `today`, so after-midnight
+    // slots continue past 1440. Each ground uses its own first slot to know which slots are after midnight.
     let minStart = null;
     let maxEnd = null;
-    const opMin = (hhmm) => {
-        const [h, mm] = hhmm.split(":").map(Number);
-        return (h < 6 ? h + 24 : h) * 60 + mm;
-    };
 
     const rows = [];
     for (const p of active) {
         const blocks = await getTimeBlocksForPitch(p, today);
+        const dayStart = dayStartOf(blocks);
         rows.push({
             pitch: p.name,
             blocks: blocks.map((b) => {
                 total += 1;
                 const t = takenMap.get(`${p.id}|${b.startTime}`);
-                const past = isBlockPast(today, b.startTime);
+                const past = isBlockPast(today, b.startTime, dayStart);
+                const at = operatingMinutes(b.startTime, dayStart);
+                let until = operatingMinutes(b.endTime, dayStart);
+                if (until <= at) until += 1440; // ends after midnight
                 let status = "free";
                 if (t?.status === "confirmed") status = "confirmed";
                 else if (t?.status === "held") status = "held";
                 else if (past) status = "past";
                 if (t) used += 1;
                 if (status === "free") freeCount += 1;
-                if (minStart === null || opMin(b.startTime) < opMin(minStart)) minStart = b.startTime;
-                if (maxEnd === null || opMin(b.endTime) > opMin(maxEnd)) maxEnd = b.endTime;
-                return { start: b.startTime, end: b.endTime, status, who: t ? t.customerName || t.userName || "Walk-in" : null };
+                if (minStart === null || at < minStart) minStart = at;
+                if (maxEnd === null || until > maxEnd) maxEnd = until;
+                return { start: b.startTime, end: b.endTime, at, until, status, who: t ? t.customerName || t.userName || "Walk-in" : null };
             }),
         });
     }
@@ -137,9 +139,9 @@ export async function getTodayBoard() {
         rows,
         occupancy: total ? Math.round((used / total) * 100) : 0,
         freeCount,
-        from: minStart,
+        from: minStart, // minutes on today's clock
         to: maxEnd,
-        now: dhakaTime(),
+        now: nowMinutes,
         date: today,
     };
 }
@@ -147,7 +149,7 @@ export async function getTodayBoard() {
 /** Latest bookings for the dashboard list. */
 export async function getLatestBookings(limit = 5) {
     const rows = await baseBookingQuery().orderBy(desc(bookings.createdAt)).limit(limit);
-    return rows.map(toAdminBookingRow);
+    return toAdminBookingRows(rows);
 }
 
 /** Live hero slides and coupons for the "Live on the website" panel. */
@@ -214,14 +216,20 @@ function relativeTime(date) {
 }
 
 /** Status shown in admin: refund_due wins; expired holds and played bookings are derived. */
-function displayStatus(r) {
+function displayStatus(r, dayStart) {
     if (r.paymentStatus === "refund_due") return "refund_due";
     if (r.status === "held" && r.holdExpiresAt && r.holdExpiresAt.getTime() <= Date.now()) return "expired";
-    if (r.status === "confirmed" && isBlockPast(r.bookingDate, r.startTime)) return "completed";
+    if (r.status === "confirmed" && isBlockPast(r.bookingDate, r.startTime, dayStart)) return "completed";
     return r.status;
 }
 
-function toAdminBookingRow(r) {
+/** Rows -> admin table rows, each judged against its own sheet's first slot. */
+async function toAdminBookingRows(rows) {
+    const starts = await getSheetDayStarts(rows.map((r) => ({ pitchId: r.pitchId, date: r.bookingDate })));
+    return rows.map((r) => toAdminBookingRow(r, starts.get(`${r.pitchId}|${r.bookingDate}`)));
+}
+
+function toAdminBookingRow(r, dayStart) {
     return {
         id: r.code,
         bookingId: r.id,
@@ -231,9 +239,9 @@ function toAdminBookingRow(r) {
         pitch: r.pitchName,
         date: shortDateLabel(r.bookingDate),
         isoDate: r.bookingDate,
-        time: `${time12(r.startTime)} to ${time12(r.endTime)}`,
+        time: `${time12(r.startTime)} to ${time12(r.endTime)}${isAfterMidnight(r.startTime, dayStart) ? ", after midnight" : ""}`,
         amount: Number(r.totalPrice),
-        status: displayStatus(r),
+        status: displayStatus(r, dayStart),
         rawStatus: r.status,
         method:
             r.source === "walk_in"
@@ -253,7 +261,7 @@ function toAdminBookingRow(r) {
  * filters: { q, pitchId, status, range: "today" | "upcoming" | "week" | "all", page }
  */
 export async function getAdminBookings({ q = "", pitchId = "", status = "", range = "upcoming", page = 1 } = {}) {
-    const { date: today } = currentOperatingDay();
+    const { date: today } = await currentVenueDay();
     const where = [];
 
     if (range === "today") where.push(eq(bookings.bookingDate, today));
@@ -301,7 +309,7 @@ export async function getAdminBookings({ q = "", pitchId = "", status = "", rang
 
     const total = Number(countRows[0]?.c ?? 0);
     return {
-        rows: rows.map(toAdminBookingRow),
+        rows: await toAdminBookingRows(rows),
         total,
         page: safePage,
         pageSize: PAGE_SIZE,
@@ -356,7 +364,7 @@ export async function getPitchEditorData(pitchId) {
     const [pitch] = await db.select().from(pitches).where(eq(pitches.id, pitchId)).limit(1);
     if (!pitch) return null;
 
-    const { date: today } = currentOperatingDay();
+    const { date: today } = await currentVenueDay();
     const dates = Array.from({ length: EDITOR_DAYS }, (_, i) => addDaysISO(today, i));
 
     const overrideRows = await db

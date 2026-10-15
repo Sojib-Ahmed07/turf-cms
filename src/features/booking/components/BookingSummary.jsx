@@ -7,17 +7,49 @@ import Button from "@/components/ui/Button";
 import { cn, taka, time12 } from "@/lib/utils";
 
 /**
- * Right-hand checkout card.
- * onPay/busy/error come from BookingClient. The promo code box is hidden
- * until the coupons step (pass showCoupon to bring it back).
+ * Right-hand checkout card. State lives in BookingClient:
+ *   onPay / busy / error           pay button
+ *   coupon                         applied code { code, discount, total } or null
+ *   onApplyCoupon(code)            async, returns { ok, error }
+ *   onRemoveCoupon()               clear the code
+ *   showCoupon                     show the promo code box (default on)
  */
-export default function BookingSummary({ pitch, dateLabel, block, onPay, busy = false, error = "", isSignedIn = true, showCoupon = false, venue = "" }) {
+export default function BookingSummary({
+    pitch,
+    dateLabel,
+    block,
+    onPay,
+    busy = false,
+    error = "",
+    isSignedIn = true,
+    showCoupon = true,
+    venue = "",
+    coupon = null,
+    onApplyCoupon,
+    onRemoveCoupon,
+}) {
     const [code, setCode] = useState("");
-    const [applied, setApplied] = useState(null);
+    const [checking, setChecking] = useState(false);
+    const [codeError, setCodeError] = useState("");
 
     const subtotal = Number(block?.price ?? 0);
-    const discount = applied ? Math.round(subtotal * 0.2) : 0;
-    const total = subtotal - discount;
+    const discount = coupon ? coupon.discount : 0;
+    const total = Math.max(0, subtotal - discount);
+
+    async function apply(e) {
+        e.preventDefault();
+        if (!code.trim() || !onApplyCoupon) return;
+        if (!block) {
+            setCodeError("Pick a time slot first, then apply the code.");
+            return;
+        }
+        setChecking(true);
+        setCodeError("");
+        const res = await onApplyCoupon(code);
+        setChecking(false);
+        if (!res.ok) setCodeError(res.error);
+        else setCode("");
+    }
 
     return (
         <aside className="overflow-hidden rounded-card bg-white ring-1 ring-line">
@@ -46,34 +78,40 @@ export default function BookingSummary({ pitch, dateLabel, block, onPay, busy = 
                 </dl>
 
                 {/* Coupon */}
-                {!showCoupon ? null : applied ? (
+                {!showCoupon ? null : coupon ? (
                     <div className="flex items-center justify-between rounded-ctl bg-brand-soft px-4 py-3">
                         <span className="flex items-center gap-2 text-[14px] font-semibold text-brand-deep">
                             <Tag className="h-4 w-4" />
-                            {applied} applied, 20% off
+                            {coupon.code} applied, {taka(coupon.discount)} off
                         </span>
-                        <button type="button" aria-label="Remove code" onClick={() => setApplied(null)} className="grid h-7 w-7 place-items-center rounded-full text-brand-deep hover:bg-white/60">
+                        <button type="button" aria-label="Remove code" onClick={onRemoveCoupon} className="grid h-7 w-7 place-items-center rounded-full text-brand-deep hover:bg-white/60">
                             <X className="h-3.5 w-3.5" />
                         </button>
                     </div>
                 ) : (
-                    <form
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            if (code.trim()) setApplied(code.trim().toUpperCase());
-                        }}
-                        className="flex rounded-ctl ring-1 ring-line focus-within:ring-2 focus-within:ring-brand"
-                    >
-                        <input
-                            value={code}
-                            onChange={(e) => setCode(e.target.value)}
-                            placeholder="Promo code"
-                            className="h-11 min-w-0 flex-1 bg-transparent px-4 text-[14px] font-semibold uppercase tracking-wider outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-4"
-                        />
-                        <button type="submit" className="m-1 rounded-[10px] bg-chalk px-4 text-[13px] font-semibold text-ink hover:bg-grass">
-                            Apply
-                        </button>
-                    </form>
+                    <div>
+                        <form onSubmit={apply} className="flex rounded-ctl ring-1 ring-line focus-within:ring-2 focus-within:ring-brand">
+                            <input
+                                value={code}
+                                onChange={(e) => {
+                                    setCode(e.target.value);
+                                    setCodeError("");
+                                }}
+                                placeholder="Promo code"
+                                aria-label="Promo code"
+                                maxLength={30}
+                                className="h-11 min-w-0 flex-1 bg-transparent px-4 text-[14px] font-semibold uppercase tracking-wider outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-4"
+                            />
+                            <button
+                                type="submit"
+                                disabled={checking || !code.trim()}
+                                className="m-1 rounded-[10px] bg-chalk px-4 text-[13px] font-semibold text-ink hover:bg-grass disabled:opacity-50"
+                            >
+                                {checking ? "Checking…" : "Apply"}
+                            </button>
+                        </form>
+                        {codeError && <p className="mt-2 text-[13px] font-medium text-danger">{codeError}</p>}
+                    </div>
                 )}
 
                 {/* Totals */}
@@ -95,7 +133,9 @@ export default function BookingSummary({ pitch, dateLabel, block, onPay, busy = 
                         : busy
                             ? "Reserving your slot…"
                             : isSignedIn
-                                ? `Pay ${taka(total)}`
+                                ? total === 0
+                                    ? "Book for free"
+                                    : `Pay ${taka(total)}`
                                 : "Sign in to book"}
                 </Button>
 

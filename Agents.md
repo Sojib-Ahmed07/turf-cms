@@ -36,7 +36,9 @@ grounds, open 6 am to 3 am, prices in BDT (৳).
 - **Step 5 (CMS write side) delivered:** Cloudinary uploads (signed, verified), media library, and live editors for
   branding, navigation, hero slides, offer banners, home sections, footer & SEO; ground photos upload too. Saves show
   on the site immediately (`updateTag`).
-- **Next:** Step 6, coupons + admin tables + missing pages + deploy (section 8).
+- **Step 6 part 1 delivered:** coupons work at checkout (Apply box, server re-check, 100% off books for free,
+  redemption counted once on payment), and the Coupons, Payments and Users admin pages are real.
+- **Next:** Step 6 part 2, profile/terms pages, Show ticket, loading/error pages, deploy (section 8).
 
 ## 3. Stack in use
 
@@ -109,16 +111,15 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
 | `action.js` | `action(schema, roles, handler)` wrapper for admin actions |
 | `time.js` | `DAY_START_HOUR`, `dhakaDate`, `dhakaTime`, `hhmmToMinutes`, `minutesToHHMM`, `addDaysISO`, `operatingMinutes`, `currentOperatingDay`, `isBlockPast`, `operatingDay`, `shortDateLabel` |
 | `cache-tags.js`, `env.js`, `utils.js` | tags, env validation, `cn`/`taka`/`time12` |
-| `sample-data.js`, `admin-sample-data.js` | still used by home page, CMS and admin screens not yet wired |
 
 ### Booking feature (`src/features/booking/`)
 | File | What it does |
 |---|---|
 | `slots.js` | Prototype slot engine (pure): generate/validate/resize/delete blocks, 12h formatting. Used by the admin slot editor in Step 3 |
 | `queries.js` | `getPitches`, `getPitchById`, `toPitchView`, `getTimeBlocksForPitch`, `resolveBlock`, `getTakenSlots`, `getSlotBoard`, `expireStaleHolds`, `getMyBookings`, `getBookingForUser`, `HOLD_MINUTES` |
-| `actions.js` | `createBookingHold({ pitchId, blockId, date })`, `cancelHeldBooking(bookingId)` |
+| `actions.js` | `previewCoupon({ code, pitchId, blockId, date })`, `createBookingHold({ pitchId, blockId, date, couponCode })` (0 total → confirmed free, `data.free`), `cancelHeldBooking(bookingId)` |
 | `components/BookingClient.jsx` | Real data: fetches `/api/booked-slots`, loading/error/empty states, reserve, redirects to login with `next` |
-| `components/BookingSummary.jsx` | `onPay`, `busy`, `error`, `isSignedIn`, `showCoupon` (hidden until coupons) |
+| `components/BookingSummary.jsx` | `onPay`, `busy`, `error`, `isSignedIn`, `coupon`, `onApplyCoupon`, `onRemoveCoupon`, `showCoupon` (default true); "Book for free" at 0 |
 | `components/PitchPicker.jsx` | Falls back to pitch lines when a ground has no photo |
 | `components/MyBookingsClient.jsx` | Real bookings, "reserved for you" notice, cancel held, `paymentsLive` flag |
 | `components/BookingTicket.jsx` | `onCancel`, `payHref`, `busy`, `highlight` |
@@ -168,12 +169,25 @@ Booking query added in Step 4: `getGroundsToday()` → `{ date, pitches: [...pit
 | `components/admin/MediaPicker.jsx`, `Toast.jsx` | Library picker dialog; `useToast()` |
 | `features/cms/admin/*.jsx` | Seven editors, each takes `initial` from its admin query; SaveBar only when dirty |
 
+### Coupons feature (`src/features/coupons/`)
+| File | What it does |
+|---|---|
+| `rules.js` | Pure: `normalizeCode`, `evaluateCoupon(coupon, ctx)` → `{ ok, discount, total }` or `{ ok:false, error }`, `discountLabel`, `timeWindowLabel`, `isHHMM` |
+| `service.js` | Server: `getCouponByCode`, `couponUses(coupon, userId)` (redemptions + active holds), `checkCouponForSlot`, `redeemCoupon(bookingId)` (once per booking) |
+
 ### Admin feature (`src/features/admin/`)
 | File | What it does |
 |---|---|
 | `queries.js` | `countActiveHolds`, `getDashboardStats`, `getTodayBoard`, `getLatestBookings`, `getLiveContentSummary`, `getAdminBookings({ q, pitchId, status, range, page })`, `getAllPitchesAdmin`, `getPitchAdmin`, `getPitchEditorData(pitchId)` (default + next 30 days). `EDITOR_DAYS = 30`, `PAGE_SIZE = 25` |
 | `actions/pitches.js` | Admin only: `upsertPitch`, `togglePitchActive`, `replaceDefaultBlocks`, `replaceDateBlocks`, `resetDateToDefault`, `regenerateDefaultBlocks`, `seedDateFromDefault` |
-| `actions/bookings.js` | Admin only: `adminCancelBooking({ bookingId, reason })` (paid becomes `refund_due`), `markRefunded`, `createWalkInBooking` (confirmed, `source = walk_in`, BD phone check) |
+| `actions/bookings.js` | Admin only: `adminCancelBooking({ bookingId, reason })` (paid becomes `refund_due`), `markRefunded` (also marks its payments refunded), `createWalkInBooking` (confirmed, `source = walk_in`, BD phone check) |
+| `commerce-queries.js` | `couponStatus`, `getCouponsAdmin()`, `getPaymentsAdmin({ q, status, page })` (`PAYMENTS_PAGE_SIZE = 25`), `getUsersAdmin({ q })` |
+| `actions/coupons.js` | Admin only: `saveCoupon`, `setCouponActive`, `deleteCoupon` (refused once used); all `updateTag(TAGS.banners)` |
+| `actions/payments.js` | Admin only: `adminRecheckPayment(tranId)` → `{ outcome, message }`, `markPaymentRefunded(paymentId)` |
+| `actions/users.js` | Admin only: `setUserRole({ userId, role })` (not yourself, not the last admin) |
+| `components/CouponsManager.jsx` | Codes table (switch, usage, discount given, status) + editor panel (limits, dates, grounds, days, hours) |
+| `components/PaymentsTable.jsx` | URL tabs + search, refund/risky alerts, Check with SSLCommerz, Mark refunded, pagination |
+| `components/UsersTable.jsx` | Search, role select (locked for yourself and the last admin) |
 | `components/GroundsList.jsx` | Ground cards, open switch, Edit (PitchForm), Edit slots link, empty state |
 | `components/PitchForm.jsx` | Add/edit ground dialog (`EMPTY_PITCH`); photo via ImageUploader (folder `pitches`) |
 | `components/SlotEditor.jsx` | Tabs: Default schedule + 30 days; price, ±15/30 min, delete, add; custom day / reset / rebuild; sticky save bar |
@@ -196,7 +210,9 @@ Shared: `src/components/ui/Dialog.jsx` (modal), `src/components/admin/TonightBoa
 | `/admin/bookings` | **Live**, admin only (`?range=today|upcoming|week|all&q=&pitch=&status=&page=&walkin=1`) |
 | `/admin/{branding,navigation}` | **Live**, admin only |
 | `/admin/{hero,banners,sections,footer,media}` | **Live**, admin or editor |
-| `/admin/{coupons,payments,users}` | Admin only; still sample data (Step 6) |
+| `/admin/coupons` | **Live**, admin only |
+| `/admin/payments` | **Live**, admin only (`?status=paid|started|failed|refund_due|refunded|risky&q=&page=`) |
+| `/admin/users` | **Live**, admin only (`?q=`) |
 | `/api/auth/[...all]` | Better Auth handler |
 | `/api/booked-slots` | **Live** slot board JSON |
 
@@ -213,8 +229,7 @@ Fixed in Step 1:
 Still open:
 - `.gitignore` already has `!.env.example` (fixed by Said).
 - `src/lib/env.js` is not imported anywhere yet; import it in `src/lib/auth.js` and `src/db/index.js` when convenient.
-- Seeded banners show the NIGHT20 code before coupons work at checkout (Step 6). The FIRST200 popup is seeded switched off.
-- `sample-data.js` / `admin-sample-data.js` are now only used by the coupons, payments and users pages (Step 6).
+- The FIRST200 popup is seeded switched off; switch it on in Offer banners now that coupons work.
 
 ## 8. Step plan
 
@@ -224,7 +239,8 @@ Still open:
 - [x] **Step 3. Admin bookings side** (13 Oct): port prototype `admin.js`, `PitchesManager`, `SlotEditor` into `/admin/pitches` (ground editor, default blocks, per-date overrides); real `/admin/bookings` (filters, cancel, walk-in); real overview stats + `TonightBoard`.
 - [x] **Step 4. CMS read side** (13 Oct): `features/cms/queries.js` (settings, nav, hero, banners, sections) with cache tags; replace sample data in `(site)` layout/home; `--brand` + metadata from settings; `LiveGrounds` with real pitches + free slots tonight.
 - [x] **Step 5. CMS write side** (14 Oct): Cloudinary signed upload (no SDK) with verified results, media library + picker, server actions + live editors for branding, navigation, hero, banners, sections, footer/SEO, ground photos; up/down ordering; toasts; hero "shade" setting honoured on the site.
-- [ ] **Step 6. Coupons, users, payments admin, polish, deploy**: coupons in checkout, users/roles page, payments table + re-check/refund, loading/error pages, SEO, production env, live SSLCommerz.
+- [x] **Step 6 part 1** (15 Oct): coupons at checkout (preview, re-check on hold, free bookings, redemption on confirm), Coupons/Payments/Users admin pages, sample-data files deleted.
+- [ ] **Step 6 part 2**: `/profile`, `/terms`, Show ticket dialog, loading/error/not-found pages, sitemap/robots, `env.js`, lint, deploy guide (Vercel env, live SSLCommerz, IPN URL, cron).
 
 ## 9. Gotchas
 
@@ -244,6 +260,8 @@ Still open:
 | IPN never arrives locally | Expected: SSLCommerz can't reach localhost. The browser success callback confirms instead; IPN works once deployed |
 | Vercel deploy fails on cron schedule | Hobby plan allows daily crons only; keep `vercel.json` daily or use an external cron with the Bearer header |
 | Stale styles | Delete `.next`, restart dev |
+| Coupon "used up" with no paid uses | Active holds count as uses for 15 min |
+| Coupon can't be deleted | It has redemptions; switch it off instead |
 
 ## 10. Changelog
 - 2026-10-11: Blueprint agreed. Phase 0 UI built (73 files). Project set up in `D:\projects\turf-cms`.
@@ -255,6 +273,8 @@ Still open:
 - 2026-10-14: Step 5 (CMS write side). lib/cloudinary, cms actions + admin queries, 7 live editors, ImageUploader/MediaPicker/Toast, ground photo upload, admin-only page guards on coupons/payments/users, admin sidebar shows the site name. 58 CMS tests + browser e2e (production build, mock Cloudinary).
 
 <!-- BEGIN:nextjs-agent-rules -->
+
+- 2026-10-15: Step 6 part 1. `features/coupons/*`, coupon box on /book (preview, re-check on hold, 100% off = free booking), redemption on payment confirm, admin commerce queries + coupons/payments/users actions, real Coupons/Payments/Users pages, sample-data files deleted. 52 integration tests + browser e2e (production build, mock gateway).
 
 ## This is NOT the Next.js you know
 

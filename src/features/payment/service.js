@@ -19,6 +19,7 @@ import { db } from "@/db";
 import { bookings, payments, pitches } from "@/db/schema";
 import { initSession, queryTransaction, validateOrder } from "@/lib/sslcommerz";
 import { HOLD_MINUTES } from "@/features/booking/queries";
+import { redeemCoupon } from "@/features/coupons/service";
 import { shortDateLabel } from "@/lib/time";
 import { time12 } from "@/lib/utils";
 
@@ -220,7 +221,10 @@ async function settleBooking(paymentId, bookingId) {
                 .set({ status: "confirmed", paymentStatus: "paid", holdExpiresAt: null, updatedAt: new Date() })
                 .where(and(eq(bookings.id, bookingId), inArray(bookings.status, ["held", "expired"])))
                 .returning({ id: bookings.id });
-            if (rows.length) return { ok: true, outcome: "confirmed", bookingId };
+            if (rows.length) {
+                await redeemCoupon(bookingId); // promo code use becomes permanent only now
+                return { ok: true, outcome: "confirmed", bookingId };
+            }
         } catch (err) {
             if (!isUniqueViolation(err)) throw err;
         }

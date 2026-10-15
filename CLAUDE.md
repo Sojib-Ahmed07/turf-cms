@@ -54,13 +54,14 @@ src/
     auth/              AuthForms, AuthLayout
   features/
     booking/           queries.js, actions.js, slots.js (pure slot engine), components/
-    admin/             queries.js, actions/{pitches,bookings}.js, components/
+    admin/             queries.js, commerce-queries.js, actions/{pitches,bookings,coupons,payments,users}.js, components/
+    coupons/           rules.js (pure evaluateCoupon), service.js (checkCouponForSlot, redeemCoupon)
     cms/               queries.js (cached reads), admin-queries.js, server-utils.js, actions/*, upload-client.js,
                        admin/ (7 live editors)
     payment/           service.js (start, confirm, recheck), actions.js (payForBooking), result-page.js,
                        components/PaymentResult.jsx, RetryPayButton.jsx
   db/                  index.js (neon-http), pool.js (unused), schema/, seed.js
-  lib/                 auth, auth-client, guards, action, time, utils, cache-tags, sslcommerz, cloudinary, env, sample data
+  lib/                 auth, auth-client, guards, action, time, utils, cache-tags, sslcommerz, cloudinary, env
   proxy.js             cookie check redirect for /admin, /bookings, /profile
 ```
 
@@ -116,16 +117,16 @@ Never `new Date().getHours()` or `toLocaleDateString` on the server.
 payments, users are admin only (`adminOnly` in `AdminShell`). Check the role inside every admin action,
 not only in the layout. Admin-only pages also call `requireRole(["admin"])` themselves.
 
-## Known gaps (as of 14 Oct 2026)
+## Known gaps (as of 15 Oct 2026)
 
 - `Agents.md` refers to `BLUEPRINT.md`, which is not in the repo. `ai-context.md` section 12 has the
   remaining plan (Step 6); ask Said before assuming anything beyond it.
 - `src/lib/env.js` is defined but not imported anywhere, and doesn't list the Cloudinary/SSLCommerz vars.
 - `npm run lint` reports 8 errors and 2 warnings in existing code (`react-hooks/set-state-in-effect`,
   unescaped `'` in JSX).
-- Coupons, payments and users admin pages still use `admin-sample-data.js` (Step 6).
 - `/profile` and `/terms` are linked from the navbar/footer but don't exist; "Show ticket" does nothing.
-- Steps 1 to 5 are done. Next: Step 6 (coupons, payments/users admin, profile/terms, polish, deploy).
+- Steps 1 to 5 and Step 6 part 1 (coupons, payments/users admin) are done. Next: Step 6 part 2
+  (profile/terms, Show ticket, loading/error pages, env check, lint, deploy).
 
 ## End of session
 

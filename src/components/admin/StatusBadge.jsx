@@ -9,6 +9,8 @@ const MAP = {
     expired: ["neutral", "Expired"],
     refund_due: ["danger", "Refund due"],
     valid: ["brand", "Paid"],
+    paid: ["brand", "Paid"],
+    used_up: ["neutral", "Used up"],
     initiated: ["flare", "Started"],
     failed: ["danger", "Failed"],
     refunded: ["neutral", "Refunded"],

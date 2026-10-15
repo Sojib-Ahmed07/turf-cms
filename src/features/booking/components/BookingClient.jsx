@@ -10,7 +10,7 @@ import SlotBoard from "./SlotBoard";
 import BookingSummary from "./BookingSummary";
 import PromoBanner from "@/components/site/PromoBanner";
 import Button from "@/components/ui/Button";
-import { createBookingHold } from "@/features/booking/actions";
+import { createBookingHold, previewCoupon } from "@/features/booking/actions";
 import { payForBooking } from "@/features/payment/actions";
 import { addDaysISO, operatingMinutes, shortDateLabel } from "@/lib/time";
 import { taka, time12 } from "@/lib/utils";
@@ -89,6 +89,8 @@ export default function BookingClient({
     const [loadError, setLoadError] = useState("");
     const [blockId, setBlockId] = useState(null);
     const [payError, setPayError] = useState("");
+    const [couponCode, setCouponCode] = useState(null); // code the player applied (kept when they change slot)
+    const [coupon, setCoupon] = useState(null); // { code, discount, total, key } as last checked
     const [reloadKey, setReloadKey] = useState(0);
     // The ?t= / ?part= preselect applies once, to the first board that loads.
     const preselect = useRef(initialTime || initialPart ? { time: initialTime, part: initialPart } : null);
@@ -138,6 +140,47 @@ export default function BookingClient({
 
     const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
+    // A discount depends on the slot (price, time, ground), so a checked coupon only counts for the slot
+    // it was checked against (slotKey). When the slot changes, the code is checked again for the new one.
+    const slotKey = block && pitch ? `${pitch.id}|${block.id}|${date}` : "";
+    const activeCoupon = couponCode && coupon && coupon.key === slotKey ? coupon : null;
+
+    useEffect(() => {
+        if (!couponCode || !slotKey) return;
+        let cancelled = false;
+        const [pId, bId, d] = slotKey.split("|");
+        previewCoupon({ pitchId: pId, blockId: bId, date: d, couponCode }).then((res) => {
+            if (cancelled) return;
+            if (res.ok) setCoupon({ ...res.data, key: slotKey });
+            else {
+                setCoupon(null);
+                setCouponCode(null);
+                setPayError(`Code ${couponCode} removed: ${res.error}`);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [couponCode, slotKey]);
+
+    async function applyCoupon(code) {
+        if (!block || !pitch) return { ok: false, error: "Pick a time slot first." };
+        setPayError("");
+        const res = await previewCoupon({ pitchId: pitch.id, blockId: block.id, date, couponCode: code });
+        if (res.ok) {
+            setCoupon({ ...res.data, key: slotKey });
+            setCouponCode(res.data.code);
+        }
+        return res;
+    }
+
+    function removeCoupon() {
+        setCoupon(null);
+        setCouponCode(null);
+    }
+
+    const total = activeCoupon ? activeCoupon.total : Number(block?.price ?? 0);
+
     function handlePay() {
         if (!block || !pitch) return;
         setPayError("");
@@ -149,14 +192,24 @@ export default function BookingClient({
         }
 
         startTransition(async () => {
-            const res = await createBookingHold({ pitchId: pitch.id, blockId: block.id, date });
+            const res = await createBookingHold({ pitchId: pitch.id, blockId: block.id, date, couponCode: activeCoupon?.code ?? "" });
             if (!res.ok) {
+                if (res.couponError) {
+                    removeCoupon();
+                    setPayError(`${res.error} The code was removed; check the price and try again.`);
+                    return;
+                }
                 if (res.needsLogin) {
                     router.push(`/login?next=${encodeURIComponent(`/book?pitch=${pitch.id}&date=${date}`)}`);
                     return;
                 }
                 setPayError(res.error);
                 reload(); // slot may have been taken, refresh the board
+                return;
+            }
+            if (res.data.free) {
+                // The code covered the whole price: already confirmed, nothing to pay.
+                router.push(`/bookings?held=${res.data.code}`);
                 return;
             }
             if (!paymentsLive) {
@@ -242,6 +295,9 @@ export default function BookingClient({
                             error={payError}
                             isSignedIn={isSignedIn}
                             venue={venue}
+                            coupon={activeCoupon}
+                            onApplyCoupon={applyCoupon}
+                            onRemoveCoupon={removeCoupon}
                         />
                     </div>
                 </div>
@@ -255,11 +311,14 @@ export default function BookingClient({
                         <p className="truncate text-[13px] text-ink-3">
                             {block ? `${pitch?.name}, ${dateLabel}, ${time12(block.start)}` : "No slot selected"}
                         </p>
-                        <p className="display text-[24px] text-ink tnum">{taka(block?.price ?? 0)}</p>
+                        <p className="display text-[24px] text-ink tnum">
+                            {taka(total)}
+                            {activeCoupon && <span className="ml-2 text-[13px] font-semibold text-brand-deep">{activeCoupon.code}</span>}
+                        </p>
                     </div>
                     <Button size="lg" disabled={!block || busy} onClick={handlePay}>
                         <Lock className="h-4 w-4" />
-                        {busy ? "Reserving…" : isSignedIn ? `Pay ${taka(block?.price ?? 0)}` : "Sign in to book"}
+                        {busy ? "Reserving…" : !isSignedIn ? "Sign in to book" : block && total === 0 ? "Book for free" : `Pay ${taka(total)}`}
                     </Button>
                 </div>
             </div>

@@ -7,7 +7,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { bookings } from "@/db/schema";
+import { bookings, payments } from "@/db/schema";
 import { isBlockPast } from "@/lib/time";
 import { expireStaleHolds, getPitchById, resolveBlock } from "@/features/booking/queries";
 
@@ -100,7 +100,14 @@ export async function markRefunded(bookingId) {
             .returning({ id: bookings.id });
         if (rows.length === 0) return { ok: false, error: "This booking has no refund waiting." };
 
+        // Keep the Payments page in step: the paid attempt for this booking is now refunded.
+        await db
+            .update(payments)
+            .set({ status: "refunded", updatedAt: new Date() })
+            .where(and(eq(payments.bookingId, bookingId), inArray(payments.status, ["paid", "refund_due"])));
+
         revalidateAll();
+        revalidatePath("/admin/payments");
         return { ok: true };
     } catch (err) {
         console.error("[markRefunded]", err);

@@ -10,6 +10,7 @@ import { db } from "@/db";
 import { bookings } from "@/db/schema";
 import { isBlockPast } from "@/lib/time";
 import { HOLD_MINUTES, expireStaleHolds, getPitchById, resolveBlock } from "./queries";
+import { checkCouponForSlot, redeemCoupon } from "@/features/coupons/service";
 
 const MAX_ACTIVE_HOLDS = 2; // stops one player from blocking the whole evening
 
@@ -17,6 +18,7 @@ const holdSchema = z.object({
     pitchId: z.string().uuid(),
     blockId: z.string().min(1).max(64),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    couponCode: z.string().trim().max(30).optional().default(""),
 });
 
 async function currentUser() {
@@ -38,9 +40,34 @@ function isUniqueViolation(err) {
 }
 
 /**
- * Step 1 of checkout: reserve the slot for HOLD_MINUTES.
- * Returns { ok, data: { bookingId, code } } or { ok: false, error, needsLogin? }.
- * Step 2 (SSLCommerz) will turn this hold into a payment.
+ * "Apply" in the checkout card: what would this code take off this slot?
+ * Works signed out too (the per-player limit is checked again when the slot is held).
+ * Returns { ok, data: { code, discount, total } } or { ok: false, error }.
+ */
+export async function previewCoupon(input) {
+    try {
+        const parsed = holdSchema.safeParse(input);
+        if (!parsed.success || !parsed.data.couponCode) return { ok: false, error: "Type a promo code first." };
+        const { pitchId, blockId, date, couponCode } = parsed.data;
+        const user = await currentUser();
+
+        const pitch = await getPitchById(pitchId);
+        const block = pitch && (await resolveBlock(pitch, date, blockId));
+        if (!block) return { ok: false, error: "Pick a time slot first." };
+
+        const r = await checkCouponForSlot({ code: couponCode, pitchId, block, date, userId: user?.id ?? null });
+        if (!r.ok) return r;
+        return { ok: true, data: { code: r.coupon.code, discount: r.discount, total: r.total } };
+    } catch (err) {
+        console.error("[previewCoupon]", err);
+        return { ok: false, error: "Couldn't check the code. Try again." };
+    }
+}
+
+/**
+ * Step 1 of checkout: reserve the slot for HOLD_MINUTES, with an optional promo code.
+ * Returns { ok, data: { bookingId, code, free? } } or { ok: false, error, needsLogin? }.
+ * A code that makes the slot free confirms the booking straight away (nothing to pay).
  */
 export async function createBookingHold(input) {
     try {
@@ -49,7 +76,7 @@ export async function createBookingHold(input) {
 
         const parsed = holdSchema.safeParse(input);
         if (!parsed.success) return { ok: false, error: "Pick a ground, date and time first." };
-        const { pitchId, blockId, date } = parsed.data;
+        const { pitchId, blockId, date, couponCode } = parsed.data;
 
         const pitch = await getPitchById(pitchId);
         if (!pitch) return { ok: false, error: "This ground isn't taking bookings right now." };
@@ -77,8 +104,19 @@ export async function createBookingHold(input) {
             };
         }
 
+        // Promo code: always re-checked here, whatever the browser showed.
+        let couponId = null;
+        let discount = 0;
+        if (couponCode) {
+            const c = await checkCouponForSlot({ code: couponCode, pitchId, block, date, userId: user.id });
+            if (!c.ok) return { ok: false, couponError: true, error: c.error };
+            couponId = c.coupon.id;
+            discount = c.discount;
+        }
+        const total = Math.max(0, Number(block.price) - discount);
+        const free = total === 0;
+
         const holdExpiresAt = new Date(now.getTime() + HOLD_MINUTES * 60 * 1000);
-        const price = String(block.price);
 
         // Retry only if the random booking code collides (very rare).
         for (let attempt = 0; attempt < 3; attempt++) {
@@ -95,18 +133,23 @@ export async function createBookingHold(input) {
                         bookingDate: date,
                         startTime: block.startTime,
                         endTime: block.endTime,
-                        subtotal: price,
-                        discount: "0",
-                        totalPrice: price,
-                        status: "held",
-                        paymentStatus: "unpaid",
+                        subtotal: String(block.price),
+                        discount: String(discount),
+                        totalPrice: String(total),
+                        couponId,
+                        status: free ? "confirmed" : "held",
+                        paymentStatus: free ? "paid" : "unpaid",
                         source: "online",
-                        holdExpiresAt,
+                        holdExpiresAt: free ? null : holdExpiresAt,
                     })
                     .returning({ id: bookings.id, code: bookings.code });
 
+                if (free) await redeemCoupon(row.id);
                 revalidatePath("/bookings");
-                return { ok: true, data: { bookingId: row.id, code: row.code, holdExpiresAt: holdExpiresAt.toISOString() } };
+                return {
+                    ok: true,
+                    data: { bookingId: row.id, code: row.code, free, holdExpiresAt: free ? null : holdExpiresAt.toISOString() },
+                };
             } catch (err) {
                 if (!isUniqueViolation(err)) throw err;
                 const msg = String(err?.message ?? "") + String(err?.cause?.message ?? "") + String(err?.cause?.constraint ?? "");

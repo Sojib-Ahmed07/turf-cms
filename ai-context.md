@@ -2,7 +2,7 @@
 
 Paste this whole file into a new chat (Claude, Gemini, DeepSeek, any model) before asking for work,
 then attach the source files the task touches. It is self-contained: everything a new model needs to
-continue the project without the old chat. Last updated **14 Oct 2026**, after Steps 1 to 5.
+continue the project without the old chat. Last updated **15 Oct 2026**, after Steps 1 to 5 and Step 6 part 1.
 
 In the repo, `Agents.md` holds the same facts in more detail (file tables, changelog) and `CLAUDE.md`
 holds Claude Code's working rules. If this file and the code disagree, the code wins; fix this file.
@@ -45,16 +45,18 @@ the booking logic was ported from Said's earlier prototype (`turf.zip`, bKash re
 | 4 | CMS read side: whole public site reads settings/nav/hero/banners/sections from the DB | Done |
 | 2 | SSLCommerz payments: pay, callbacks, IPN, result pages, retry, lost-payment recheck, cron | Done (build + 38 integration tests + browser e2e against a mock gateway; Said is testing in the real sandbox) |
 | 5 | CMS write side: Cloudinary uploads, media library, branding, navigation, hero, banners, sections, footer/SEO editors | Done (build + 58 integration tests + browser e2e against a mock Cloudinary on a production server) |
-| **6** | **Coupons at checkout, coupons/payments/users admin, profile/terms pages, polish, deploy** | **Next** |
+| 6a | Coupons at checkout (incl. free bookings), real Coupons, Payments and Users admin pages | Done 15 Oct (build + 52 integration tests + browser e2e on a production build) |
+| **6b** | **Profile and terms pages, Show ticket, loading/error/not-found, sitemap/robots, env check, lint, deploy** | **Next** |
 
-Said's project was checked file by file on 14 Oct (before Step 5): identical to the delivered code (his
-editor reformats whitespace; that's fine).
+Said's project was checked file by file on 15 Oct (before Step 6): identical to the delivered code (his
+editor reformats whitespace; that's fine). The sample-data files are deleted in Step 6 part 1.
 
 Open items on Said's side:
 - `.env.local` still has placeholders for `SEED_ADMIN_EMAIL` and `CRON_SECRET`. To get an admin:
   set his real email, register on the site, run `npm run db:seed` again.
 - SSLCommerz sandbox: store ID/password go in `.env.local`; Pay buttons stay hidden until both are set.
-- Cloudinary keys are set in his `.env.local`; real uploads haven't been confirmed on his machine yet.
+- Cloudinary keys are set in his `.env.local`; folders are created automatically on the first upload.
+- The seeded FIRST200 popup (Offer banners) is still switched off; he can turn it on now that coupons work.
 
 ## 4. Stack and commands
 
@@ -107,8 +109,8 @@ src/
     (auth)/                    /login, /register
     admin/                     layout (requireRole admin|editor, AdminShell); page (overview);
                                pitches/, pitches/[id]/ (slot editor), bookings/,
-                               branding, navigation, hero, banners, sections, footer, media  ← live
-                               coupons, payments, users  ← still sample data (admin-only already)
+                               branding, navigation, hero, banners, sections, footer, media,
+                               coupons, payments, users (admin only)  ← all live
     api/auth/[...all]/route.js           Better Auth
     api/booked-slots/route.js            slot board JSON for /book and walk-ins
     api/payment/sslcommerz/[event]/route.js   POST success | fail | cancel | ipn
@@ -123,14 +125,16 @@ src/
     auth/        AuthForms, AuthLayout
   features/
     booking/     queries.js, actions.js, slots.js (pure slot engine), components/
-    admin/       queries.js, actions/pitches.js, actions/bookings.js, components/
+    admin/       queries.js, commerce-queries.js (coupons/payments/users admin reads),
+                 actions/{pitches,bookings,coupons,payments,users}.js, components/
+    coupons/     rules.js (pure: evaluateCoupon, labels), service.js (DB: check, uses, redeemCoupon)
     cms/         queries.js (cached public reads), admin-queries.js (uncached admin reads), server-utils.js,
                  actions/{settings,hero,banners,sections,media}.js, upload-client.js, admin/ (7 editors)
     payment/     service.js, actions.js, result-page.js, components/PaymentResult + RetryPayButton
   db/            index.js (neon-http db), pool.js (unused WebSocket pool), schema/{auth,booking,commerce,cms}.js,
                  seed.js
   lib/           auth, auth-client, guards, action, time, utils, cache-tags, sslcommerz, cloudinary,
-                 env (unused), sample-data + admin-sample-data (only coupons/payments/users pages now)
+                 env (unused)
 drizzle/         0000 initial schema, 0001 booking FKs + unique active-slot index
 vercel.json      cron
 ```
@@ -251,6 +255,30 @@ hides them from editors). Editors: Hero slides, Offer banners, Home sections, Fo
 - Payments row statuses: `initiated`, `paid`, `failed`, `cancelled`, `refund_due`, `refunded`.
 - Pay buttons only show when `isSslczConfigured()` (store ID + password set).
 
+### Coupons (Step 6 part 1)
+- Rules in `features/coupons/rules.js` `evaluateCoupon(coupon, ctx)` (pure): active; inside `startsAt/endsAt`;
+  `usageLimit` vs `usedCount` **plus active holds using the code**; `perUserLimit` vs the player's redemptions plus
+  their own active holds; `minAmount`; `pitchIds` (empty = all); `timeWindow` `{ days:[0-6], from, to }` checked on
+  the operating-day clock (a 1 am slot counts as the previous evening). Percent is capped by `maxDiscount`; the
+  discount never exceeds the price.
+- `/book`: the summary has an Apply box → `previewCoupon` (server, prices re-read). It re-checks when the slot
+  changes and drops the code with a message if it no longer applies. `createBookingHold({ ..., couponCode })`
+  re-validates and stores `subtotal`, `discount`, `totalPrice`, `couponId` (`couponError: true` on failure).
+- **Total 0 (100% off):** the booking is confirmed and marked paid at once, no SSLCommerz, `data.free = true`.
+- `redeemCoupon(bookingId)` inserts `coupon_redemptions` and bumps `usedCount` once per booking; it runs when the
+  payment confirms (`settleBooking`) or immediately for a free booking.
+- Admin (`/admin/coupons`, `actions/coupons.js`): create/edit (code `A-Z 0-9 _ -`, 3 to 20 chars, unique), on/off,
+  delete (refused once used; switch it off instead). Status: active, scheduled, ended, used_up, hidden. Saves call
+  `updateTag(TAGS.banners)` because banners show the linked code only while it is live.
+
+### Admin payments and users (Step 6 part 1)
+- `/admin/payments?status=paid|started|failed|refund_due|refunded|risky&q=&page=` (25 per page). "Check with
+  SSLCommerz" on started/failed/cancelled rows → `adminRecheckPayment(tranId)` (`recheckPayment`). "Mark refunded"
+  → `markPaymentRefunded(paymentId)` for a `refund_due` payment or a paid payment whose booking is refund due
+  (also sets the booking to `refunded`). The bookings page's `markRefunded` updates the payments too.
+- `/admin/users?q=`: `setUserRole({ userId, role })`, admin only; you can't change your own role; the last admin
+  stays admin. Takes effect on the person's next page load. Staff are added by registering, then changing role.
+
 ### CMS reads (Step 4)
 `src/features/cms/queries.js`: every read is `unstable_cache` with a tag from `src/lib/cache-tags.js`
 (`settings`, `nav`, `hero`, `banners`, `sections`) and a 5-minute safety revalidate, and falls back to
@@ -311,7 +339,10 @@ Schema changes: edit the schema file → `npm run db:generate` → `npm run db:m
 - `features/booking/queries.js`: `getPitches`, `getPitchById`, `toPitchView`, `getTimeBlocksForPitch`,
   `resolveBlock`, `getTakenSlots`, `getSlotBoard`, `getGroundsToday`, `expireStaleHolds`, `getMyBookings`,
   `getBookingForUser`, `HOLD_MINUTES`.
-- `features/booking/actions.js`: `createBookingHold({ pitchId, blockId, date })`, `cancelHeldBooking(id)`.
+- `features/booking/actions.js`: `previewCoupon({ code, pitchId, blockId, date })`,
+  `createBookingHold({ pitchId, blockId, date, couponCode? })` (returns `data.free` for a 0 total), `cancelHeldBooking(id)`.
+- `features/coupons/service.js`: `getCouponByCode`, `couponUses`, `checkCouponForSlot`, `redeemCoupon(bookingId)`.
+- `features/admin/commerce-queries.js`: `getCouponsAdmin`, `getPaymentsAdmin(filters)`, `getUsersAdmin({ q })`.
 - `features/admin/queries.js`: dashboard stats, today board, latest bookings, `getAdminBookings(filters)`,
   pitch admin reads, `getPitchEditorData`.
 - `features/admin/actions/pitches.js` and `bookings.js`: ground CRUD, slot schedule edits, cancel,
@@ -327,20 +358,12 @@ Schema changes: edit the schema file → `npm run db:generate` → `npm run db:m
 
 See "CMS writes and uploads" in section 9. Ground photos in `PitchForm` also use the uploader now.
 
-### Step 6: coupons, admin tables, missing pages, polish, deploy (next)
+### Step 6 part 1: coupons, coupons/payments/users admin (done 15 Oct)
 
-- **Coupons at checkout:** `BookingSummary` has a hidden coupon box (`showCoupon`, currently fake 20%).
-  Add a server `previewCoupon({ code, pitchId, blockId, date })` and pass `couponCode` into
-  `createBookingHold`, which validates (active, dates, usage limit vs `usedCount`, per-user limit via
-  `coupon_redemptions`, `minAmount`, `pitchIds`, `timeWindow`), computes discount (percent capped by
-  `maxDiscount`, or fixed), stores `subtotal/discount/totalPrice/couponId`. Insert the redemption and
-  increment `usedCount` **only when the payment confirms** (in `settleBooking`, `features/payment/service.js`).
-  Then switch on the seeded FIRST200 popup banner.
-- **Coupons admin** (`CouponsManager`), **Payments admin** (`PaymentsTable`: payments joined to bookings,
-  filters, "Check with SSLCommerz" button → `recheckPayment`, risk flag when `riskLevel = "1"`, refund-due
-  list), **Users admin** (`UsersTable`: role change, admin only, can't demote yourself or the last admin).
-  (Those three pages already call `requireRole(["admin"])`.) When nothing imports the sample data files any more,
-  delete `src/lib/sample-data.js` and `src/lib/admin-sample-data.js`.
+See "Coupons" and "Admin payments and users" in section 9. The sample-data files are gone.
+
+### Step 6 part 2 (next)
+
 - **Missing pages:** `/profile` (name, phone; linked from navbar and footer, currently 404) and `/terms`
   (booking terms, footer link, 404). The "Show ticket" button on confirmed tickets does nothing yet
   (show a ticket dialog with the code, optionally a QR).
@@ -365,8 +388,9 @@ See "CMS writes and uploads" in section 9. Ground photos in `PitchForm` also use
 | `src/lib/action.js` turns `requireRole` redirects into a generic error | Don't use it (section 7, rule 10) |
 | `npm run lint`: 8 errors, 2 warnings (`react-hooks/set-state-in-effect`, unescaped `'`) | Pre-existing; fix in Step 6 |
 | `src/lib/env.js`, `src/db/pool.js` not used | Leave or wire up in Step 6 |
-| Seeded banners show code NIGHT20 before coupons work at checkout | Expected until Step 6 |
-| `/profile`, `/terms` 404; "Show ticket" no-op | Step 6 |
+| `/profile`, `/terms` 404; "Show ticket" no-op | Step 6 part 2 |
+| "This code has been used up" while nobody has paid | Active holds count as uses for 15 min (so two players can't both claim the last use) |
+| Can't delete a coupon | It has been used; switch it off instead (keeps the payment history right) |
 | Turbopack crash | Keep `--webpack` |
 | "Unknown at rule @theme" | `tailwindcss` + `@tailwindcss/postcss` + `postcss.config.mjs` |
 | `useSearchParams() should be wrapped in a suspense boundary` | Wrap in `<Suspense>` in the page |

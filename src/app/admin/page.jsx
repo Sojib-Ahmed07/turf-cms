@@ -104,7 +104,7 @@ export default async function AdminOverview() {
                     }
                 >
                     {latest.length === 0 ? (
-                        <p className="px-6 py-10 text-center text-[14px] text-ink-3">No bookings yet. They'll appear here as players book.</p>
+                        <p className="px-6 py-10 text-center text-[14px] text-ink-3">No bookings yet. They&apos;ll appear here as players book.</p>
                     ) : (
                         <ul className="divide-y divide-line">
                             {latest.map((b) => (

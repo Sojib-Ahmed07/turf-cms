@@ -330,6 +330,80 @@ export async function getSections() {
 }
 
 /* -------------------------------------------------------------- */
+/* Booking terms (/terms), stored as the page_sections row "terms" */
+/* -------------------------------------------------------------- */
+
+/** A starting draft that matches how the booking system works. The venue should review it. */
+export const DEFAULT_TERMS = {
+    heading: "Booking terms",
+    intro: "Please read these before you book. By paying for a slot you agree to them.",
+    items: [
+        {
+            title: "Booking and payment",
+            body: "A booking is confirmed only when your online payment goes through. When you press Pay, the slot is held for you for 15 minutes. If the payment isn't finished in that time, the slot is released for other players.",
+        },
+        {
+            title: "Prices",
+            body: "Prices are per slot, in Taka, and include floodlights and the changing room. The total shown at checkout is what you pay.",
+        },
+        {
+            title: "Promo codes",
+            body: "One code per booking. Each code has its own limits (dates, times, grounds and number of uses) and can't be exchanged for cash.",
+        },
+        {
+            title: "Cancelling or moving a booking",
+            body: "You can cancel a booking that is still waiting for payment from My bookings. To cancel or move a paid booking, call us at least 24 hours before your slot.",
+        },
+        {
+            title: "Refunds",
+            body: "If you paid but the slot was already taken, or you paid twice for the same booking, we refund the full amount. Refunds go back to the way you paid and can take up to 10 working days to reach you.",
+        },
+        {
+            title: "On the day",
+            body: "Arrive 10 minutes early and show your ticket at the desk (My bookings, then Show ticket). Slots start and end on time; a late start doesn't extend your slot.",
+        },
+        {
+            title: "If we have to close",
+            body: "If a ground has to close (for example for bad weather or repairs), we'll offer you another slot or a full refund.",
+        },
+        {
+            title: "Ground rules",
+            body: "Turf shoes or trainers only, no metal studs. No smoking or glass on the pitch. Your group is responsible for any damage it causes.",
+        },
+    ],
+};
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** Row -> { heading, intro, items: [{ title, body }], updated: "15 October 2026" | null } (also used by the admin editor). */
+export function toTerms(row) {
+    const data = obj(row?.data);
+    const items = (Array.isArray(data.items) ? data.items : [])
+        .filter((i) => i && str(i.title).trim())
+        .map((i) => ({ title: str(i.title), body: str(i.body) }));
+    let updated = null;
+    if (row?.updatedAt) {
+        const [y, m, d] = dhakaDate(new Date(row.updatedAt)).split("-").map(Number);
+        updated = `${d} ${MONTHS[m - 1]} ${y}`;
+    }
+    return {
+        heading: str(data.heading) || DEFAULT_TERMS.heading,
+        intro: row ? str(data.intro) : DEFAULT_TERMS.intro,
+        items: row ? items : DEFAULT_TERMS.items,
+        updated,
+    };
+}
+
+/** The booking terms page content (defaults until the admin saves it). */
+export async function getTerms() {
+    return safe(
+        "terms",
+        async () => toTerms((await readSections()).find((r) => r.key === "terms")),
+        toTerms(null)
+    );
+}
+
+/* -------------------------------------------------------------- */
 /* Bundles used by layouts                                         */
 /* -------------------------------------------------------------- */
 

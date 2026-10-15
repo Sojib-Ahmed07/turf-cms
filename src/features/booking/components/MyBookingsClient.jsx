@@ -1,10 +1,11 @@
 // src/features/booking/components/MyBookingsClient.jsx
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarPlus, Hourglass } from "lucide-react";
 import BookingTicket from "./BookingTicket";
+import TicketDialog from "./TicketDialog";
 import Button from "@/components/ui/Button";
 import { cancelHeldBooking } from "@/features/booking/actions";
 import { payForBooking } from "@/features/payment/actions";
@@ -23,13 +24,25 @@ const TABS = [
  *   highlightCode booking code from ?held= (just reserved)
  *   paymentsLive  SSLCommerz is configured; shows the Pay button on held bookings
  *   payFailed     ?pay=failed: the gateway couldn't be opened right after reserving
+ *   playerName    full name printed on the ticket
+ *   venue         { name, address } for the ticket
  */
-export default function MyBookingsClient({ bookings = [], userName, highlightCode, paymentsLive = false, payFailed = false }) {
+export default function MyBookingsClient({
+    bookings = [],
+    userName,
+    highlightCode,
+    paymentsLive = false,
+    payFailed = false,
+    playerName = "",
+    venue = {},
+}) {
     const router = useRouter();
     const [tab, setTab] = useState("upcoming");
     const [busy, setBusy] = useState(null); // { id, what: "cancel" | "pay" }
     const [error, setError] = useState(payFailed ? "We couldn't open the payment page. Your slot is still held, so try Pay again." : "");
     const [, startTransition] = useTransition();
+    const [ticket, setTicket] = useState(null); // booking shown in the ticket view
+    const closeTicket = useCallback(() => setTicket(null), []);
 
     const current = TABS.find((t) => t.key === tab);
     const list = bookings.filter(current.match);
@@ -129,6 +142,7 @@ export default function MyBookingsClient({ bookings = [], userName, highlightCod
                             highlight={b.id === highlightCode}
                             onCancel={onCancel}
                             onPay={paymentsLive ? onPay : undefined}
+                            onShow={setTicket}
                             busy={busy?.id === b.bookingId ? busy.what : false}
                         />
                     ))
@@ -146,6 +160,8 @@ export default function MyBookingsClient({ bookings = [], userName, highlightCod
                     </div>
                 )}
             </div>
+
+            <TicketDialog booking={ticket} onClose={closeTicket} playerName={playerName} venue={venue} />
         </div>
     );
 }

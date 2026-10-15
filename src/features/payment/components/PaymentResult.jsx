@@ -3,7 +3,8 @@ import { Check, CalendarPlus, Hourglass, Loader2, X, Minus, RotateCcw } from "lu
 import Button from "@/components/ui/Button";
 import PitchLines from "@/components/site/PitchLines";
 import RetryPayButton from "./RetryPayButton";
-import { addDaysISO, hhmmToMinutes, DAY_START_HOUR, shortDateLabel } from "@/lib/time";
+import { calendarUrl } from "@/features/booking/calendar";
+import { shortDateLabel } from "@/lib/time";
 import { cn, taka, time12 } from "@/lib/utils";
 
 const COPY = {
@@ -96,7 +97,7 @@ export default function PaymentResult({ status = "success", booking = null, canR
                             {canRetry && (status === "failed" || status === "cancelled") && (
                                 <p className="mt-6 flex items-center gap-2 rounded-ctl bg-flare-soft px-4 py-3 text-[14px] font-medium text-flare-deep">
                                     <Hourglass className="h-4 w-4 shrink-0" />
-                                    We're still holding this slot for {booking.holdMinutesLeft} {booking.holdMinutesLeft === 1 ? "minute" : "minutes"}.
+                                    We&apos;re still holding this slot for {booking.holdMinutesLeft} {booking.holdMinutesLeft === 1 ? "minute" : "minutes"}.
                                 </p>
                             )}
 
@@ -163,20 +164,4 @@ function Item({ label, value }) {
             <dd className="mt-1 text-[15px] font-semibold text-ink tnum">{value}</dd>
         </div>
     );
-}
-
-/** Google Calendar "add event" link. Slots before 6 am are played after midnight, on the next calendar day. */
-function calendarUrl(b) {
-    const stamp = (time) => {
-        const day = hhmmToMinutes(time) < DAY_START_HOUR * 60 ? addDaysISO(b.date, 1) : b.date;
-        return `${day.replaceAll("-", "")}T${time.replace(":", "")}00`;
-    };
-    const q = new URLSearchParams({
-        action: "TEMPLATE",
-        text: `${b.pitch} booking (${b.id})`,
-        dates: `${stamp(b.start)}/${stamp(b.end)}`,
-        ctz: "Asia/Dhaka",
-        details: `Booking ${b.id}. Show your ticket at the gate.`,
-    });
-    return `https://calendar.google.com/calendar/render?${q}`;
 }

@@ -5,7 +5,7 @@ import "server-only";
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { coupons, heroSlides, media, navItems, pageSections, pitches, promoBanners, siteSettings } from "@/db/schema";
-import { toSections, toSettings } from "./queries";
+import { toSections, toSettings, toTerms } from "./queries";
 import { dhakaDate } from "@/lib/time";
 
 /* -------------------------------------------------------------- */
@@ -151,6 +151,12 @@ export async function getBannersAdmin() {
 
 export async function getSectionsAdmin() {
     return toSections(await db.select().from(pageSections));
+}
+
+/** Booking terms for the editor (defaults until first saved). */
+export async function getTermsAdmin() {
+    const [row] = await db.select().from(pageSections).where(eq(pageSections.key, "terms")).limit(1);
+    return toTerms(row ?? null);
 }
 
 /* -------------------------------------------------------------- */

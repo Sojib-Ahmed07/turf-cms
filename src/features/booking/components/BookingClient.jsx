@@ -84,9 +84,7 @@ export default function BookingClient({
         for (let i = 0; i < DAYS_AHEAD; i++) if (addDaysISO(startDate, i) === initialDate) return i;
         return 0;
     });
-    const [blocks, setBlocks] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [loadError, setLoadError] = useState("");
+    const [board, setBoard] = useState({ key: null, blocks: [], error: "" }); // last loaded slot board
     const [blockId, setBlockId] = useState(null);
     const [payError, setPayError] = useState("");
     const [couponCode, setCouponCode] = useState(null); // code the player applied (kept when they change slot)
@@ -98,17 +96,18 @@ export default function BookingClient({
     const pitch = pitches.find((p) => p.id === pitchId);
     const date = useMemo(() => addDaysISO(startDate, dayIndex), [startDate, dayIndex]);
     const dateLabel = shortDateLabel(date);
+    const boardKey = `${pitchId}|${date}|${reloadKey}`;
+    const loading = Boolean(pitchId) && board.key !== boardKey;
+    const blocks = board.key === boardKey ? board.blocks : [];
+    const loadError = board.key === boardKey ? board.error : "";
     const block = blocks.find((b) => b.id === blockId && b.state === "free") ?? null;
     const startAsDate = useMemo(() => new Date(`${startDate}T00:00:00`), [startDate]);
 
-    // Load live slots whenever the ground or date changes.
+    // Load live slots whenever the ground or date changes (or on "Try again").
     useEffect(() => {
         if (!pitchId) return;
         let cancelled = false;
-        setLoading(true);
-        setLoadError("");
-        setBlockId(null);
-        setPayError("");
+        const key = `${pitchId}|${date}|${reloadKey}`;
 
         fetch(`/api/booked-slots?pitchId=${pitchId}&date=${date}`, { cache: "no-store" })
             .then(async (res) => {
@@ -116,7 +115,7 @@ export default function BookingClient({
                 const data = await res.json();
                 if (cancelled) return;
                 const list = data.blocks ?? [];
-                setBlocks(list);
+                setBoard({ key, blocks: list, error: "" });
                 if (preselect.current) {
                     const id = pickInitialBlock(list, preselect.current.time, preselect.current.part);
                     preselect.current = null;
@@ -124,19 +123,25 @@ export default function BookingClient({
                 }
             })
             .catch(() => {
-                if (!cancelled) {
-                    setBlocks([]);
-                    setLoadError("We couldn't load the time slots. Check your connection and try again.");
-                }
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
+                if (!cancelled) setBoard({ key, blocks: [], error: "We couldn't load the time slots. Check your connection and try again." });
             });
 
         return () => {
             cancelled = true;
         };
     }, [pitchId, date, reloadKey]);
+
+    function choosePitch(id) {
+        setPitchId(id);
+        setBlockId(null);
+        setPayError("");
+    }
+
+    function chooseDay(i) {
+        setDayIndex(i);
+        setBlockId(null);
+        setPayError("");
+    }
 
     const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
@@ -250,11 +255,11 @@ export default function BookingClient({
             <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
                 <div className="space-y-10 lg:col-span-8">
                     <Step n={1} title="Ground">
-                        <PitchPicker pitches={pitches} value={pitchId} onChange={setPitchId} />
+                        <PitchPicker pitches={pitches} value={pitchId} onChange={choosePitch} />
                     </Step>
 
                     <Step n={2} title="Date">
-                        <DateStrip start={startAsDate} days={DAYS_AHEAD} value={dayIndex} onChange={setDayIndex} />
+                        <DateStrip start={startAsDate} days={DAYS_AHEAD} value={dayIndex} onChange={chooseDay} />
                     </Step>
 
                     <Step n={3} title="Time">

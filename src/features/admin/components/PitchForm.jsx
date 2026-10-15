@@ -11,6 +11,7 @@ import ImageUploader from "@/components/admin/ImageUploader";
 import { TextInput, Select, CharInput } from "@/components/ui/Inputs";
 import { upsertPitch } from "@/features/admin/actions/pitches";
 import { hourOptions } from "@/features/booking/slots";
+import { time12 } from "@/lib/utils";
 
 const SPORTS = [
     { value: "football", label: "Football" },
@@ -62,6 +63,14 @@ export default function PitchForm({ pitch, onClose }) {
 
     const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
 
+    // Editing a ground: new hours or slot length rebuild its default slots when saved.
+    const scheduleChanges =
+        !isNew &&
+        pitch &&
+        (Number(form.openHour) !== Number(pitch.openHour) ||
+            Number(form.closeHour) !== Number(pitch.closeHour) ||
+            Number(form.defaultSlotMinutes) !== Number(pitch.defaultSlotMinutes));
+
     function submit(e) {
         e?.preventDefault();
         setError("");
@@ -90,7 +99,7 @@ export default function PitchForm({ pitch, onClose }) {
             description={
                 isNew
                     ? "We'll build a default schedule from the hours and slot length. You can fine-tune it next."
-                    : "Changing hours or slot length doesn't rebuild the schedule. Use “Rebuild from hours” in the slot editor for that."
+                    : "Change the hours or slot length and the default slots are rebuilt to match. Prices per slot are set in Edit slots."
             }
             footer={
                 <>
@@ -183,6 +192,15 @@ export default function PitchForm({ pitch, onClose }) {
                     </span>
                     <Switch checked={form.isActive} onChange={(v) => setForm((f) => ({ ...f, isActive: v }))} label="Open for booking" />
                 </label>
+
+                {scheduleChanges && (
+                    <p className="rounded-ctl bg-flare-soft px-4 py-3 text-[13px] text-ink-2 ring-1 ring-flare/50">
+                        <span className="font-semibold text-ink">Saving rebuilds the default slots</span> for{" "}
+                        {time12(`${String(form.openHour).padStart(2, "0")}:00`)} to {time12(`${String(form.closeHour).padStart(2, "0")}:00`)},{" "}
+                        {form.defaultSlotMinutes} min each. Slots with the same times keep their price; new ones use the base price.
+                        Dates with a custom schedule and existing bookings stay as they are.
+                    </p>
+                )}
 
                 {error && <p className="rounded-ctl bg-danger-soft px-4 py-3 text-[13px] font-medium text-danger">{error}</p>}
                 <button type="submit" className="hidden" />

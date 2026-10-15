@@ -102,7 +102,27 @@ const pitchSchema = z.object({
     isActive: z.boolean().optional().default(true),
 });
 
-/** Create or update a ground. A new ground gets a generated default schedule. */
+/** Default slots for the given hours/length; a slot with exactly the same times as before keeps its price. */
+function buildSchedule(v, oldBlocks = []) {
+    const oldPrice = new Map((Array.isArray(oldBlocks) ? oldBlocks : []).map((b) => [`${b.startTime}-${b.endTime}`, String(b.price)]));
+    return generateDefaultBlocks({
+        openHour: v.openHour,
+        closeHour: v.closeHour,
+        defaultSlotMinutes: v.defaultSlotMinutes,
+        hourlyRate: v.hourlyRate,
+    }).map((b, i) => ({
+        startTime: b.startTime,
+        endTime: b.endTime,
+        price: oldPrice.get(`${b.startTime}-${b.endTime}`) ?? String(b.price),
+        sortOrder: i,
+    }));
+}
+
+/**
+ * Create or update a ground. A new ground gets a generated default schedule.
+ * Editing the opening hours or slot length rebuilds the default schedule to match
+ * (data.rebuilt = true). Custom schedules for single dates and existing bookings are not touched.
+ */
 export async function upsertPitch(input) {
     try {
         if (!(await requireAdmin())) return DENIED;
@@ -130,17 +150,28 @@ export async function upsertPitch(input) {
         };
 
         if (v.id) {
+            const [old] = await db
+                .select({ openHour: pitches.openHour, closeHour: pitches.closeHour, defaultSlotMinutes: pitches.defaultSlotMinutes, defaultBlocks: pitches.defaultBlocks })
+                .from(pitches)
+                .where(eq(pitches.id, v.id))
+                .limit(1);
+            if (!old) return { ok: false, error: "Ground not found." };
+
+            const rebuilt =
+                old.openHour !== v.openHour || old.closeHour !== v.closeHour || old.defaultSlotMinutes !== v.defaultSlotMinutes;
+            if (rebuilt) {
+                const blocks = buildSchedule(v, old.defaultBlocks);
+                if (!blocks.length) return { ok: false, error: "Those hours are shorter than one slot. Open longer or pick shorter slots." };
+                values.defaultBlocks = blocks;
+            }
+
             await db.update(pitches).set(values).where(eq(pitches.id, v.id));
             revalidateAll(v.id);
-            return { ok: true, data: { pitchId: v.id } };
+            return { ok: true, data: { pitchId: v.id, rebuilt } };
         }
 
-        const template = generateDefaultBlocks({
-            openHour: v.openHour,
-            closeHour: v.closeHour,
-            defaultSlotMinutes: v.defaultSlotMinutes,
-            hourlyRate: v.hourlyRate,
-        }).map((b, i) => ({ startTime: b.startTime, endTime: b.endTime, price: String(b.price), sortOrder: i }));
+        const template = buildSchedule(v);
+        if (!template.length) return { ok: false, error: "Those hours are shorter than one slot. Open longer or pick shorter slots." };
 
         // Unique slug: "pitch-c", "pitch-c-2", ...
         const base = slugify(v.name);

@@ -54,10 +54,12 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
     }, [open]);
 
     // Close menus on route change
-    useEffect(() => {
+    const [lastPath, setLastPath] = useState(pathname);
+    if (pathname !== lastPath) {
+        setLastPath(pathname);
         setOpen(false);
         setMenuOpen(false);
-    }, [pathname]);
+    }
 
     // Close dropdown on outside click / Escape
     useEffect(() => {

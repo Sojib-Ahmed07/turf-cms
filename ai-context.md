@@ -2,7 +2,7 @@
 
 Paste this whole file into a new chat (Claude, Gemini, DeepSeek, any model) before asking for work,
 then attach the source files the task touches. It is self-contained: everything a new model needs to
-continue the project without the old chat. Last updated **15 Oct 2026**, after Steps 1 to 5 and Step 6 part 1.
+continue the project without the old chat. Last updated **15 Oct 2026**, after Steps 1 to 6 (all build steps done).
 
 In the repo, `Agents.md` holds the same facts in more detail (file tables, changelog) and `CLAUDE.md`
 holds Claude Code's working rules. If this file and the code disagree, the code wins; fix this file.
@@ -12,14 +12,14 @@ holds Claude Code's working rules. If this file and the code disagree, the code 
 ## 1. The project in one paragraph
 
 TurfZone CMS is a turf-booking website for **one venue** in Mirpur 12, Dhaka, Bangladesh (sample name
-"TurfZone", three grounds, open 6 am to 3 am, prices in BDT ৳). Built by **Said** (civil engineer in
-Dubai who also runs a digital agency, adEstra) for a client. Players pick a ground, a date and a time
+"TurfZone", three grounds, open 6 am to 3 am, prices in BDT ৳). Built for a client.
+Players pick a ground, a date and a time
 block, pay online through **SSLCommerz** (bKash, Nagad, Rocket, cards) and get a booking ticket. The
 **design is fixed in code**; the admin edits content only: logo, brand colour, hero slider, offer
 banners, menu labels, home sections, footer, SEO, grounds and slot schedules. The UI was designed new;
-the booking logic was ported from Said's earlier prototype (`turf.zip`, bKash replaced by SSLCommerz).
+the booking logic was ported from an earlier prototype (`turf.zip`, bKash replaced by SSLCommerz).
 
-## 2. How Said works (follow this or he can't use your answer)
+## 2. How the developer works (follow this or the answer can't be used)
 
 - **JavaScript only. No TypeScript**, no `.ts/.tsx`, no type annotations.
 - Windows + PowerShell, project at `D:\projects\turf-cms`, env file is **`.env.local`**.
@@ -27,13 +27,13 @@ the booking logic was ported from Said's earlier prototype (`turf.zip`, bKash re
   path as a comment**: `// src/features/booking/queries.js` (JSON files can't hold comments; say the path).
 - **No zip files.** Send files one by one and say for each: new or replace, and the exact folder.
   Use Windows paths in instructions (`src\app\api\...`). Spell out bracket folders exactly
-  (`[event]`, `[id]`, `[...all]`), he has misplaced them before.
+  (`[event]`, `[id]`, `[...all]`), they have been misplaced before.
 - Work in **steps** (one feature area at a time) and end each step with: files list, npm installs (if
   any), migrations (if any), and what to click to test.
-- Plain, direct English. He is technical but not a full-time developer; explain env and deploy steps.
+- Plain, direct English. Explain env and deploy steps clearly.
 - **Route files must live under `src/app/`.** Anything under `src/features/` is not a URL.
-- Never ask him to paste `.env.example` over `.env.local` (it wipes his real secrets). New env vars:
-  tell him the exact lines to add.
+- Never say to paste `.env.example` over `.env.local` (it wipes the real secrets). New env vars:
+  give the exact lines to add.
 
 ## 3. Status
 
@@ -43,20 +43,22 @@ the booking logic was ported from Said's earlier prototype (`turf.zip`, bKash re
 | 1 | Booking, player side: live slots, 15-min holds, My bookings | Done |
 | 3 | Booking, admin side: overview, grounds + slot editor, bookings table, walk-ins, cancel/refund | Done |
 | 4 | CMS read side: whole public site reads settings/nav/hero/banners/sections from the DB | Done |
-| 2 | SSLCommerz payments: pay, callbacks, IPN, result pages, retry, lost-payment recheck, cron | Done (build + 38 integration tests + browser e2e against a mock gateway; Said is testing in the real sandbox) |
+| 2 | SSLCommerz payments: pay, callbacks, IPN, result pages, retry, lost-payment recheck, cron | Done (build + 38 integration tests + browser e2e against a mock gateway; being tested in the real sandbox) |
 | 5 | CMS write side: Cloudinary uploads, media library, branding, navigation, hero, banners, sections, footer/SEO editors | Done (build + 58 integration tests + browser e2e against a mock Cloudinary on a production server) |
 | 6a | Coupons at checkout (incl. free bookings), real Coupons, Payments and Users admin pages | Done 15 Oct (build + 52 integration tests + browser e2e on a production build) |
-| **6b** | **Profile and terms pages, Show ticket, loading/error/not-found, sitemap/robots, env check, lint, deploy** | **Next** |
+| 6b | Profile and terms pages (+ terms editor), Show ticket, loading/error/404, sitemap/robots, env check, lint clean, `DEPLOY.md` | Done 15 Oct (build + browser e2e on a production build) |
+| **Deploy** | **Vercel + live Neon branch + domain + live SSLCommerz, following `DEPLOY.md`** | **Next** |
 
-Said's project was checked file by file on 15 Oct (before Step 6): identical to the delivered code (his
+The local project was checked file by file on 15 Oct (before Step 6): identical to the delivered code (his
 editor reformats whitespace; that's fine). The sample-data files are deleted in Step 6 part 1.
 
-Open items on Said's side:
+Open items on the developer's side:
 - `.env.local` still has placeholders for `SEED_ADMIN_EMAIL` and `CRON_SECRET`. To get an admin:
-  set his real email, register on the site, run `npm run db:seed` again.
+  set the real email, register on the site, run `npm run db:seed` again.
 - SSLCommerz sandbox: store ID/password go in `.env.local`; Pay buttons stay hidden until both are set.
-- Cloudinary keys are set in his `.env.local`; folders are created automatically on the first upload.
-- The seeded FIRST200 popup (Offer banners) is still switched off; he can turn it on now that coupons work.
+- Cloudinary keys are empty in `.env.local` (as of 15 Oct), so admin uploads are off until they're added back.
+- The default booking terms are a draft; the venue must check them in Admin, Booking terms.
+- The seeded FIRST200 popup (Offer banners) is still switched off; turn it on now that coupons work.
 
 ## 4. Stack and commands
 
@@ -67,9 +69,9 @@ embla-carousel (hero), clsx + tailwind-merge. Cloudinary is used without its SDK
 `src/lib/cloudinary.js`). Planned: Vercel hosting.
 
 ```
-npm run dev          # next dev --webpack  (Turbopack crashes on his machine; keep --webpack)
+npm run dev          # next dev --webpack  (Turbopack crashes on this machine; keep --webpack)
 npm run build        # must pass before delivering
-npm run lint         # 8 errors + 2 warnings already exist (see section 13)
+npm run lint         # clean; keep it that way
 npm run db:generate  # after editing src/db/schema/*, then
 npm run db:migrate   # apply to Neon (never mix with db:push on the same DB)
 npm run db:seed      # idempotent: settings, nav, sections, hero, banners, coupons, 3 pitches, admin promotion
@@ -92,7 +94,7 @@ read `node_modules/next/dist/docs/` before writing code.
 | `SEED_ADMIN_EMAIL` | Seed promotes this registered user to admin |
 | `CRON_SECRET` | Bearer token for `/api/cron/expire-holds` (Vercel Cron sends it automatically) |
 | `SSLCZ_STORE_ID`, `SSLCZ_STORE_PASSWORD`, `SSLCZ_IS_LIVE` | Payments (`false` = sandbox) |
-| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_FOLDER` | Step 5 uploads |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Uploads (only these three needed). Optional `CLOUDINARY_FOLDER` (default `turfzone`). Old name `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` still works |
 
 `SSLCZ_API_BASE` and `CLOUDINARY_API_BASE` exist only to point tests at mocks; never set them in real env files.
 Never print, log or commit `.env.local`.
@@ -105,11 +107,12 @@ src/
   app/
     layout.jsx                 root: font, brand colour + SEO from site settings, force-dynamic
     (site)/                    public: layout (top bar, navbar, footer, popup), / , /book, /bookings,
-                               /payment/success|failed|cancelled
+                               /profile, /terms, /payment/success|failed|cancelled; loading.jsx, error.jsx
+    not-found.jsx, global-error.jsx, sitemap.js, robots.js
     (auth)/                    /login, /register
     admin/                     layout (requireRole admin|editor, AdminShell); page (overview);
                                pitches/, pitches/[id]/ (slot editor), bookings/,
-                               branding, navigation, hero, banners, sections, footer, media,
+                               branding, navigation, hero, banners, sections, footer, media, terms,
                                coupons, payments, users (admin only)  ← all live
     api/auth/[...all]/route.js           Better Auth
     api/booked-slots/route.js            slot board JSON for /book and walk-ins
@@ -124,17 +127,18 @@ src/
                  StatusBadge, TonightBoard
     auth/        AuthForms, AuthLayout
   features/
-    booking/     queries.js, actions.js, slots.js (pure slot engine), components/
+    booking/     queries.js, actions.js, slots.js (pure slot engine), calendar.js, components/ (TicketDialog)
+    profile/     actions.js (updateProfile), components/ProfileClient.jsx
     admin/       queries.js, commerce-queries.js (coupons/payments/users admin reads),
                  actions/{pitches,bookings,coupons,payments,users}.js, components/
     coupons/     rules.js (pure: evaluateCoupon, labels), service.js (DB: check, uses, redeemCoupon)
     cms/         queries.js (cached public reads), admin-queries.js (uncached admin reads), server-utils.js,
-                 actions/{settings,hero,banners,sections,media}.js, upload-client.js, admin/ (7 editors)
+                 actions/{settings,hero,banners,sections,media}.js, upload-client.js, admin/ (8 editors)
     payment/     service.js, actions.js, result-page.js, components/PaymentResult + RetryPayButton
   db/            index.js (neon-http db), pool.js (unused WebSocket pool), schema/{auth,booking,commerce,cms}.js,
                  seed.js
   lib/           auth, auth-client, guards, action, time, utils, cache-tags, sslcommerz, cloudinary,
-                 env (unused)
+                 env (start-up check, called from src/instrumentation.js)
 drizzle/         0000 initial schema, 0001 booking FKs + unique active-slot index
 vercel.json      cron
 ```
@@ -279,6 +283,17 @@ hides them from editors). Editors: Hero slides, Offer banners, Home sections, Fo
 - `/admin/users?q=`: `setUserRole({ userId, role })`, admin only; you can't change your own role; the last admin
   stays admin. Takes effect on the person's next page load. Staff are added by registering, then changing role.
 
+### Profile, terms, ticket (Step 6 part 2)
+- `/profile` (sign-in required): name + mobile via `updateProfile` (phone stored as `01XXXXXXXXX`, empty allowed), email
+  read-only, change password with `authClient.changePassword({ revokeOtherSessions: true })` (only for email/password
+  accounts; Google-only accounts see a note), booking counts, sign out.
+- `/terms`: `page_sections` row `terms`, data `{ heading, intro, items: [{ title, body }] }`. Defaults (`DEFAULT_TERMS`)
+  until an admin/editor saves in Admin, Booking terms. Blank line in a body = new paragraph. Contact box uses Footer & SEO.
+- Show ticket (My bookings, confirmed only): `TicketDialog` with booking code, ground, real play date (after-midnight
+  slots show the next calendar day + "Night of ..."), time, player, payment, Add to calendar. No QR (nothing scans it).
+- Env check: `src/instrumentation.js` → `assertEnv()` on server start. Prints `[env]` warnings/errors (names only).
+  Throws only on a production server whose `APP_URL` isn't localhost (https, `CRON_SECRET`, no test-only vars).
+
 ### CMS reads (Step 4)
 `src/features/cms/queries.js`: every read is `unstable_cache` with a tag from `src/lib/cache-tags.js`
 (`settings`, `nav`, `hero`, `banners`, `sections`) and a 5-minute safety revalidate, and falls back to
@@ -327,7 +342,7 @@ code shown comes from the linked coupon only if that coupon is live.
   `visit`, isVisible, data jsonb), `media` (publicId unique, url, width, height, bytes, format,
   originalName, alt, folder, uploadedBy).
 
-Schema changes: edit the schema file → `npm run db:generate` → `npm run db:migrate`. Tell Said both commands.
+Schema changes: edit the schema file → `npm run db:generate` → `npm run db:migrate`. Give both commands.
 
 ## 11. Key module APIs (use these, don't re-invent)
 
@@ -362,33 +377,35 @@ See "CMS writes and uploads" in section 9. Ground photos in `PitchForm` also use
 
 See "Coupons" and "Admin payments and users" in section 9. The sample-data files are gone.
 
-### Step 6 part 2 (next)
+### Step 6 part 2 (done 15 Oct)
 
-- **Missing pages:** `/profile` (name, phone; linked from navbar and footer, currently 404) and `/terms`
-  (booking terms, footer link, 404). The "Show ticket" button on confirmed tickets does nothing yet
-  (show a ticket dialog with the code, optionally a QR).
-- **Polish:** `loading.jsx`/`error.jsx`/`not-found.jsx`, sitemap/robots, write to `audit_log` from admin
-  actions, import `src/lib/env.js` (add Cloudinary/SSLCommerz vars to its schema), fix lint errors.
-- **Deploy (Vercel):** set all env vars; `APP_URL` and `BETTER_AUTH_URL` = the real domain; Google OAuth
-  redirect `https://<domain>/api/auth/callback/google`; run `db:migrate` + `db:seed` against the production
-  DB; SSLCommerz live store, set `SSLCZ_IS_LIVE=true`, register the IPN URL
-  `https://<domain>/api/payment/sslcommerz/ipn` in the merchant panel; `CRON_SECRET` set (Hobby plan allows
-  daily crons only, which `vercel.json` uses). Refunds stay manual (SSLCommerz refund API needs a whitelisted
-  static IP, which Vercel doesn't have).
+See "Profile, terms, ticket" in section 9.
+
+### Deploy (next)
+
+Follow `DEPLOY.md` in the repo root: separate Neon branch, migrate + seed with `$env:DATABASE_URL`, Vercel env vars,
+domain, Google OAuth redirect, owner promoted to admin, live SSLCommerz store + IPN URL
+`https://<domain>/api/payment/sslcommerz/ipn`, `SSLCZ_IS_LIVE=true`, daily Vercel cron plus an external 15-minute cron
+(cron-job.org with `Authorization: Bearer <CRON_SECRET>`). Refunds stay manual.
+
+### Optional later
+- Write admin actions to `audit_log` (table exists, unused).
+- Booking confirmation email/SMS.
+- SSLCommerz refund API (needs a fixed server IP).
 
 ## 13. Known issues and gotchas
 
 | Issue | Fix / note |
 |---|---|
-| `SEED_ADMIN_EMAIL`, `CRON_SECRET` are placeholders in Said's `.env.local` | Set real values (section 3) |
+| `SEED_ADMIN_EMAIL`, `CRON_SECRET` are placeholders in `.env.local` | Set real values (section 3) |
 | Upload says "Image uploads aren't set up yet" | Cloudinary keys missing in `.env.local`; restart dev after adding |
 | Upload says "couldn't be verified" | `CLOUDINARY_API_SECRET` doesn't match the cloud name/key, or the account signs with another key |
 | Change saved but home page still old | Make sure the action calls `updateTag(TAGS.x)` for the tag the public read uses |
 | Seeded SEO title still says "TurfZone" after renaming | By design: Footer & SEO > Page title overrides the site name; edit or clear it there |
 | `src/lib/action.js` turns `requireRole` redirects into a generic error | Don't use it (section 7, rule 10) |
-| `npm run lint`: 8 errors, 2 warnings (`react-hooks/set-state-in-effect`, unescaped `'`) | Pre-existing; fix in Step 6 |
-| `src/lib/env.js`, `src/db/pool.js` not used | Leave or wire up in Step 6 |
-| `/profile`, `/terms` 404; "Show ticket" no-op | Step 6 part 2 |
+| Lint `react-hooks/set-state-in-effect` | Don't reset state in an effect on prop change; compare with the previous value during render, or key loaded data (see `BookingClient`) |
+| `[env]` lines at start-up | Missing/placeholder env vars (`src/lib/env.js`). Errors stop a live production server |
+| `src/db/pool.js` not used | Leave it |
 | "This code has been used up" while nobody has paid | Active holds count as uses for 15 min (so two players can't both claim the last use) |
 | Can't delete a coupon | It has been used; switch it off instead (keeps the payment history right) |
 | Turbopack crash | Keep `--webpack` |
@@ -403,7 +420,7 @@ See "Coupons" and "Admin payments and users" in section 9. The sample-data files
 
 There is no test suite in the repo. Earlier work was verified with `npm run build`, integration tests run
 against an in-memory Postgres (PGlite) outside the repo, and browser screenshots. At minimum: run
-`npm run build` and give Said click-through test steps.
+`npm run build` and give click-through test steps.
 
 ## 14. End of every session
 

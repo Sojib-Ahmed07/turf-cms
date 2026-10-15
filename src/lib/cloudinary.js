@@ -2,21 +2,33 @@
 // Cloudinary without the SDK: signed browser uploads + delete. Server only (uses the API secret).
 // Docs: https://cloudinary.com/documentation/authentication_signatures
 //
-// Env: NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET,
-//      CLOUDINARY_FOLDER (top folder for this site, e.g. "turfzone").
+// Env (only these three are needed, all from the Cloudinary dashboard):
+//   CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+// Optional: CLOUDINARY_FOLDER (top folder for this site, default "turfzone"; Cloudinary creates it on the first upload).
+// The older name NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME still works. The cloud name is only used on the server.
 // CLOUDINARY_API_BASE is for automated tests only (points at a local mock); leave it unset.
 import "server-only";
 import { createHash } from "node:crypto";
 
 const API = "https://api.cloudinary.com";
 
+/** Trim spaces and stray quotes that sneak in when values are pasted into .env.local or Vercel. */
+const clean = (v) => String(v ?? "").trim().replace(/^["']|["']$/g, "").trim();
+
+/** "My Site/" -> "my-site"; anything Cloudinary wouldn't like becomes "-". Empty -> "turfzone". */
+const folderName = (v) =>
+    clean(v)
+        .replace(/^\/+|\/+$/g, "")
+        .replace(/[^A-Za-z0-9_\-/]/g, "-")
+        .toLowerCase() || "turfzone";
+
 function config() {
     return {
-        cloud: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "",
-        key: process.env.CLOUDINARY_API_KEY ?? "",
-        secret: process.env.CLOUDINARY_API_SECRET ?? "",
-        root: (process.env.CLOUDINARY_FOLDER || "turfzone").replace(/^\/+|\/+$/g, ""),
-        api: (process.env.CLOUDINARY_API_BASE || API).replace(/\/$/, ""),
+        cloud: clean(process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME),
+        key: clean(process.env.CLOUDINARY_API_KEY),
+        secret: clean(process.env.CLOUDINARY_API_SECRET),
+        root: folderName(process.env.CLOUDINARY_FOLDER),
+        api: (clean(process.env.CLOUDINARY_API_BASE) || API).replace(/\/$/, ""),
     };
 }
 

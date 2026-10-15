@@ -65,9 +65,13 @@ export function checkEnv(env = process.env) {
     if (has("SSLCZ_IS_LIVE") && !["true", "false"].includes(env.SSLCZ_IS_LIVE)) {
         warnings.push('SSLCZ_IS_LIVE should be "true" or "false".');
     }
-    const cld = ["NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"];
-    if (cld.some((k) => !has(k))) {
-        warnings.push(`${cld.filter((k) => !has(k)).join(", ")} not set: image uploads in the admin are switched off.`);
+    const cldMissing = [
+        !has("CLOUDINARY_CLOUD_NAME") && !has("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME") && "CLOUDINARY_CLOUD_NAME",
+        !has("CLOUDINARY_API_KEY") && "CLOUDINARY_API_KEY",
+        !has("CLOUDINARY_API_SECRET") && "CLOUDINARY_API_SECRET",
+    ].filter(Boolean);
+    if (cldMissing.length) {
+        warnings.push(`${cldMissing.join(", ")} not set: image uploads in the admin are switched off.`);
     }
     if (has("GOOGLE_CLIENT_ID") !== has("GOOGLE_CLIENT_SECRET")) {
         warnings.push("Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or neither (Google sign-in stays off).");

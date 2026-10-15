@@ -8,7 +8,7 @@ At the end of every session, update section 8 (Step plan) and section 10 (Change
 
 ## 1. Project in one paragraph
 
-TurfZone CMS is a turf-booking website for one venue in Bangladesh, built by Said for a client.
+TurfZone CMS is a turf-booking website for one venue in Bangladesh, built for a client.
 Players pick a ground, date and time block, pay through SSLCommerz, and get a booking ticket. The
 design is fixed in code; the admin edits logos, images, text, hero slides, offer banners, menu labels,
 footer and SEO from `/admin`. **The design comes from the new UI; the booking functionality comes from
@@ -38,7 +38,9 @@ grounds, open 6 am to 3 am, prices in BDT (৳).
   on the site immediately (`updateTag`).
 - **Step 6 part 1 delivered:** coupons work at checkout (Apply box, server re-check, 100% off books for free,
   redemption counted once on payment), and the Coupons, Payments and Users admin pages are real.
-- **Next:** Step 6 part 2, profile/terms pages, Show ticket, loading/error pages, deploy (section 8).
+- **Step 6 part 2 delivered:** `/profile` (details + password), `/terms` (editable in Admin, Booking terms), Show ticket
+  view, loading/error/404 pages, sitemap/robots, start-up env check, lint clean, `DEPLOY.md`.
+- **Next:** deploy (follow `DEPLOY.md`). Optional later: audit log, email confirmations.
 
 ## 3. Stack in use
 
@@ -110,7 +112,8 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
 | `guards.js` | `getSession()`, `requireUser(next)`, `requireRole(roles)` |
 | `action.js` | `action(schema, roles, handler)` wrapper for admin actions |
 | `time.js` | `DAY_START_HOUR`, `dhakaDate`, `dhakaTime`, `hhmmToMinutes`, `minutesToHHMM`, `addDaysISO`, `operatingMinutes`, `currentOperatingDay`, `isBlockPast`, `operatingDay`, `shortDateLabel` |
-| `cache-tags.js`, `env.js`, `utils.js` | tags, env validation, `cn`/`taka`/`time12` |
+| `cache-tags.js`, `utils.js` | tags, `cn`/`taka`/`time12` |
+| `env.js` | `checkEnv(env)` → `{ errors, warnings }`, `assertEnv()` (throws on a live production server). Called once at start-up from `src/instrumentation.js` |
 
 ### Booking feature (`src/features/booking/`)
 | File | What it does |
@@ -122,7 +125,9 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
 | `components/BookingSummary.jsx` | `onPay`, `busy`, `error`, `isSignedIn`, `coupon`, `onApplyCoupon`, `onRemoveCoupon`, `showCoupon` (default true); "Book for free" at 0 |
 | `components/PitchPicker.jsx` | Falls back to pitch lines when a ground has no photo |
 | `components/MyBookingsClient.jsx` | Real bookings, "reserved for you" notice, cancel held, `paymentsLive` flag |
-| `components/BookingTicket.jsx` | `onCancel`, `payHref`, `busy`, `highlight` |
+| `components/BookingTicket.jsx` | `onCancel`, `onPay`, `onShow`, `payHref`, `busy`, `highlight` |
+| `components/TicketDialog.jsx` | Full ticket for a confirmed booking (code, ground, date, time, player, payment, Add to calendar). Props `{ booking, onClose, playerName, venue: { name, address } }` |
+| `calendar.js` | Pure: `isAfterMidnight`, `playDate`, `calendarUrl` (Google Calendar), `longDateLabel` ("Friday 16 October 2026") |
 | `components/DateStrip.jsx`, `SlotBoard.jsx` | Unchanged UI |
 
 ### Payment feature (`src/features/payment/`) and `src/lib/sslcommerz.js`
@@ -158,7 +163,7 @@ Booking query added in Step 4: `getGroundsToday()` → `{ date, pitches: [...pit
 ### CMS write side (Step 5)
 | File | What it does |
 |---|---|
-| `lib/cloudinary.js` | No SDK: `isCloudinaryConfigured`, `createUploadSignature(folder)`, `verifyUploadResult(result)` (SHA-1/SHA-256 response signature + our cloud's URL), `destroyImage(publicId)` |
+| `lib/cloudinary.js` | No SDK, env `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` (folder optional): `isCloudinaryConfigured`, `createUploadSignature(folder)`, `verifyUploadResult(result)` (SHA-1/SHA-256 response signature + our cloud's URL), `destroyImage(publicId)` |
 | `features/cms/server-utils.js` | `requireRoles`, `ADMIN_ONLY`, `CONTENT_ROLES`, `DENIED`, `firstIssue`, Zod pieces (`text`, `requiredText`, `link`, `image`, `hexColor`, `isoDate`), `dhakaDayStart/End` |
 | `features/cms/admin-queries.js` | Uncached admin reads: `getBrandingAdmin`, `getNavAdmin`, `getFooterSeoAdmin`, `getHeroAdmin`, `getBannersAdmin`, `getSectionsAdmin`, `getMediaAdmin`, `getMediaPickerItems`, `getMediaUsage`, `scheduleStatus` |
 | `features/cms/actions/settings.js` | `saveBranding` (admin), `saveMenu` (admin), `saveFooterSeo`, `saveSliderSettings` |
@@ -167,7 +172,14 @@ Booking query added in Step 4: `getGroundsToday()` → `{ date, pitches: [...pit
 | `features/cms/upload-client.js` | Browser: `uploadImage(file, folder, onProgress)` (10 MB, image types) |
 | `components/admin/ImageUploader.jsx` | Controlled `{ value, onChange, folder, ratio, hint, fit, dark }`; upload, replace, remove, pick from library |
 | `components/admin/MediaPicker.jsx`, `Toast.jsx` | Library picker dialog; `useToast()` |
-| `features/cms/admin/*.jsx` | Seven editors, each takes `initial` from its admin query; SaveBar only when dirty |
+| `features/cms/admin/*.jsx` | Eight editors (incl. `TermsEditor`), each takes `initial` from its admin query; SaveBar only when dirty |
+| Booking terms | `page_sections` row `terms` (`{ heading, intro, items: [{ title, body }] }`, no migration). `getTerms()` / `toTerms()` / `DEFAULT_TERMS` in `cms/queries.js`, `getTermsAdmin()`, `saveTerms()` in `actions/sections.js` (tag `sections`) |
+
+### Profile (`src/features/profile/`)
+| File | What it does |
+|---|---|
+| `actions.js` | `updateProfile({ name, phone })` (phone normalised to `01XXXXXXXXX`, empty allowed) |
+| `components/ProfileClient.jsx` | Details form, booking counts, change password (`authClient.changePassword`, signs out other devices), sign out |
 
 ### Coupons feature (`src/features/coupons/`)
 | File | What it does |
@@ -202,14 +214,17 @@ Shared: `src/components/ui/Dialog.jsx` (modal), `src/components/admin/TonightBoa
 |---|---|
 | `/` | **Live** (CMS + live free slots) |
 | `/book` | **Live** (`?pitch=&date=&t=HH:MM&part=morning|day|evening|late`) |
-| `/bookings` | **Live**, requires sign-in |
+| `/bookings` | **Live**, requires sign-in; Show ticket opens `TicketDialog` |
+| `/profile` | **Live**, requires sign-in |
+| `/terms` | **Live** (content from Admin, Booking terms; defaults until saved) |
+| `/sitemap.xml`, `/robots.txt` | From `APP_URL` |
 | `/payment/success|failed|cancelled` | **Live** (`?tran=`), no sign-in needed (shows no personal data) |
 | `/login`, `/register` | **Live** (Better Auth, logo + side photo from CMS), forms wrapped in Suspense |
 | `/admin` | **Live** overview |
 | `/admin/pitches`, `/admin/pitches/[id]` | **Live**, admin only |
 | `/admin/bookings` | **Live**, admin only (`?range=today|upcoming|week|all&q=&pitch=&status=&page=&walkin=1`) |
 | `/admin/{branding,navigation}` | **Live**, admin only |
-| `/admin/{hero,banners,sections,footer,media}` | **Live**, admin or editor |
+| `/admin/{hero,banners,sections,footer,media,terms}` | **Live**, admin or editor |
 | `/admin/coupons` | **Live**, admin only |
 | `/admin/payments` | **Live**, admin only (`?status=paid|started|failed|refund_due|refunded|risky&q=&page=`) |
 | `/admin/users` | **Live**, admin only (`?q=`) |
@@ -227,8 +242,7 @@ Fixed in Step 1:
 - Prototype bug not carried over: it checked "past slots" with the server's local clock (UTC on hosting). Now Asia/Dhaka.
 
 Still open:
-- `.gitignore` already has `!.env.example` (fixed by Said).
-- `src/lib/env.js` is not imported anywhere yet; import it in `src/lib/auth.js` and `src/db/index.js` when convenient.
+- `.gitignore` already has `!.env.example` (fixed).
 - The FIRST200 popup is seeded switched off; switch it on in Offer banners now that coupons work.
 
 ## 8. Step plan
@@ -240,7 +254,9 @@ Still open:
 - [x] **Step 4. CMS read side** (13 Oct): `features/cms/queries.js` (settings, nav, hero, banners, sections) with cache tags; replace sample data in `(site)` layout/home; `--brand` + metadata from settings; `LiveGrounds` with real pitches + free slots tonight.
 - [x] **Step 5. CMS write side** (14 Oct): Cloudinary signed upload (no SDK) with verified results, media library + picker, server actions + live editors for branding, navigation, hero, banners, sections, footer/SEO, ground photos; up/down ordering; toasts; hero "shade" setting honoured on the site.
 - [x] **Step 6 part 1** (15 Oct): coupons at checkout (preview, re-check on hold, free bookings, redemption on confirm), Coupons/Payments/Users admin pages, sample-data files deleted.
-- [ ] **Step 6 part 2**: `/profile`, `/terms`, Show ticket dialog, loading/error/not-found pages, sitemap/robots, `env.js`, lint, deploy guide (Vercel env, live SSLCommerz, IPN URL, cron).
+- [x] **Step 6 part 2** (15 Oct): `/profile`, `/terms` + terms editor, Show ticket, loading/error/not-found/global-error, sitemap/robots, env check at start-up, all lint errors fixed, `DEPLOY.md`.
+- [ ] **Deploy**: follow `DEPLOY.md` (Vercel, live Neon branch, domain, Google OAuth, live SSLCommerz + IPN, external 15-min cron).
+- [ ] Optional later: write admin actions to `audit_log`, booking confirmation emails, SSLCommerz refund API (needs a fixed IP).
 
 ## 9. Gotchas
 
@@ -260,21 +276,27 @@ Still open:
 | IPN never arrives locally | Expected: SSLCommerz can't reach localhost. The browser success callback confirms instead; IPN works once deployed |
 | Vercel deploy fails on cron schedule | Hobby plan allows daily crons only; keep `vercel.json` daily or use an external cron with the Bearer header |
 | Stale styles | Delete `.next`, restart dev |
+| `[env]` lines in the terminal at start-up | `src/lib/env.js` lists missing/placeholder variables (names only). Errors stop a live production server |
+| Lint error `react-hooks/set-state-in-effect` | Don't reset state in an effect when a prop changes; compare with the previous value during render (`const [last, setLast] = useState(x); if (x !== last) {...}`) or key the loaded data (see `BookingClient` board) |
 | Coupon "used up" with no paid uses | Active holds count as uses for 15 min |
 | Coupon can't be deleted | It has redemptions; switch it off instead |
 
 ## 10. Changelog
 - 2026-10-11: Blueprint agreed. Phase 0 UI built (73 files). Project set up in `D:\projects\turf-cms`.
-- Before 2026-10-12 (Said): schema split into auth/booking/cms/commerce, first migration, seed, Better Auth, auth forms, navbar session, guards, proxy, env, action wrapper.
+- Before 2026-10-12: schema split into auth/booking/cms/commerce, first migration, seed, Better Auth, auth forms, navbar session, guards, proxy, env, action wrapper.
 - 2026-10-12: Review + Step 1 (booking, player side). Fixed auth route location, bookings FKs + double-booking index, build failure on /login, env file mismatch, admin guard.
 - 2026-10-13: Step 3 (booking, admin side). Admin queries/actions, grounds + slot editor, bookings table + walk-ins, real overview, Dialog component, admin-only nav. Fixed operating day to a fixed 6 am start (`DAY_START_HOUR`).
 - 2026-10-13: Step 4 (CMS read side). `features/cms/queries.js`, root layout reads brand/SEO, site layout/home/book/auth pages read the CMS, live "free today", working QuickBook + slot preselect, seed adds hero slides, banners and coupons. Root layout is `force-dynamic`, so builds no longer need the database.
 - 2026-10-13: Step 2 (SSLCommerz). lib/sslcommerz, payment service/actions, callback + IPN route, real result pages, Pay on /book + My bookings, cron route + vercel.json. 38 payment tests (race, forged val_id, amount mismatch, duplicate, slot lost, lost callback, gateway down) + browser e2e against a mock gateway.
 - 2026-10-14: Step 5 (CMS write side). lib/cloudinary, cms actions + admin queries, 7 live editors, ImageUploader/MediaPicker/Toast, ground photo upload, admin-only page guards on coupons/payments/users, admin sidebar shows the site name. 58 CMS tests + browser e2e (production build, mock Cloudinary).
 
-<!-- BEGIN:nextjs-agent-rules -->
-
 - 2026-10-15: Step 6 part 1. `features/coupons/*`, coupon box on /book (preview, re-check on hold, 100% off = free booking), redemption on payment confirm, admin commerce queries + coupons/payments/users actions, real Coupons/Payments/Users pages, sample-data files deleted. 52 integration tests + browser e2e (production build, mock gateway).
+
+- 2026-10-15: Step 6 part 2. Profile page + `updateProfile`, booking terms page + editor (stored in `page_sections`), TicketDialog + shared `booking/calendar.js`, loading/error/not-found/global-error, sitemap/robots, `lib/env.js` rewritten + `src/instrumentation.js`, 12 lint errors fixed (state-sync effects replaced), `DEPLOY.md`. Browser e2e on a production build.
+
+- 2026-10-15: Cloudinary needs only `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (folder optional, default `turfzone`; old `NEXT_PUBLIC_` name still accepted; pasted spaces/quotes trimmed).
+
+<!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know
 

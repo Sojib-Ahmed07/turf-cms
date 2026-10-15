@@ -24,7 +24,7 @@ Exception: before using a Next.js API you are unsure about, read the matching gu
 ```
 npm run dev           # next dev --webpack (Turbopack crashes here; keep --webpack)
 npm run build         # next build; run this to check a change compiles
-npm run lint          # eslint . (10 existing problems as of 13 Oct 2026)
+npm run lint          # eslint . (clean as of 15 Oct 2026; keep it clean)
 npm run start         # serve the production build
 npm run db:generate   # after editing src/db/schema/*, then:
 npm run db:migrate    # apply to Neon. Do not mix with db:push on the same database
@@ -40,9 +40,10 @@ Ask before running migrations or the seed against the database (it is a shared N
 ```
 src/
   app/
-    (site)/            public pages: /, /book, /bookings, /payment/*
+    (site)/            public pages: /, /book, /bookings, /profile, /terms, /payment/* (+ loading, error)
     (auth)/            /login, /register
-    admin/             CMS + booking admin (layout guards with requireRole)
+    admin/             CMS + booking admin (layout guards with requireRole; + loading, error)
+    not-found.jsx, global-error.jsx, sitemap.js, robots.js
     api/auth/[...all]  Better Auth handler
     api/booked-slots   live slot board JSON (no-store)
     api/payment/sslcommerz/[event]  SSLCommerz callbacks: success | fail | cancel | ipn (POST)
@@ -53,16 +54,18 @@ src/
     admin/             AdminShell, Kit, TonightBoard, StatusBadge, ImageUploader, MediaPicker, Toast
     auth/              AuthForms, AuthLayout
   features/
-    booking/           queries.js, actions.js, slots.js (pure slot engine), components/
+    booking/           queries.js, actions.js, slots.js (pure slot engine), calendar.js, components/ (incl. TicketDialog)
+    profile/           actions.js (updateProfile), components/ProfileClient.jsx
     admin/             queries.js, commerce-queries.js, actions/{pitches,bookings,coupons,payments,users}.js, components/
     coupons/           rules.js (pure evaluateCoupon), service.js (checkCouponForSlot, redeemCoupon)
     cms/               queries.js (cached reads), admin-queries.js, server-utils.js, actions/*, upload-client.js,
-                       admin/ (7 live editors)
+                       admin/ (8 live editors incl. TermsEditor)
     payment/           service.js (start, confirm, recheck), actions.js (payForBooking), result-page.js,
                        components/PaymentResult.jsx, RetryPayButton.jsx
   db/                  index.js (neon-http), pool.js (unused), schema/, seed.js
   lib/                 auth, auth-client, guards, action, time, utils, cache-tags, sslcommerz, cloudinary, env
   proxy.js             cookie check redirect for /admin, /bookings, /profile
+  instrumentation.js   runs lib/env.js assertEnv() once at server start
 ```
 
 Import alias: `@/*` → `src/*`. Schema is re-exported from `@/db/schema`.
@@ -120,13 +123,10 @@ not only in the layout. Admin-only pages also call `requireRole(["admin"])` them
 ## Known gaps (as of 15 Oct 2026)
 
 - `Agents.md` refers to `BLUEPRINT.md`, which is not in the repo. `ai-context.md` section 12 has the
-  remaining plan (Step 6); ask Said before assuming anything beyond it.
-- `src/lib/env.js` is defined but not imported anywhere, and doesn't list the Cloudinary/SSLCommerz vars.
-- `npm run lint` reports 8 errors and 2 warnings in existing code (`react-hooks/set-state-in-effect`,
-  unescaped `'` in JSX).
-- `/profile` and `/terms` are linked from the navbar/footer but don't exist; "Show ticket" does nothing.
-- Steps 1 to 5 and Step 6 part 1 (coupons, payments/users admin) are done. Next: Step 6 part 2
-  (profile/terms, Show ticket, loading/error pages, env check, lint, deploy).
+  remaining plan (Step 6); ask before assuming anything beyond it.
+- Steps 1 to 6 are done. Next: deploy by following `DEPLOY.md`.
+- Not built (ask first): audit log writes, booking emails/SMS, SSLCommerz refund API.
+- Default booking terms are a draft (24 h notice, 10 working days refunds); the venue must confirm them.
 
 ## End of session
 

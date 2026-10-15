@@ -1,7 +1,7 @@
 // src/features/admin/components/CouponsManager.jsx
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Shuffle, Trash2 } from "lucide-react";
 import { PageHeader, Panel, Label, Table, Th, Td } from "@/components/admin/Kit";
@@ -82,10 +82,12 @@ export default function CouponsManager({ initial }) {
     const { toast, showToast } = useToast();
     const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
 
-    useEffect(() => {
+    // After a refresh brings new server data, re-sync the form unless the admin is mid-edit.
+    const [lastBaseline, setLastBaseline] = useState(baseline);
+    if (baseline !== lastBaseline) {
+        setLastBaseline(baseline);
         if (!dirty) setDraft(baseline);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [baseline]);
+    }
 
     const set = (patch) => {
         setError("");

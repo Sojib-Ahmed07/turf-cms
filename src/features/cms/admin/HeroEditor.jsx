@@ -1,7 +1,7 @@
 // src/features/cms/admin/HeroEditor.jsx
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { CalendarClock, Monitor, Plus, Smartphone, Trash2 } from "lucide-react";
@@ -62,10 +62,11 @@ export default function HeroEditor({ initial }) {
     const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
 
     // After a refresh brings new server data, re-sync the form unless the admin is mid-edit.
-    useEffect(() => {
+    const [lastBaseline, setLastBaseline] = useState(baseline);
+    if (baseline !== lastBaseline) {
+        setLastBaseline(baseline);
         if (!dirty) setDraft(baseline);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [baseline]);
+    }
 
     const set = (patch) => {
         setError("");

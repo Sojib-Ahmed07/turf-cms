@@ -26,11 +26,19 @@ export default function MediaPicker({ open, onClose, onSelect, folder = "all" })
     const [filter, setFilter] = useState(folder);
     const [picked, setPicked] = useState(null);
 
+    // Each time the picker opens: clear the last pick and start on the requested folder.
+    const [wasOpen, setWasOpen] = useState(false);
+    if (open !== wasOpen) {
+        setWasOpen(open);
+        if (open) {
+            setPicked(null);
+            setFilter(folder);
+        }
+    }
+
     useEffect(() => {
         if (!open) return;
         let cancelled = false;
-        setPicked(null);
-        setFilter(folder);
         listMediaForPicker().then((res) => {
             if (cancelled) return;
             if (res.ok) {

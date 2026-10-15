@@ -15,8 +15,7 @@ import { cn, taka, time12 } from "@/lib/utils";
 export default function WalkInDialog({ open, onClose, pitches = [], startDate, onCreated }) {
     const [pitchId, setPitchId] = useState(pitches[0]?.id ?? "");
     const [date, setDate] = useState(startDate);
-    const [blocks, setBlocks] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [board, setBoard] = useState({ key: null, blocks: [] }); // last loaded slot board
     const [blockId, setBlockId] = useState(null);
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
@@ -26,20 +25,30 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
 
     const dates = Array.from({ length: 14 }, (_, i) => addDaysISO(startDate, i));
 
+    // Reload the board every time the dialog opens (a walk-in may have just taken a slot).
+    const [opened, setOpened] = useState(0);
+    const [wasOpen, setWasOpen] = useState(open);
+    if (open !== wasOpen) {
+        setWasOpen(open);
+        if (open) setOpened((n) => n + 1);
+    }
+
+    const boardKey = `${pitchId}|${date}|${opened}`;
+    const loading = open && Boolean(pitchId) && board.key !== boardKey;
+    const blocks = board.key === boardKey ? board.blocks : [];
+
     useEffect(() => {
         if (!open || !pitchId) return;
         let cancelled = false;
-        setLoading(true);
-        setBlockId(null);
+        const key = `${pitchId}|${date}|${opened}`;
         fetch(`/api/booked-slots?pitchId=${pitchId}&date=${date}`, { cache: "no-store" })
             .then((r) => r.json())
-            .then((d) => !cancelled && setBlocks(d.blocks ?? []))
-            .catch(() => !cancelled && setBlocks([]))
-            .finally(() => !cancelled && setLoading(false));
+            .then((d) => !cancelled && setBoard({ key, blocks: d.blocks ?? [] }))
+            .catch(() => !cancelled && setBoard({ key, blocks: [] }));
         return () => {
             cancelled = true;
         };
-    }, [open, pitchId, date]);
+    }, [open, pitchId, date, opened]);
 
     function reset() {
         setBlockId(null);
@@ -87,11 +96,17 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                         <Label>Ground</Label>
-                        <Select value={pitchId} onChange={(e) => setPitchId(e.target.value)} options={pitches.map((p) => ({ value: p.id, label: p.name }))} />
+                        <Select value={pitchId} onChange={(e) => {
+                            setPitchId(e.target.value);
+                            setBlockId(null);
+                        }} options={pitches.map((p) => ({ value: p.id, label: p.name }))} />
                     </div>
                     <div>
                         <Label>Date</Label>
-                        <Select value={date} onChange={(e) => setDate(e.target.value)} options={dates.map((d, i) => ({ value: d, label: i === 0 ? `Today, ${shortDateLabel(d)}` : shortDateLabel(d) }))} />
+                        <Select value={date} onChange={(e) => {
+                            setDate(e.target.value);
+                            setBlockId(null);
+                        }} options={dates.map((d, i) => ({ value: d, label: i === 0 ? `Today, ${shortDateLabel(d)}` : shortDateLabel(d) }))} />
                     </div>
                 </div>
 

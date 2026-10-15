@@ -6,7 +6,7 @@
 // per-date custom schedules, resize by ±15/30 min, delete, price per block),
 // shown as a full page in the new admin design.
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, Clock3, Copy, Plus, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
@@ -47,21 +47,21 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
     const [error, setError] = useState("");
     const [note, setNote] = useState("");
     const [confirm, setConfirm] = useState(null); // { title, body, action, label }
-    const dirtyRef = useRef(false);
-    dirtyRef.current = dirty;
-
     // After a save/refresh the server sends fresh props: adopt them unless the admin is mid-edit.
-    useEffect(() => {
-        if (dirtyRef.current) return;
-        setDefaultBlocks(initialDefault);
-        setDays(initialDays);
-    }, [initialDefault, initialDays]);
+    const [lastProps, setLastProps] = useState({ initialDefault, initialDays });
+    if (lastProps.initialDefault !== initialDefault || lastProps.initialDays !== initialDays) {
+        setLastProps({ initialDefault, initialDays });
+        if (!dirty) {
+            setDefaultBlocks(initialDefault);
+            setDays(initialDays);
+        }
+    }
 
     const isDefault = tab === "default";
     const activeDay = isDefault ? null : days.find((d) => d.date === tab);
     const blocks = isDefault ? defaultBlocks : activeDay?.blocks ?? [];
     const derived = blocks.length ? deriveHours(blocks) : null;
-    const totalMinutes = useMemo(() => blocks.reduce((s, b) => s + minutesBetween(b.startTime, b.endTime), 0), [blocks]);
+    const totalMinutes = blocks.reduce((s, b) => s + minutesBetween(b.startTime, b.endTime), 0);
 
     // Days that use the default schedule show default blocks; keep them in sync while editing the default.
     function setBlocks(updater) {

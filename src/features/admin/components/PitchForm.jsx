@@ -1,7 +1,7 @@
 // src/features/admin/components/PitchForm.jsx
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Dialog from "@/components/ui/Dialog";
 import Button from "@/components/ui/Button";
@@ -50,12 +50,15 @@ export default function PitchForm({ pitch, onClose }) {
     const [isPending, startTransition] = useTransition();
     const isNew = !pitch?.id;
 
-    useEffect(() => {
+    // Load the ground into the form whenever a different one is opened.
+    const [lastPitch, setLastPitch] = useState(pitch);
+    if (pitch !== lastPitch) {
+        setLastPitch(pitch);
         if (pitch) {
             setForm({ ...EMPTY_PITCH, ...pitch, hourlyRate: pitch.hourlyRate === "" ? "" : String(pitch.hourlyRate) });
             setError("");
         }
-    }, [pitch]);
+    }
 
     const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
 
@@ -176,7 +179,7 @@ export default function PitchForm({ pitch, onClose }) {
                 <label className="flex items-center justify-between gap-4 rounded-ctl bg-chalk px-4 py-3">
                     <span>
                         <span className="block text-[14px] font-semibold text-ink">Open for booking</span>
-                        <span className="block text-[12px] text-ink-3">Closed grounds don't show on the website.</span>
+                        <span className="block text-[12px] text-ink-3">Closed grounds don&apos;t show on the website.</span>
                     </span>
                     <Switch checked={form.isActive} onChange={(v) => setForm((f) => ({ ...f, isActive: v }))} label="Open for booking" />
                 </label>

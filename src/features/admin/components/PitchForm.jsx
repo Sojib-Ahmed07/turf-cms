@@ -10,8 +10,9 @@ import { Label } from "@/components/admin/Kit";
 import ImageUploader from "@/components/admin/ImageUploader";
 import { TextInput, Select, CharInput } from "@/components/ui/Inputs";
 import { upsertPitch } from "@/features/admin/actions/pitches";
-import { hourOptions } from "@/features/booking/slots";
-import { time12 } from "@/lib/utils";
+import { generateDefaultBlocks, hourOptions } from "@/features/booking/slots";
+import { hhmmToMinutes } from "@/lib/time";
+import { cn, time12 } from "@/lib/utils";
 
 const SPORTS = [
     { value: "football", label: "Football" },
@@ -20,7 +21,23 @@ const SPORTS = [
     { value: "swimming_pool", label: "Swimming pool" },
 ];
 
-const SLOT_LENGTHS = [60, 75, 90, 120].map((m) => ({ value: m, label: `${m} minutes` }));
+// Quick picks under the typeable slot length. Any whole number from MIN_LEN to MAX_LEN works.
+const SLOT_PRESETS = [60, 75, 90, 120];
+const MIN_LEN = 15;
+const MAX_LEN = 240;
+
+/** Length of a generated block in minutes (crosses midnight safely). */
+function minutesOf(b) {
+    const d = hhmmToMinutes(b.endTime) - hhmmToMinutes(b.startTime);
+    return d <= 0 ? d + 1440 : d;
+}
+
+/** 90 -> "1 h 30 min", 60 -> "1 h", 45 -> "45 min" */
+function lengthLabel(min) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return [h && `${h} h`, m && `${m} min`].filter(Boolean).join(" ");
+}
 const HOURS = hourOptions();
 
 export const EMPTY_PITCH = {
@@ -63,6 +80,15 @@ export default function PitchForm({ pitch, onClose }) {
 
     const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
 
+    const slotLen = Number(form.defaultSlotMinutes);
+    const slotLenOk = String(form.defaultSlotMinutes).trim() !== "" && Number.isInteger(slotLen) && slotLen >= MIN_LEN && slotLen <= MAX_LEN;
+    // What these hours + length will make (same generator the server uses)
+    const preview = slotLenOk
+        ? generateDefaultBlocks({ openHour: Number(form.openHour), closeHour: Number(form.closeHour), defaultSlotMinutes: slotLen, hourlyRate: 0 })
+        : [];
+    const fullSlots = preview.filter((b, i) => i < preview.length - 1 || minutesOf(b) === slotLen).length;
+    const shortLast = preview.length && minutesOf(preview[preview.length - 1]) !== slotLen ? minutesOf(preview[preview.length - 1]) : 0;
+
     // Editing a ground: new hours or slot length rebuild its default slots when saved.
     const scheduleChanges =
         !isNew &&
@@ -74,6 +100,10 @@ export default function PitchForm({ pitch, onClose }) {
     function submit(e) {
         e?.preventDefault();
         setError("");
+        if (!slotLenOk) {
+            setError(`Slot length must be a whole number of minutes from ${MIN_LEN} to ${MAX_LEN}.`);
+            return;
+        }
         startTransition(async () => {
             const res = await upsertPitch({
                 ...form,
@@ -158,8 +188,45 @@ export default function PitchForm({ pitch, onClose }) {
                         />
                     </div>
                     <div>
-                        <Label>Slot length</Label>
-                        <Select value={form.defaultSlotMinutes} onChange={set("defaultSlotMinutes")} options={SLOT_LENGTHS} />
+                        <Label htmlFor="p-len">Slot length</Label>
+                        <div className="relative">
+                            <TextInput
+                                id="p-len"
+                                type="number"
+                                inputMode="numeric"
+                                min={MIN_LEN}
+                                max={MAX_LEN}
+                                step={1}
+                                value={form.defaultSlotMinutes}
+                                onChange={set("defaultSlotMinutes")}
+                                aria-invalid={!slotLenOk}
+                                className={cn(
+                                    "pr-14 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                                    !slotLenOk && "border-danger"
+                                )}
+                            />
+                            <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] font-medium text-ink-3">min</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[12px] text-ink-3">Quick pick</span>
+                            {SLOT_PRESETS.map((m) => (
+                                <button
+                                    key={m}
+                                    type="button"
+                                    aria-label={`${m} minutes`}
+                                    onClick={() => setForm((f) => ({ ...f, defaultSlotMinutes: String(m) }))}
+                                    className={cn(
+                                        "rounded-full px-2.5 py-1 text-[12px] font-semibold transition-colors",
+                                        slotLen === m ? "bg-ink text-white" : "bg-chalk text-ink-2 hover:bg-ink/10"
+                                    )}
+                                >
+                                    {m}
+                                </button>
+                            ))}
+                        </div>
+                        <p className={cn("mt-1.5 text-[12px]", slotLenOk ? "text-ink-3" : "text-danger")}>
+                            {slotLenOk ? lengthLabel(slotLen) : `Type ${MIN_LEN} to ${MAX_LEN} minutes.`}
+                        </p>
                     </div>
                 </div>
 
@@ -173,6 +240,20 @@ export default function PitchForm({ pitch, onClose }) {
                         <Select value={form.closeHour} onChange={set("closeHour")} options={HOURS} />
                     </div>
                 </div>
+
+                {slotLenOk && (
+                    <p className="-mt-2 text-[13px] text-ink-3">
+                        {preview.length === 0 ? (
+                            <span className="text-danger">These hours are shorter than one {slotLen}-minute slot.</span>
+                        ) : (
+                            <>
+                                Makes <span className="font-semibold text-ink">{fullSlots} slot{fullSlots === 1 ? "" : "s"}</span> of {slotLen} min,{" "}
+                                {time12(preview[0].startTime)} to {time12(preview[preview.length - 1].endTime)}
+                                {shortLast > 0 && `, plus a ${shortLast}-min slot at the end`}.
+                            </>
+                        )}
+                    </p>
+                )}
 
                 <div>
                     <Label optional>Photo</Label>

@@ -83,6 +83,13 @@ export function checkEnv(env = process.env) {
         warnings.push("CRON_SECRET is still a placeholder. Set a random string before going live.");
     }
 
+    // Brevo email OTP at registration. Without these, new players can't verify their email
+    // and (because booking is blocked until verified) can't book either.
+    const brevoMissing = ["BREVO_API_KEY", "BREVO_SENDER_EMAIL", "BREVO_SENDER_NAME"].filter((k) => !has(k));
+    if (brevoMissing.length) {
+        warnings.push(`${brevoMissing.join(", ")} not set: registration codes can't be emailed, so new players can't verify and can't book.`);
+    }
+
     return { errors, warnings };
 }
 

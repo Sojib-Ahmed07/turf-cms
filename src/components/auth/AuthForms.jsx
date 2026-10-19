@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Field, Input } from "@/components/ui/Field";
 import Button from "@/components/ui/Button";
-import { Mail, Lock, User as UserIcon, Phone } from "lucide-react";
-import { signIn, signUp } from "@/lib/auth-client";
+import { Mail, Lock, User as UserIcon, Phone, KeyRound } from "lucide-react";
+import { signIn, signUp, authClient } from "@/lib/auth-client";
 
 function GoogleIcon() {
     return (
@@ -129,7 +129,19 @@ export function RegisterForm() {
             setError(err.message || "We couldn't create your account. Try again.");
             return;
         }
-        router.push(next);
+        // Account created and signed in (autoSignIn). Send the first OTP and
+        // go to /verify-email so the player can enter it.
+        const sent = await authClient.emailOtp.sendVerificationOtp({
+            email: form.email,
+            type: "email-verification",
+        });
+        if (sent.error) {
+            // Account exists; they can resend from /verify-email.
+            router.push(`/verify-email?email=${encodeURIComponent(form.email)}&next=${encodeURIComponent(next)}`);
+            router.refresh();
+            return;
+        }
+        router.push(`/verify-email?email=${encodeURIComponent(form.email)}&next=${encodeURIComponent(next)}`);
         router.refresh();
     }
 

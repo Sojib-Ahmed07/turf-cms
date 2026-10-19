@@ -1,6 +1,4 @@
 // src/features/booking/queries.js
-// Server-side reads for the booking flow. Same logic as the prototype
-// (src/app/actions/booking.js), adapted to the new schema and hold system.
 import "server-only";
 import { and, asc, desc, eq, gt, inArray, lte, or, isNull } from "drizzle-orm";
 import { db } from "@/db";
@@ -8,6 +6,8 @@ import { bookings, pitches, timeBlocks } from "@/db/schema";
 import { partsOf } from "./parts";
 import { addDaysISO, currentOperatingDay, dayStartOf, dhakaDate, isAfterMidnight, isBlockPast, minutesToHHMM, nightEndOf, operatingMinutes } from "@/lib/time";
 import { time12 } from "@/lib/utils";
+import { ticketVerifyUrl } from "@/lib/ticket-token";
+import { qrDataUrlForUrl } from "@/lib/qrcode";
 
 export const HOLD_MINUTES = 15;
 
@@ -15,7 +15,6 @@ export const HOLD_MINUTES = 15;
 /* Pitches                                                         */
 /* -------------------------------------------------------------- */
 
-/** Active pitches in the shape the UI components expect. */
 export async function getPitches() {
     const rows = await db
         .select()
@@ -56,11 +55,6 @@ export function toPitchView(p) {
 /* Time blocks for a date (override or default)                    */
 /* -------------------------------------------------------------- */
 
-/**
- * Block list for a pitch on a date.
- * Per-date overrides in time_blocks win; otherwise pitches.defaultBlocks.
- * Default blocks get ids "default-<index>" (resolved again on the server when booking).
- */
 export async function getTimeBlocksForPitch(pitch, date) {
     const overrides = await db
         .select()
@@ -91,7 +85,6 @@ export async function getTimeBlocksForPitch(pitch, date) {
         }));
 }
 
-/** A pitch row's default schedule in sheet order ({ startTime, endTime, price, sortOrder }). */
 export function defaultSheet(p) {
     return (Array.isArray(p?.defaultBlocks) ? p.defaultBlocks : [])
         .slice()
@@ -103,12 +96,6 @@ export function defaultSheet(p) {
 /* Venue clock                                                     */
 /* -------------------------------------------------------------- */
 
-/**
- * The venue day running right now: { date, minutes }.
- * Yesterday stays "today" while any open ground's sheet for yesterday still has
- * after-midnight slots running (e.g. until 3 am for a ground that closes at 3 am).
- * A ground that opens at 5 am and closes at 10 pm doesn't hold "today" back at all.
- */
 export async function currentVenueDay(now = new Date()) {
     const yesterday = addDaysISO(dhakaDate(now), -1);
     const [rows, overrides] = await Promise.all([
@@ -125,10 +112,6 @@ export async function currentVenueDay(now = new Date()) {
     return currentOperatingDay(nightEnd, now);
 }
 
-/**
- * "Every day, 5 am to 10 pm" from the open grounds' default schedules (earliest first slot to latest end).
- * Shown in the footer and "Find us" when the admin leaves Opening hours empty in Footer & SEO.
- */
 export async function getVenueHoursLabel() {
     const rows = await db.select({ defaultBlocks: pitches.defaultBlocks }).from(pitches).where(eq(pitches.isActive, true));
     let open = null;
@@ -149,17 +132,12 @@ export async function getVenueHoursLabel() {
     return `Every day, ${time12(minutesToHHMM(open))} to ${time12(minutesToHHMM(close))}`;
 }
 
-/** Site settings with contact.hours filled from the grounds when the admin left Opening hours empty. */
 export async function withVenueHours(settings) {
     if (settings?.contact?.hours) return settings;
     const hours = await getVenueHoursLabel().catch(() => "");
     return hours ? { ...settings, contact: { ...settings.contact, hours } } : settings;
 }
 
-/**
- * Day start (minutes after midnight of the first slot) of each sheet a booking belongs to.
- * items: [{ pitchId, date }] -> Map("pitchId|date" -> minutes). Custom schedules for a date win.
- */
 export async function getSheetDayStarts(items) {
     const map = new Map();
     if (!items.length) return map;
@@ -196,10 +174,6 @@ function groupBy(list, keyFn) {
     return m;
 }
 
-/**
- * Resolve the block a player is trying to book. Never trust times or prices
- * from the browser: always look them up again here.
- */
 export async function resolveBlock(pitch, date, blockId) {
     const blocks = await getTimeBlocksForPitch(pitch, date);
     const block = blocks.find((b) => b.id === blockId);
@@ -207,7 +181,7 @@ export async function resolveBlock(pitch, date, blockId) {
     if (!(block.price > 0)) return null;
     return {
         ...block,
-        dayStart: dayStartOf(blocks), // the sheet's first slot: decides after-midnight and "already started"
+        dayStart: dayStartOf(blocks),
         dbId: blockId.startsWith("default-") ? null : blockId,
     };
 }
@@ -216,10 +190,6 @@ export async function resolveBlock(pitch, date, blockId) {
 /* Availability                                                    */
 /* -------------------------------------------------------------- */
 
-/**
- * Bookings that currently occupy a slot: confirmed, or held and not yet expired.
- * Returns Map(startTime -> { status, userId }).
- */
 export async function getTakenSlots(pitchId, date) {
     const now = new Date();
     const rows = await db
@@ -245,11 +215,6 @@ export async function getTakenSlots(pitchId, date) {
     return map;
 }
 
-/**
- * Everything the slot board needs for one pitch + date:
- * [{ id, start, end, price, state: "free" | "booked" | "held" | "past", mine, late }]
- * late = played after midnight (the next calendar day), e.g. 01:30 on a sheet that starts at 06:00.
- */
 export async function getSlotBoard(pitchId, date, viewerId = null) {
     const pitch = await getPitchById(pitchId);
     if (!pitch) return null;
@@ -275,11 +240,6 @@ export async function getSlotBoard(pitchId, date, viewerId = null) {
     });
 }
 
-/**
- * Home page "Grounds open today": every active ground with the start times
- * still free on today's operating day (not started, not booked, not on hold).
- * Returns { date, pitches: [...toPitchView, freeToday: ["19:30", ...], parts: ["morning", ...]], freeCount }.
- */
 export async function getGroundsToday() {
     const { date } = await currentVenueDay();
     const rows = await db
@@ -295,7 +255,6 @@ export async function getGroundsToday() {
             const freeToday = blocks
                 .filter((b) => b.price > 0 && !taken.has(b.startTime) && !isBlockPast(date, b.startTime, dayStart))
                 .map((b) => b.startTime);
-            // parts of the day this ground normally has slots in (home page search shows only these)
             const sheet = defaultSheet(p);
             const sheetStart = dayStartOf(sheet);
             const parts = partsOf(sheet.map((b) => ({ start: b.startTime, late: isAfterMidnight(b.startTime, sheetStart) })));
@@ -306,10 +265,6 @@ export async function getGroundsToday() {
     return { date, pitches: list, freeCount: list.reduce((n, p) => n + p.freeToday.length, 0) };
 }
 
-/**
- * Mark held bookings whose 15 minutes ran out as expired.
- * Called lazily before creating a hold (and later by the cron job).
- */
 export async function expireStaleHolds({ pitchId, date } = {}) {
     const now = new Date();
     const where = [eq(bookings.status, "held"), lte(bookings.holdExpiresAt, now)];
@@ -328,7 +283,6 @@ export async function expireStaleHolds({ pitchId, date } = {}) {
 /* My bookings                                                     */
 /* -------------------------------------------------------------- */
 
-/** Bookings for one user, in the shape BookingTicket expects. */
 export async function getMyBookings(userId) {
     const rows = await db
         .select({
@@ -356,38 +310,42 @@ export async function getMyBookings(userId) {
     const now = Date.now();
     const dayStarts = await getSheetDayStarts(rows.map((r) => ({ pitchId: r.pitchId, date: r.bookingDate })));
 
-    return rows.map((r) => {
-        const dayStart = dayStarts.get(`${r.pitchId}|${r.bookingDate}`);
-        let status = r.status;
-        // A hold whose time ran out counts as expired even before the cleanup runs.
-        if (status === "held" && r.holdExpiresAt && r.holdExpiresAt.getTime() <= now) status = "expired";
-        // A confirmed booking whose start time has passed is shown as played.
-        if (status === "confirmed" && isBlockPast(r.bookingDate, r.startTime, dayStart)) status = "completed";
+    return Promise.all(
+        rows.map(async (r) => {
+            const dayStart = dayStarts.get(`${r.pitchId}|${r.bookingDate}`);
+            let status = r.status;
+            if (status === "held" && r.holdExpiresAt && r.holdExpiresAt.getTime() <= now) status = "expired";
+            if (status === "confirmed" && isBlockPast(r.bookingDate, r.startTime, dayStart)) status = "completed";
 
-        return {
-            id: r.code,
-            bookingId: r.id,
-            pitch: r.pitchName,
-            format: r.pitchFormat ?? "",
-            date: r.bookingDate,
-            start: r.startTime,
-            end: r.endTime,
-            dayStart, // sheet's first slot, for after-midnight dates on the ticket and calendar
-            total: Number(r.totalPrice),
-            discount: Number(r.discount ?? 0),
-            status,
-            paidWith: r.paymentStatus === "paid" ? "Online" : null,
-            refundDue: r.paymentStatus === "refund_due",
-            refunded: r.paymentStatus === "refunded",
-            holdMinutesLeft:
-                status === "held" && r.holdExpiresAt
-                    ? Math.max(1, Math.ceil((r.holdExpiresAt.getTime() - now) / 60000))
-                    : null,
-        };
-    });
+            const verifyUrl = status === "confirmed" ? ticketVerifyUrl(r.id) : "";
+            const qrDataUrl = verifyUrl ? await qrDataUrlForUrl(verifyUrl) : "";
+
+            return {
+                id: r.code,
+                bookingId: r.id,
+                pitch: r.pitchName,
+                format: r.pitchFormat ?? "",
+                date: r.bookingDate,
+                start: r.startTime,
+                end: r.endTime,
+                dayStart,
+                total: Number(r.totalPrice),
+                discount: Number(r.discount ?? 0),
+                status,
+                paidWith: r.paymentStatus === "paid" ? "Online" : null,
+                refundDue: r.paymentStatus === "refund_due",
+                refunded: r.paymentStatus === "refunded",
+                holdMinutesLeft:
+                    status === "held" && r.holdExpiresAt
+                        ? Math.max(1, Math.ceil((r.holdExpiresAt.getTime() - now) / 60000))
+                        : null,
+                ticketToken: verifyUrl ? verifyUrl.split("/verify/")[1] : "",
+                qrDataUrl,
+            };
+        })
+    );
 }
 
-/** One booking owned by a user (for payment pages). */
 export async function getBookingForUser(bookingId, userId) {
     const [row] = await db
         .select({

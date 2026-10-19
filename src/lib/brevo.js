@@ -3,11 +3,6 @@ import "server-only";
 
 const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 
-/**
- * Send one transactional email through Brevo.
- * Env: BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME.
- * Throws Error with a short message on failure; the caller decides what to show the user.
- */
 export async function sendBrevoEmail({ to, subject, html, text }) {
     const apiKey = process.env.BREVO_API_KEY;
     const senderEmail = process.env.BREVO_SENDER_EMAIL;

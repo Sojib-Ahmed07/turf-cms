@@ -8,6 +8,7 @@ import BookingTicket from "./BookingTicket";
 import TicketDialog from "./TicketDialog";
 import Button from "@/components/ui/Button";
 import { cancelHeldBooking } from "@/features/booking/actions";
+import { resendTicketEmail } from "@/features/booking/actions-email";
 import { payForBooking } from "@/features/payment/actions";
 import { cn } from "@/lib/utils";
 
@@ -17,16 +18,6 @@ const TABS = [
     { key: "cancelled", label: "Cancelled", match: (b) => b.status === "cancelled" || b.status === "expired" },
 ];
 
-/**
- * props:
- *   bookings     from getMyBookings(userId)
- *   userName     first name for the greeting
- *   highlightCode booking code from ?held= (just reserved)
- *   paymentsLive  SSLCommerz is configured; shows the Pay button on held bookings
- *   payFailed     ?pay=failed: the gateway couldn't be opened right after reserving
- *   playerName    full name printed on the ticket
- *   venue         { name, address } for the ticket
- */
 export default function MyBookingsClient({
     bookings = [],
     userName,
@@ -38,10 +29,11 @@ export default function MyBookingsClient({
 }) {
     const router = useRouter();
     const [tab, setTab] = useState("upcoming");
-    const [busy, setBusy] = useState(null); // { id, what: "cancel" | "pay" }
+    const [busy, setBusy] = useState(null);
     const [error, setError] = useState(payFailed ? "We couldn't open the payment page. Your slot is still held, so try Pay again." : "");
+    const [flash, setFlash] = useState("");
     const [, startTransition] = useTransition();
-    const [ticket, setTicket] = useState(null); // booking shown in the ticket view
+    const [ticket, setTicket] = useState(null);
     const closeTicket = useCallback(() => setTicket(null), []);
 
     const current = TABS.find((t) => t.key === tab);
@@ -50,6 +42,7 @@ export default function MyBookingsClient({
 
     function onCancel(bookingId) {
         setError("");
+        setFlash("");
         setBusy({ id: bookingId, what: "cancel" });
         startTransition(async () => {
             const res = await cancelHeldBooking(bookingId);
@@ -64,16 +57,32 @@ export default function MyBookingsClient({
 
     function onPay(bookingId) {
         setError("");
+        setFlash("");
         setBusy({ id: bookingId, what: "pay" });
         startTransition(async () => {
             const res = await payForBooking(bookingId);
             if (res.ok) {
-                window.location.assign(res.data.url); // keep the button busy while the gateway loads
+                window.location.assign(res.data.url);
                 return;
             }
             setBusy(null);
             setError(res.error);
             if (res.expired) router.refresh();
+        });
+    }
+
+    function onEmail(booking) {
+        setError("");
+        setFlash("");
+        setBusy({ id: booking.bookingId, what: "email" });
+        startTransition(async () => {
+            const res = await resendTicketEmail(booking.bookingId);
+            setBusy(null);
+            if (!res.ok) {
+                setError(res.error);
+                return;
+            }
+            setFlash(`Receipt sent to your email.`);
         });
     }
 
@@ -106,6 +115,7 @@ export default function MyBookingsClient({
                 </div>
             )}
 
+            {flash && <p className="mt-6 rounded-ctl bg-brand-soft px-4 py-3 text-[14px] font-medium text-brand-deep">{flash}</p>}
             {error && <p className="mt-6 rounded-ctl bg-danger-soft px-4 py-3 text-[14px] font-medium text-danger">{error}</p>}
 
             <div role="tablist" className="mt-10 flex gap-1 border-b border-line">
@@ -143,6 +153,7 @@ export default function MyBookingsClient({
                             onCancel={onCancel}
                             onPay={paymentsLive ? onPay : undefined}
                             onShow={setTicket}
+                            onEmail={onEmail}
                             busy={busy?.id === b.bookingId ? busy.what : false}
                         />
                     ))

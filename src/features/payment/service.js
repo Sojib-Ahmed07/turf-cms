@@ -20,17 +20,16 @@ import { bookings, payments, pitches } from "@/db/schema";
 import { initSession, queryTransaction, validateOrder } from "@/lib/sslcommerz";
 import { HOLD_MINUTES, getSheetDayStarts } from "@/features/booking/queries";
 import { redeemCoupon } from "@/features/coupons/service";
+import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
 import { shortDateLabel } from "@/lib/time";
 import { time12 } from "@/lib/utils";
 
-// A hold can be stretched while the player is on the payment page, but never past this.
 const MAX_HOLD_MINUTES = 30;
 
 function appUrl() {
     return (process.env.APP_URL || process.env.BETTER_AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-/** "TZ-8F2K1-LX3K9A": booking code + attempt suffix. Unique per attempt, max 30 chars. */
 function newTranId(code) {
     const suffix = Date.now().toString(36).toUpperCase().slice(-6);
     return `${code}-${suffix}`.slice(0, 30);
@@ -48,10 +47,6 @@ const sameAmount = (a, b) => Math.abs(Number(a) - Number(b)) < 0.01;
 /* Start                                                           */
 /* -------------------------------------------------------------- */
 
-/**
- * Open a payment for a held booking that belongs to `user`.
- * Returns { ok: true, data: { url } } or { ok: false, error, expired? }.
- */
 export async function startPayment(bookingId, user) {
     const [b] = await db
         .select({
@@ -84,7 +79,6 @@ export async function startPayment(bookingId, user) {
     }
     if (!(Number(b.totalPrice) > 0)) return { ok: false, error: "This booking has nothing to pay." };
 
-    // Give the player time on the gateway page, capped at MAX_HOLD_MINUTES from the original hold.
     const cap = new Date(b.createdAt).getTime() + MAX_HOLD_MINUTES * 60000;
     const stretched = Math.min(cap, now + HOLD_MINUTES * 60000);
     if (stretched > expires) {
@@ -133,16 +127,6 @@ export async function startPayment(bookingId, user) {
 /* Confirm                                                         */
 /* -------------------------------------------------------------- */
 
-/**
- * Validate a payment with SSLCommerz and confirm its booking. Safe to call many times.
- * Returns { ok, outcome, bookingId? }:
- *   outcome "confirmed"  booking confirmed (now or earlier)
- *           "slot_lost"  paid, but the slot was gone: booking cancelled, refund due
- *           "duplicate"  booking was already paid by another attempt: this payment is refund due
- *           "invalid"    SSLCommerz says it isn't a valid payment
- *           "pending"    couldn't reach SSLCommerz; try again later (IPN/cron will finish it)
- *           "unknown"    no such tran_id
- */
 export async function confirmPayment({ tranId, valId }) {
     if (!tranId || !valId) return { ok: false, outcome: "invalid" };
 
@@ -171,7 +155,6 @@ export async function confirmPayment({ tranId, valId }) {
         return { ok: false, outcome: "invalid", bookingId: p.bookingId };
     }
 
-    // Claim the payment. Only one caller gets a row back; the others stop here.
     const claimed = await db
         .update(payments)
         .set({
@@ -189,13 +172,12 @@ export async function confirmPayment({ tranId, valId }) {
     if (claimed.length === 0) return { ok: true, outcome: "confirmed", bookingId: p.bookingId };
 
     if (v.risk_level === "1" || v.risk_level === 1) {
-        console.warn("[payment:risk]", tranId, v.risk_title); // shown to the admin in Step 6
+        console.warn("[payment:risk]", tranId, v.risk_title);
     }
 
     return settleBooking(p.id, p.bookingId);
 }
 
-/** After a payment is claimed as paid: confirm the booking, or record a refund if that's impossible. */
 async function settleBooking(paymentId, bookingId) {
     const [b] = await db
         .select({ status: bookings.status, paymentStatus: bookings.paymentStatus })
@@ -203,7 +185,6 @@ async function settleBooking(paymentId, bookingId) {
         .where(eq(bookings.id, bookingId))
         .limit(1);
 
-    // Already paid through another attempt (player paid twice): refund this one.
     if (b?.status === "confirmed" && b.paymentStatus === "paid") {
         await db.update(payments).set({ status: "refund_due", updatedAt: new Date() }).where(eq(payments.id, paymentId));
         return { ok: true, outcome: "duplicate", bookingId };
@@ -215,14 +196,14 @@ async function settleBooking(paymentId, bookingId) {
 
     if (b && (b.status === "held" || b.status === "expired")) {
         try {
-            // An expired hold is revived if nobody took the slot meanwhile; the unique index decides.
             const rows = await db
                 .update(bookings)
                 .set({ status: "confirmed", paymentStatus: "paid", holdExpiresAt: null, updatedAt: new Date() })
                 .where(and(eq(bookings.id, bookingId), inArray(bookings.status, ["held", "expired"])))
                 .returning({ id: bookings.id });
             if (rows.length) {
-                await redeemCoupon(bookingId); // promo code use becomes permanent only now
+                await redeemCoupon(bookingId);
+                void sendBookingReceiptByBookingId(bookingId).catch((err) => console.error("[ticket-email:after-pay]", err));
                 return { ok: true, outcome: "confirmed", bookingId };
             }
         } catch (err) {
@@ -230,7 +211,6 @@ async function settleBooking(paymentId, bookingId) {
         }
     }
 
-    // Slot gone (taken by someone else, or the booking was cancelled): keep the money as a refund.
     await db
         .update(bookings)
         .set({
@@ -249,10 +229,6 @@ async function settleBooking(paymentId, bookingId) {
 /* Lost callbacks                                                  */
 /* -------------------------------------------------------------- */
 
-/**
- * Ask SSLCommerz about a payment we never heard back on. If it was paid, confirm it.
- * Returns the same shape as confirmPayment, or { ok: false, outcome: "not_paid" | "pending" }.
- */
 export async function recheckPayment(tranId) {
     const q = await queryTransaction(tranId);
     if (!q) return { ok: false, outcome: "pending" };
@@ -261,10 +237,6 @@ export async function recheckPayment(tranId) {
     return confirmPayment({ tranId, valId: paid.val_id });
 }
 
-/**
- * Re-check payments that were opened 5 to 120 minutes ago and never finished.
- * Run by the cron job. Returns how many were confirmed.
- */
 export async function recheckOpenPayments(limit = 20) {
     const now = Date.now();
     const open = await db
@@ -291,11 +263,6 @@ export async function recheckOpenPayments(limit = 20) {
 /* Fail / cancel                                                   */
 /* -------------------------------------------------------------- */
 
-/**
- * Fail or cancel callback. Only touches a payment that is still "initiated";
- * a later valid payment for the same tran_id still wins in confirmPayment.
- * The booking stays held, so the player can try again until the hold runs out.
- */
 export async function markPaymentClosed(tranId, status, raw) {
     if (!tranId) return;
     await db
@@ -308,7 +275,6 @@ export async function markPaymentClosed(tranId, status, raw) {
 /* Result pages                                                    */
 /* -------------------------------------------------------------- */
 
-/** Everything the /payment/* pages show for a tran_id (no personal details). */
 export async function getPaymentResult(tranId) {
     if (!tranId || tranId.length > 40) return null;
     const [r] = await db

@@ -30,10 +30,6 @@ const STATUSES = [
     { value: "expired", label: "Expired" },
 ];
 
-/**
- * /admin/bookings (prototype: BookingsTable + getAllBookings).
- * props: data { rows, total, page, pageCount }, pitches [{ id, name }], filters { q, pitchId, status, range }, startDate, initialWalkIn
- */
 export default function BookingsTable({ data, pitches = [], filters, startDate, initialWalkIn = false }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -126,7 +122,6 @@ export default function BookingsTable({ data, pitches = [], filters, startDate, 
                 </div>
             )}
 
-            {/* Range tabs */}
             <div className="mb-4 flex flex-wrap gap-1 rounded-full bg-ink/5 p-1 sm:inline-flex">
                 {RANGES.map((r) => (
                     <Link
@@ -246,7 +241,6 @@ export default function BookingsTable({ data, pitches = [], filters, startDate, 
                 </div>
             </div>
 
-            {/* Cancel dialog */}
             <Dialog
                 open={Boolean(cancelTarget)}
                 onClose={() => !busy && setCancelTarget(null)}

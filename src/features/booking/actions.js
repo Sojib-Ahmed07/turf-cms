@@ -11,8 +11,9 @@ import { bookings } from "@/db/schema";
 import { isBlockPast } from "@/lib/time";
 import { HOLD_MINUTES, expireStaleHolds, getPitchById, resolveBlock } from "./queries";
 import { checkCouponForSlot, redeemCoupon } from "@/features/coupons/service";
+import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
 
-const MAX_ACTIVE_HOLDS = 2; // stops one player from blocking the whole evening
+const MAX_ACTIVE_HOLDS = 2;
 
 const holdSchema = z.object({
     pitchId: z.string().uuid(),
@@ -26,7 +27,6 @@ async function currentUser() {
     return session?.user ?? null;
 }
 
-/** "TZ-8F2K1": short code shown on tickets. No 0/O/1/I to avoid confusion. */
 function bookingCode() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     const bytes = crypto.getRandomValues(new Uint8Array(5));
@@ -39,11 +39,6 @@ function isUniqueViolation(err) {
     return code === "23505" || msg.includes("duplicate key");
 }
 
-/**
- * "Apply" in the checkout card: what would this code take off this slot?
- * Works signed out too (the per-player limit is checked again when the slot is held).
- * Returns { ok, data: { code, discount, total } } or { ok: false, error }.
- */
 export async function previewCoupon(input) {
     try {
         const parsed = holdSchema.safeParse(input);
@@ -64,12 +59,6 @@ export async function previewCoupon(input) {
     }
 }
 
-/**
- * Step 1 of checkout: reserve the slot for HOLD_MINUTES, with an optional promo code.
- * Returns { ok, data: { bookingId, code, free? } } or { ok: false, error, needsLogin?, needsVerify? }.
- * A code that makes the slot free confirms the booking straight away (nothing to pay).
- * Only verified players can hold a slot: unverified accounts get needsVerify: true.
- */
 export async function createBookingHold(input) {
     try {
         const user = await currentUser();
@@ -96,10 +85,8 @@ export async function createBookingHold(input) {
             return { ok: false, error: "That slot has already started. Pick a later time." };
         }
 
-        // Free up slots whose holds ran out, so the unique index doesn't block them.
         await expireStaleHolds({ pitchId, date });
 
-        // Limit concurrent holds per player.
         const now = new Date();
         const active = await db
             .select({ id: bookings.id })
@@ -112,7 +99,6 @@ export async function createBookingHold(input) {
             };
         }
 
-        // Promo code: always re-checked here, whatever the browser showed.
         let couponId = null;
         let discount = 0;
         if (couponCode) {
@@ -126,7 +112,6 @@ export async function createBookingHold(input) {
 
         const holdExpiresAt = new Date(now.getTime() + HOLD_MINUTES * 60 * 1000);
 
-        // Retry only if the random booking code collides (very rare).
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
                 const [row] = await db
@@ -152,7 +137,10 @@ export async function createBookingHold(input) {
                     })
                     .returning({ id: bookings.id, code: bookings.code });
 
-                if (free) await redeemCoupon(row.id);
+                if (free) {
+                    await redeemCoupon(row.id);
+                    void sendBookingReceiptByBookingId(row.id).catch((err) => console.error("[ticket-email:free]", err));
+                }
                 revalidatePath("/bookings");
                 return {
                     ok: true,
@@ -161,7 +149,6 @@ export async function createBookingHold(input) {
             } catch (err) {
                 if (!isUniqueViolation(err)) throw err;
                 const msg = String(err?.message ?? "") + String(err?.cause?.message ?? "") + String(err?.cause?.constraint ?? "");
-                // Booking-code collision: loop and try a new code. Anything else means the slot is taken.
                 if (!msg.includes("bookings_code_unique")) {
                     return { ok: false, error: "Someone just booked this slot. Pick another time." };
                 }
@@ -174,7 +161,6 @@ export async function createBookingHold(input) {
     }
 }
 
-/** Player cancels a booking that is still waiting for payment. */
 export async function cancelHeldBooking(bookingId) {
     try {
         const user = await currentUser();

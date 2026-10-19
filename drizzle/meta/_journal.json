@@ -15,6 +15,13 @@
       "when": 1791773642467,
       "tag": "0001_demonic_freak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792382136736,
+      "tag": "0002_rapid_wonder_man",
+      "breakpoints": true
     }
   ]
 }

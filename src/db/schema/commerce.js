@@ -58,6 +58,9 @@ export const bookings = pgTable(
         holdExpiresAt: timestamp("hold_expires_at"),
         cancelledAt: timestamp("cancelled_at"),
         cancelReason: text("cancel_reason"),
+        // Step 7b: gate check-in state, set by /verify/<token> ("Mark as used").
+        checkedInAt: timestamp("checked_in_at"),
+        checkedInBy: text("checked_in_by").references(() => user.id, { onDelete: "set null" }),
         createdAt: timestamp("created_at").notNull().defaultNow(),
         updatedAt: timestamp("updated_at").notNull().defaultNow(),
     },

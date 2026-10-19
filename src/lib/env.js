@@ -90,6 +90,14 @@ export function checkEnv(env = process.env) {
         warnings.push(`${brevoMissing.join(", ")} not set: registration codes can't be emailed, so new players can't verify and can't book.`);
     }
 
+    // Ticket QR signing (Step 7b). Falls back to BETTER_AUTH_SECRET in code, but a dedicated
+    // secret means rotating it on purpose invalidates old QRs; sharing BETTER_AUTH_SECRET couples them.
+    if (!has("TICKET_SECRET")) {
+        warnings.push("TICKET_SECRET not set: ticket QR codes are signed with BETTER_AUTH_SECRET (works, but rotating the auth secret invalidates old tickets).");
+    } else if (env.TICKET_SECRET.length < 32) {
+        warnings.push("TICKET_SECRET should be at least 32 characters.");
+    }
+
     return { errors, warnings };
 }
 

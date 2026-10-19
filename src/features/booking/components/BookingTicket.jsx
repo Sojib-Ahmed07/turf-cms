@@ -1,5 +1,5 @@
 // src/features/booking/components/BookingTicket.jsx
-import { Hourglass, RotateCcw, Ticket } from "lucide-react";
+import { Hourglass, Mail, RotateCcw, Ticket } from "lucide-react";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { isAfterMidnight, playDate } from "@/features/booking/calendar";
@@ -16,15 +16,7 @@ const STATUS = {
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/**
- * One booking drawn as a match ticket.
- * onCancel(bookingId): shown for held bookings.
- * onPay(bookingId): shown for held bookings once payments are live (payHref is the older link form).
- * onShow(booking): shown for confirmed bookings; opens the ticket to show at the desk.
- * busy: "cancel" | "pay" | false
- */
-export default function BookingTicket({ booking, onCancel, onPay, onShow, payHref, busy = false, highlight = false }) {
-    // The stub shows the day the game is actually played (after-midnight slots: the next calendar day).
+export default function BookingTicket({ booking, onCancel, onPay, onShow, onEmail, payHref, busy = false, highlight = false }) {
     const [y, m, day] = playDate(booking).split("-").map(Number);
     const d = new Date(Date.UTC(y, m - 1, day));
     const late = isAfterMidnight(booking);
@@ -39,7 +31,6 @@ export default function BookingTicket({ booking, onCancel, onPay, onShow, payHre
                 dim && "opacity-80"
             )}
         >
-            {/* Date stub */}
             <div
                 className={cn(
                     "flex items-center gap-4 px-6 py-5 sm:w-[132px] sm:flex-col sm:justify-center sm:gap-0 sm:px-0",
@@ -53,14 +44,12 @@ export default function BookingTicket({ booking, onCancel, onPay, onShow, payHre
                 </span>
             </div>
 
-            {/* Perforation */}
             <div aria-hidden="true" className="relative hidden w-0 sm:block">
                 <span className="absolute -left-3 -top-3 h-6 w-6 rounded-full bg-chalk ring-1 ring-line" />
                 <span className="absolute -bottom-3 -left-3 h-6 w-6 rounded-full bg-chalk ring-1 ring-line" />
                 <span className="absolute inset-y-5 left-0 border-l-2 border-dashed border-line" />
             </div>
 
-            {/* Body */}
             <div className="flex flex-1 flex-col gap-5 p-6 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -88,28 +77,56 @@ export default function BookingTicket({ booking, onCancel, onPay, onShow, payHre
                 </div>
 
                 <div className="flex items-center justify-between gap-6 border-t border-dashed border-line pt-5 md:flex-col md:items-end md:border-0 md:pt-0">
-                    <div className="md:text-right">
-                        <p className="text-[20px] font-bold text-ink tnum">{taka(booking.total)}</p>
-                        <p className="text-[12px] text-ink-3">
-                            {booking.refundDue
-                                ? "Paid, refund on the way"
-                                : booking.refunded
-                                    ? "Refunded"
-                                    : booking.paidWith
-                                        ? booking.paidWith === "Online"
-                                            ? "Paid online"
-                                            : `Paid with ${booking.paidWith}`
-                                        : booking.status === "held"
-                                            ? "Not paid yet"
-                                            : "No charge"}
-                            {booking.discount > 0 && `, saved ${taka(booking.discount)}`}
-                        </p>
+                    <div className="flex items-center gap-4 md:flex-col md:items-end md:gap-1">
+                        <div className="md:text-right">
+                            <p className="text-[20px] font-bold text-ink tnum">{taka(booking.total)}</p>
+                            <p className="text-[12px] text-ink-3">
+                                {booking.refundDue
+                                    ? "Paid, refund on the way"
+                                    : booking.refunded
+                                        ? "Refunded"
+                                        : booking.paidWith
+                                            ? booking.paidWith === "Online"
+                                                ? "Paid online"
+                                                : `Paid with ${booking.paidWith}`
+                                            : booking.status === "held"
+                                                ? "Not paid yet"
+                                                : "No charge"}
+                                {booking.discount > 0 && `, saved ${taka(booking.discount)}`}
+                            </p>
+                        </div>
+                        {booking.status === "confirmed" && booking.qrDataUrl && (
+                            <img
+                                src={booking.qrDataUrl}
+                                alt={`QR for ${booking.id}`}
+                                width={72}
+                                height={72}
+                                className="h-[72px] w-[72px] shrink-0 rounded-ctl ring-1 ring-line"
+                            />
+                        )}
                     </div>
-                    {booking.status === "confirmed" && onShow && (
-                        <Button variant="ink" size="sm" onClick={() => onShow(booking)}>
-                            <Ticket className="h-4 w-4" />
-                            Show ticket
-                        </Button>
+
+                    {booking.status === "confirmed" && (
+                        <div className="flex gap-2">
+                            {onShow && (
+                                <Button variant="ink" size="sm" onClick={() => onShow(booking)}>
+                                    <Ticket className="h-4 w-4" />
+                                    Show ticket
+                                </Button>
+                            )}
+                            {onEmail && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={Boolean(busy)}
+                                    onClick={() => onEmail(booking)}
+                                    aria-label="Email me the receipt"
+                                >
+                                    <Mail className="h-3.5 w-3.5" />
+                                    {busy === "email" ? "Sending…" : "Email receipt"}
+                                </Button>
+                            )}
+                        </div>
                     )}
                     {booking.status === "held" && (
                         <div className="flex gap-2">

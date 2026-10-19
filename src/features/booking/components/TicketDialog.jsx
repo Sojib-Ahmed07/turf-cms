@@ -10,10 +10,6 @@ import { calendarUrl, isAfterMidnight, longDateLabel, playDate } from "@/feature
 import { shortDateLabel } from "@/lib/time";
 import { taka, time12 } from "@/lib/utils";
 
-/**
- * Full-screen match ticket for a confirmed booking, to show at the desk.
- * props: booking (from getMyBookings, or null when closed), onClose, playerName, venue { name, address }
- */
 export default function TicketDialog({ booking, onClose, playerName = "", venue = {} }) {
     const open = Boolean(booking);
 
@@ -64,7 +60,6 @@ function Ticket({ booking: b, playerName, venue, onClose }) {
 
     return (
         <div className="overflow-hidden rounded-t-[28px] bg-white sm:rounded-[28px]">
-            {/* Stub */}
             <div className="relative overflow-hidden bg-pitch px-7 pb-8 pt-6 text-white">
                 <PitchLines className="absolute -right-24 -top-10 h-72 w-72 text-white/[0.07]" />
                 <div className="relative flex items-start justify-between gap-4">
@@ -94,18 +89,29 @@ function Ticket({ booking: b, playerName, venue, onClose }) {
                 </div>
             </div>
 
-            {/* Perforation */}
             <div aria-hidden="true" className="relative h-0">
                 <span className="absolute inset-x-6 top-0 border-t-2 border-dashed border-line" />
             </div>
 
-            {/* Details */}
             <dl className="grid grid-cols-2 gap-x-6 gap-y-5 px-7 pb-2 pt-8">
                 <Row label="Date" value={longDateLabel(playDate(b))} wide note={late ? `Night of ${shortDateLabel(b.date)}` : null} />
                 <Row label="Time" value={`${time12(b.start)} to ${time12(b.end)}`} />
                 <Row label="Player" value={playerName || "You"} />
                 <Row label="Payment" value={paid} note={b.discount > 0 ? `Saved ${taka(b.discount)}` : null} wide />
             </dl>
+
+            {b.qrDataUrl && (
+                <div className="mt-3 border-t-2 border-dashed border-line px-7 pt-6 text-center">
+                    <p className="text-[12px] font-medium text-ink-3">Show this at the gate</p>
+                    <img
+                        src={b.qrDataUrl}
+                        alt={`QR for booking ${b.id}`}
+                        width={200}
+                        height={200}
+                        className="mx-auto mt-2 h-[200px] w-[200px]"
+                    />
+                </div>
+            )}
 
             <div className="px-7 pb-7 pt-5">
                 {venue.address && (

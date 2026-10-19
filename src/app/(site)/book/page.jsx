@@ -33,6 +33,7 @@ export default async function BookPage({ searchParams }) {
             banner={banners.booking_page}
             venue={settings.contact.address}
             isSignedIn={Boolean(session?.user)}
+            emailVerified={Boolean(session?.user?.emailVerified)}
             paymentsLive={isSslczConfigured()}
         />
     );

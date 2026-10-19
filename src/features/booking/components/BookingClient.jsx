@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Lock, RefreshCw } from "lucide-react";
+import { AlertCircle, Lock, MailWarning, RefreshCw } from "lucide-react";
 import PitchPicker from "./PitchPicker";
 import DateStrip from "./DateStrip";
 import SlotBoard from "./SlotBoard";
@@ -47,6 +47,7 @@ function pickInitialBlock(blocks, time, part) {
  *   banner         promo banner for placement "booking_page" (optional)
  *   venue          venue line for the summary card (site address)
  *   isSignedIn     boolean
+ *   emailVerified  boolean: unverified players see a verify banner and can't reserve
  *   paymentsLive   SSLCommerz is configured: Pay goes straight to the gateway
  */
 export default function BookingClient({
@@ -59,6 +60,7 @@ export default function BookingClient({
     banner,
     venue = "",
     isSignedIn,
+    emailVerified = false,
     paymentsLive = false,
 }) {
     const router = useRouter();
@@ -92,6 +94,10 @@ export default function BookingClient({
     const loadError = board.key === boardKey ? board.error : "";
     const block = blocks.find((b) => b.id === blockId && b.state === "free") ?? null;
     const startAsDate = useMemo(() => new Date(`${startDate}T00:00:00`), [startDate]);
+
+    // Unverified signed-in player: verify first, come back to this ground/date.
+    const needsVerify = isSignedIn && !emailVerified;
+    const verifyHref = `/verify-email?next=${encodeURIComponent(`/book?pitch=${pitchId ?? ""}&date=${date}`)}`;
 
     // Load live slots whenever the ground or date changes (or on "Try again").
     useEffect(() => {
@@ -185,10 +191,18 @@ export default function BookingClient({
             router.push(`/login?next=${encodeURIComponent(back)}`);
             return;
         }
+        if (needsVerify) {
+            router.push(verifyHref);
+            return;
+        }
 
         startTransition(async () => {
             const res = await createBookingHold({ pitchId: pitch.id, blockId: block.id, date, couponCode: activeCoupon?.code ?? "" });
             if (!res.ok) {
+                if (res.needsVerify) {
+                    router.push(verifyHref);
+                    return;
+                }
                 if (res.couponError) {
                     removeCoupon();
                     setPayError(`${res.error} The code was removed; check the price and try again.`);
@@ -219,6 +233,10 @@ export default function BookingClient({
                 window.location.assign(pay.data.url);
                 return;
             }
+            if (pay.needsVerify) {
+                router.push(verifyHref);
+                return;
+            }
             // Couldn't open the gateway: the hold is still there, so send them to pay from My bookings.
             router.push(`/bookings?held=${res.data.code}&pay=failed`);
         });
@@ -241,6 +259,23 @@ export default function BookingClient({
                     Prices change with the time of day. Every price includes floodlights and the changing room.
                 </p>
             </header>
+
+            {needsVerify && (
+                <div className="mb-8 flex flex-col gap-3 rounded-card bg-flare/15 p-5 ring-1 ring-flare/40 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                        <MailWarning className="mt-0.5 h-5 w-5 shrink-0 text-ink" />
+                        <div>
+                            <p className="font-semibold text-ink">Verify your email to book</p>
+                            <p className="text-[14px] text-ink-2">
+                                We sent a 6-digit code to your inbox when you signed up. Enter it once and you can book any slot.
+                            </p>
+                        </div>
+                    </div>
+                    <Button href={verifyHref} variant="ink" size="sm">
+                        Verify now
+                    </Button>
+                </div>
+            )}
 
             <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
                 <div className="space-y-10 lg:col-span-8">
@@ -313,7 +348,15 @@ export default function BookingClient({
                     </div>
                     <Button size="lg" disabled={!block || busy} onClick={handlePay}>
                         <Lock className="h-4 w-4" />
-                        {busy ? "Reserving…" : !isSignedIn ? "Sign in to book" : block && total === 0 ? "Book for free" : `Pay ${taka(total)}`}
+                        {busy
+                            ? "Reserving…"
+                            : needsVerify
+                                ? "Verify to book"
+                                : !isSignedIn
+                                    ? "Sign in to book"
+                                    : block && total === 0
+                                        ? "Book for free"
+                                        : `Pay ${taka(total)}`}
                     </Button>
                 </div>
             </div>

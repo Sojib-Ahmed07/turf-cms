@@ -9,13 +9,20 @@ import { startPayment } from "./service";
 /**
  * Player clicks Pay (on /book right after reserving, on My bookings, or "Try again" on /payment/failed).
  * Returns { ok: true, data: { url } } -> the browser goes to the SSLCommerz page,
- * or { ok: false, error, needsLogin?, expired? }.
+ * or { ok: false, error, needsLogin?, needsVerify?, expired? }.
  */
 export async function payForBooking(bookingId) {
     try {
         const session = await auth.api.getSession({ headers: await headers() });
         const user = session?.user;
         if (!user) return { ok: false, needsLogin: true, error: "Sign in to pay for your booking." };
+        if (!user.emailVerified) {
+            return {
+                ok: false,
+                needsVerify: true,
+                error: "Verify your email before paying. Check your inbox for the code.",
+            };
+        }
         if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: "Booking not found." };
         return await startPayment(bookingId, user);
     } catch (err) {

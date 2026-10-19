@@ -66,13 +66,21 @@ export async function previewCoupon(input) {
 
 /**
  * Step 1 of checkout: reserve the slot for HOLD_MINUTES, with an optional promo code.
- * Returns { ok, data: { bookingId, code, free? } } or { ok: false, error, needsLogin? }.
+ * Returns { ok, data: { bookingId, code, free? } } or { ok: false, error, needsLogin?, needsVerify? }.
  * A code that makes the slot free confirms the booking straight away (nothing to pay).
+ * Only verified players can hold a slot: unverified accounts get needsVerify: true.
  */
 export async function createBookingHold(input) {
     try {
         const user = await currentUser();
         if (!user) return { ok: false, needsLogin: true, error: "Sign in to book a slot." };
+        if (!user.emailVerified) {
+            return {
+                ok: false,
+                needsVerify: true,
+                error: "Verify your email before booking. Check your inbox for the code.",
+            };
+        }
 
         const parsed = holdSchema.safeParse(input);
         if (!parsed.success) return { ok: false, error: "Pick a ground, date and time first." };

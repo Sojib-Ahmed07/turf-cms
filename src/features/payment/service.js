@@ -1,19 +1,6 @@
 // src/features/payment/service.js
-// Payment flow (server only). Called by the payment action, the SSLCommerz
-// callbacks/IPN route, the result pages and the cron job.
-//
-//   startPayment      held booking -> payments row (initiated) -> SSLCommerz session URL
-//   confirmPayment    val_id -> Validation API -> payment paid -> booking confirmed (idempotent)
-//   recheckPayment    tran_id -> Transaction Query API -> confirmPayment (lost callbacks)
-//   markPaymentClosed fail/cancel callbacks: initiated -> failed | cancelled (booking stays held)
-//
-// Safety rules:
-// - The only proof of payment is SSLCommerz's Validation API; callback form fields are never trusted.
-// - The payment row is "claimed" with a conditional UPDATE (status <> 'paid'), so the browser
-//   callback, the IPN and the cron can all run at once and the booking is confirmed only once.
-// - If the slot was lost while the player was paying (hold expired and someone else booked it,
-//   or the booking was cancelled), the money is kept as refund_due instead of double-booking.
 import "server-only";
+import { waitUntil } from "@vercel/functions";
 import { and, eq, inArray, lt, gt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, payments, pitches } from "@/db/schema";
@@ -203,7 +190,11 @@ async function settleBooking(paymentId, bookingId) {
                 .returning({ id: bookings.id });
             if (rows.length) {
                 await redeemCoupon(bookingId);
-                void sendBookingReceiptByBookingId(bookingId).catch((err) => console.error("[ticket-email:after-pay]", err));
+                waitUntil(
+                    sendBookingReceiptByBookingId(bookingId).catch((err) =>
+                        console.error("[ticket-email:after-pay]", err)
+                    )
+                );
                 return { ok: true, outcome: "confirmed", bookingId };
             }
         } catch (err) {

@@ -3,6 +3,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { waitUntil } from "@vercel/functions";
 import { and, eq, gt, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
@@ -139,7 +140,11 @@ export async function createBookingHold(input) {
 
                 if (free) {
                     await redeemCoupon(row.id);
-                    void sendBookingReceiptByBookingId(row.id).catch((err) => console.error("[ticket-email:free]", err));
+                    waitUntil(
+                        sendBookingReceiptByBookingId(row.id).catch((err) =>
+                            console.error("[ticket-email:free]", err)
+                        )
+                    );
                 }
                 revalidatePath("/bookings");
                 return {

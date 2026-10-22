@@ -1,12 +1,14 @@
 // src/components/site/VenueInfo.jsx
 import { Check, Clock3, MapPin, Navigation, Phone } from "lucide-react";
 import Button from "@/components/ui/Button";
+import VenueMapLoader from "./VenueMapLoader";
 
 /**
- * "Find us" section. The map is a styled illustration; swap it for a
- * Google Maps <iframe> later if the client wants a live map.
+ * "Find us" section. Shows the admin-set Leaflet map when latitude/longitude are saved
+ * in Admin -> Branding; otherwise a styled illustration.
+ * VenueMapLoader is a client component that lazy-loads Leaflet (ssr: false lives there).
  */
-export default function VenueInfo({ content, contact, siteName = "TurfZone" }) {
+export default function VenueInfo({ content, contact, siteName = "TurfZone", map = null }) {
     const phoneHref = contact.phone ? `tel:${contact.phone.replace(/[^\d+]/g, "")}` : null;
 
     return (
@@ -40,7 +42,7 @@ export default function VenueInfo({ content, contact, siteName = "TurfZone" }) {
                 </div>
 
                 <div className="flex flex-col gap-4 lg:col-span-7">
-                    <MapArt name={siteName} />
+                    {map ? <VenueMapLoader map={map} name={siteName} /> : <MapArt name={siteName} />}
                     {content.facilities.length > 0 && (
                         <ul className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-card bg-white p-6 ring-1 ring-line sm:grid-cols-3">
                             {content.facilities.map((f) => (

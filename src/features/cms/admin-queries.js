@@ -50,6 +50,13 @@ export async function getBrandingAdmin() {
         logoDark: img(row?.logoDarkUrl, row?.logoDarkPublicId),
         favicon: img(row?.faviconUrl, row?.faviconPublicId),
         menuButtonLabel: s.menuButtonLabel,
+        map: {
+            lat: s.map ? String(s.map.lat) : "",
+            lng: s.map ? String(s.map.lng) : "",
+            zoom: s.map ? String(s.map.zoom) : "",
+            label: s.map ? s.map.label : "",
+            address: s.map ? s.map.address : "",
+        },
     };
 }
 

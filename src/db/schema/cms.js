@@ -8,6 +8,7 @@ import {
     jsonb,
     uuid,
     index,
+    doublePrecision,
 } from "drizzle-orm/pg-core";
 import { coupons } from "./commerce.js";
 
@@ -28,6 +29,11 @@ export const siteSettings = pgTable("site_settings", {
     socials: jsonb("socials").notNull().default([]),
     seo: jsonb("seo").notNull().default({}),
     slider: jsonb("slider").notNull().default({ autoplayMs: 6000, pauseOnHover: true }),
+    mapLat: doublePrecision("map_lat"),
+    mapLng: doublePrecision("map_lng"),
+    mapZoom: integer("map_zoom"),
+    mapLabel: text("map_label"),
+    mapAddress: text("map_address"),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     updatedBy: text("updated_by"),
 });

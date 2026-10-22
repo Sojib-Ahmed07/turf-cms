@@ -27,6 +27,30 @@ async function currentRow() {
 /* Branding (admin only)                                           */
 /* -------------------------------------------------------------- */
 
+/** Empty string or a number in range; empty -> null. */
+const coord = (min, max, label) =>
+    z
+        .union([z.string(), z.number()])
+        .transform((v) => (typeof v === "string" ? v.trim() : String(v)))
+        .transform((v) => (v === "" ? null : Number(v)))
+        .refine((v) => v === null || (Number.isFinite(v) && v >= min && v <= max), {
+            message: `${label} must be a number between ${min} and ${max}, or left empty.`,
+        });
+
+const mapSchema = z.object({
+    lat: coord(-90, 90, "Latitude"),
+    lng: coord(-180, 180, "Longitude"),
+    zoom: z
+        .union([z.string(), z.number()])
+        .transform((v) => (typeof v === "string" ? v.trim() : String(v)))
+        .transform((v) => (v === "" ? null : Number(v)))
+        .refine((v) => v === null || (Number.isInteger(v) && v >= 2 && v <= 19), {
+            message: "Zoom must be a whole number from 2 to 19, or left empty.",
+        }),
+    label: text(40, "Map label"),
+    address: text(120, "Map address"),
+});
+
 const brandingSchema = z.object({
     siteName: requiredText(24, "Site name"),
     tagline: text(60, "Tagline"),
@@ -34,6 +58,7 @@ const brandingSchema = z.object({
     logoLight: image,
     logoDark: image,
     favicon: image,
+    map: mapSchema,
 });
 
 export async function saveBranding(input) {
@@ -55,6 +80,11 @@ export async function saveBranding(input) {
                 logoDarkPublicId: v.logoDark?.publicId ?? null,
                 faviconUrl: v.favicon?.url ?? null,
                 faviconPublicId: v.favicon?.publicId ?? null,
+                mapLat: v.map.lat,
+                mapLng: v.map.lng,
+                mapZoom: v.map.zoom,
+                mapLabel: v.map.label || null,
+                mapAddress: v.map.address || null,
             },
             user.id
         );

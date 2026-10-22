@@ -4,12 +4,12 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, Ticket } from "lucide-react";
+import { Check, MapPin, Ticket } from "lucide-react";
 import { PageHeader, Panel, SettingRow, SaveBar } from "@/components/admin/Kit";
 import ImageUploader from "@/components/admin/ImageUploader";
 import { useToast } from "@/components/admin/Toast";
 import Button from "@/components/ui/Button";
-import { CharInput } from "@/components/ui/Inputs";
+import { CharInput, TextInput } from "@/components/ui/Inputs";
 import { Mark } from "@/components/site/Logo";
 import { saveBranding } from "@/features/cms/actions/settings";
 import { canOptimize, cn } from "@/lib/utils";
@@ -30,6 +30,10 @@ export default function BrandingForm({ initial }) {
         setForm((f) => ({ ...f, ...patch }));
         setError("");
     };
+    const setMap = (patch) => {
+        setForm((f) => ({ ...f, map: { ...f.map, ...patch } }));
+        setError("");
+    };
     const validHex = /^#[0-9a-fA-F]{6}$/.test(form.brandColor);
 
     function save() {
@@ -47,7 +51,7 @@ export default function BrandingForm({ initial }) {
 
     return (
         <div className="mx-auto max-w-[1080px]" style={validHex ? { "--brand": form.brandColor } : undefined}>
-            <PageHeader title="Branding" description="Your logo, name and brand colour. Changes show on every page of the website." />
+            <PageHeader title="Branding" description="Your logo, name, brand colour and map location. Changes show on every page of the website." />
 
             {/* Live preview */}
             <div className="mb-6 overflow-hidden rounded-card bg-chalk ring-1 ring-line">
@@ -155,6 +159,57 @@ export default function BrandingForm({ initial }) {
                         </label>
                     </div>
                     {!validHex && <p className="mt-3 text-[13px] font-medium text-danger">Type the colour as # and six characters, for example #18A058.</p>}
+                </Panel>
+
+                <Panel
+                    title="Map location"
+                    description="Shown on the home page in the Find us section. Get coordinates from Google Maps: right-click the spot, then click the numbers to copy. Leave latitude and longitude empty to show the illustrated map instead."
+                >
+                    <SettingRow label="Latitude" hint="For example 23.8223 (between −90 and 90).">
+                        <TextInput
+                            value={form.map.lat}
+                            onChange={(e) => setMap({ lat: e.target.value })}
+                            placeholder="23.8223"
+                            inputMode="decimal"
+                            className="max-w-xs tnum"
+                        />
+                    </SettingRow>
+                    <SettingRow label="Longitude" hint="For example 90.3654 (between −180 and 180).">
+                        <TextInput
+                            value={form.map.lng}
+                            onChange={(e) => setMap({ lng: e.target.value })}
+                            placeholder="90.3654"
+                            inputMode="decimal"
+                            className="max-w-xs tnum"
+                        />
+                    </SettingRow>
+                    <SettingRow label="Zoom" hint="2 (whole world) to 19 (street level). Leave empty for 16.">
+                        <TextInput
+                            value={form.map.zoom}
+                            onChange={(e) => setMap({ zoom: e.target.value })}
+                            placeholder="16"
+                            inputMode="numeric"
+                            className="max-w-[120px] tnum"
+                        />
+                    </SettingRow>
+                    <SettingRow label="Marker label" hint="Shown in the popup when the marker is clicked. Empty uses the site name.">
+                        <CharInput max={40} value={form.map.label} onChange={(e) => setMap({ label: e.target.value })} placeholder="TurfZone, Mirpur 12" className="max-w-md" />
+                    </SettingRow>
+                    <SettingRow label="Marker address" hint="Optional second line in the popup.">
+                        <CharInput max={120} value={form.map.address} onChange={(e) => setMap({ address: e.target.value })} placeholder="Road 7, Mirpur 12, Dhaka" className="max-w-lg" />
+                    </SettingRow>
+                    <SettingRow label="Find coordinates" hint="Opens Google Maps in a new tab. Nothing is saved from there.">
+                        <Button
+                            href="https://www.google.com/maps"
+                            variant="outline"
+                            size="sm"
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            <MapPin className="h-4 w-4" />
+                            Open Google Maps
+                        </Button>
+                    </SettingRow>
                 </Panel>
             </div>
 

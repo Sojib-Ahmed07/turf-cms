@@ -56,7 +56,12 @@ export default async function HomePage() {
                 <PromoBanner banner={banners.home_mid} variant="band" className="mt-20 sm:mt-28" />
             )}
             {sections.visit.isVisible && (
-                <VenueInfo content={sections.visit} contact={settings.contact} siteName={settings.siteName} />
+                <VenueInfo
+                    content={sections.visit}
+                    contact={settings.contact}
+                    siteName={settings.siteName}
+                    map={settings.map}
+                />
             )}
         </>
     );

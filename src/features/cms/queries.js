@@ -36,6 +36,7 @@ const DEFAULT_SETTINGS = {
     socials: [],
     seo: { title: "", description: "", ogImageUrl: null },
     slider: { autoplayMs: 6000, pauseOnHover: true },
+    map: null,
 };
 
 const DEFAULT_NAV = [
@@ -85,6 +86,7 @@ async function safe(label, fn, fallback) {
 const isHex = (v) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
 const str = (v, d = "") => (typeof v === "string" ? v : d);
 const obj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
+const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** Readable text colour on top of the brand colour (white, or dark ink for light brands). */
 export function brandInk(hex) {
@@ -123,6 +125,20 @@ export function toSettings(row) {
     const contact = obj(row.contact);
     const seo = obj(row.seo);
     const slider = obj(row.slider);
+
+    const lat = num(row.mapLat);
+    const lng = num(row.mapLng);
+    const map =
+        lat !== null && lng !== null
+            ? {
+                lat,
+                lng,
+                zoom: Math.min(Math.max(Number(row.mapZoom) || 16, 2), 19),
+                label: str(row.mapLabel),
+                address: str(row.mapAddress),
+            }
+            : null;
+
     return {
         siteName: str(row.siteName, DEFAULT_SETTINGS.siteName) || DEFAULT_SETTINGS.siteName,
         tagline: str(row.tagline),
@@ -151,6 +167,7 @@ export function toSettings(row) {
             autoplayMs: Math.min(Math.max(Number(slider.autoplayMs) || 6000, 2500), 20000),
             pauseOnHover: slider.pauseOnHover !== false,
         },
+        map,
     };
 }
 

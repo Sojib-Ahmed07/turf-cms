@@ -1,30 +1,33 @@
 # CLAUDE.md — TurfZone CMS
 
 Turf-booking site + CMS for one venue in Dhaka (Next.js 16.4 App Router, React 19.3, Tailwind v4,
-Drizzle + Neon Postgres, Better Auth, Zod 4). **JavaScript only, no TypeScript.**
+Drizzle + Neon Postgres, Better Auth + email OTP, Zod 4, SSLCommerz, Cloudinary, Brevo email, `qrcode`,
+Leaflet). **JavaScript only, no TypeScript.** Last synced with the code: 25 Oct 2026 (Steps 0 to 7c done).
 
 @Agents.md
 
 `Agents.md` (imported above) is the source of truth for progress, conventions, booking rules, file map
 and the step plan. This file adds the working rules for Claude. If the two disagree, `Agents.md` wins;
-fix the drift. `ai-context.md` is the same handoff for other models (Gemini, DeepSeek); keep its
-sections 3, 12 and 13 in sync at the end of a session.
+fix the drift (and if the code disagrees with both, the code wins). `ai-context.md` is the same handoff
+for other models (Gemini, DeepSeek); keep its sections 3, 5, 6, 9 to 13 in sync at the end of a session.
 
 ## Do not read
 
 `node_modules/`, `.next/`, `.git/`, `package-lock.json`, `drizzle/meta/*.json` (generated snapshots),
-`public/` binaries. Never print or commit `.env.local` (holds `DATABASE_URL`, `BETTER_AUTH_SECRET`, Google keys).
+`public/` binaries. Never print or commit `.env.local` (holds `DATABASE_URL`, `BETTER_AUTH_SECRET`,
+`TICKET_SECRET`, Google, SSLCommerz, Cloudinary and Brevo keys).
 
 Exception: before using a Next.js API you are unsure about, read the matching guide in
 `node_modules/next/dist/docs/` (`01-app/`, `03-architecture/`). Next 16 differs from older versions
-(`proxy.js` instead of `middleware.js`, `revalidateTag(tag, "max")` takes two arguments, async `headers()`).
+(`proxy.js` instead of `middleware.js`, `revalidateTag(tag, "max")` takes two arguments, async `headers()`,
+`next/dynamic` with `ssr: false` only inside a Client Component).
 
 ## Commands (PowerShell, Windows)
 
 ```
 npm run dev           # next dev --webpack (Turbopack crashes here; keep --webpack)
 npm run build         # next build; run this to check a change compiles
-npm run lint          # eslint . (clean as of 15 Oct 2026; keep it clean)
+npm run lint          # eslint . (0 errors as of 25 Oct 2026; 2 accepted no-img-element warnings on QR images)
 npm run start         # serve the production build
 npm run db:generate   # after editing src/db/schema/*, then:
 npm run db:migrate    # apply to Neon. Do not mix with db:push on the same database
@@ -34,38 +37,47 @@ npm run db:studio
 
 There are no tests. Verify with `npm run build` and by describing what to click in the browser.
 Ask before running migrations or the seed against the database (it is a shared Neon instance).
+`next build` downloads the Archivo font from Google Fonts, so it fails offline.
 
 ## Layout
 
 ```
 src/
   app/
-    (site)/            public pages: /, /book, /bookings, /profile, /terms, /payment/* (+ loading, error)
-    (auth)/            /login, /register
-    admin/             CMS + booking admin (layout guards with requireRole; + loading, error)
+    (site)/            public pages: /, /book, /bookings, /profile, /terms, /payment/* (+ loading, error),
+                       /verify/[token] (QR ticket check; public, admin sees "Mark as used")
+    (auth)/            /login, /register, /verify-email (6-digit code)
+    admin/             CMS + booking admin (layout guards with requireRole admin|editor; + loading, error)
     not-found.jsx, global-error.jsx, sitemap.js, robots.js
     api/auth/[...all]  Better Auth handler
     api/booked-slots   live slot board JSON (no-store)
     api/payment/sslcommerz/[event]  SSLCommerz callbacks: success | fail | cancel | ipn (POST)
     api/cron/expire-holds           daily: re-check lost payments, expire holds (Bearer CRON_SECRET)
+    api/ticket-qr/[token]           QR PNG for a signed ticket token (receipt emails)
   components/
     ui/                Button, Dialog, Field, Inputs, Switch, Badge
-    site/              public site chrome and home sections (props only)
+    site/              public site chrome and home sections (props only); VenueMap + VenueMapLoader (Leaflet),
+                       VerifyTicket
     admin/             AdminShell, Kit, TonightBoard, StatusBadge, ImageUploader, MediaPicker, Toast
-    auth/              AuthForms, AuthLayout
+    auth/              AuthForms, AuthLayout, VerifyEmailForm
   features/
-    booking/           queries.js, actions.js, slots.js (pure slot engine), calendar.js, components/ (incl. TicketDialog)
+    auth/              emails.js (sendOtpEmail), ticket-email.js (receipt with QR)
+    booking/           queries.js (getMyBookings adds qrDataUrl), actions.js, actions-email.js (resendTicketEmail),
+                       slots.js (pure slot engine), calendar.js, parts.js, components/ (incl. TicketDialog)
     profile/           actions.js (updateProfile), components/ProfileClient.jsx
-    admin/             queries.js, commerce-queries.js, actions/{pitches,bookings,coupons,payments,users}.js, components/
+    admin/             queries.js, commerce-queries.js,
+                       actions/{pitches,bookings,coupons,payments,users,checkin}.js, components/
     coupons/           rules.js (pure evaluateCoupon), service.js (checkCouponForSlot, redeemCoupon)
-    cms/               queries.js (cached reads), admin-queries.js, server-utils.js, actions/*, upload-client.js,
-                       admin/ (8 live editors incl. TermsEditor)
-    payment/           service.js (start, confirm, recheck), actions.js (payForBooking), result-page.js,
-                       components/PaymentResult.jsx, RetryPayButton.jsx
+    cms/               queries.js (cached reads, settings.map), admin-queries.js, server-utils.js, actions/*,
+                       upload-client.js, admin/ (8 live editors incl. TermsEditor; BrandingForm has Map location)
+    payment/           service.js (start, confirm + receipt email, recheck), actions.js (payForBooking),
+                       result-page.js, components/PaymentResult.jsx, RetryPayButton.jsx
   db/                  index.js (neon-http), pool.js (unused), schema/, seed.js
-  lib/                 auth, auth-client, guards, action, time, utils, cache-tags, sslcommerz, cloudinary, env
+  lib/                 auth (emailOTP), auth-client, guards, action, time, utils, cache-tags, sslcommerz,
+                       cloudinary, brevo, ticket-token, qrcode, env
   proxy.js             cookie check redirect for /admin, /bookings, /profile
   instrumentation.js   runs lib/env.js assertEnv() once at server start
+drizzle/               migrations 0000 to 0003 (0002 check-in columns, 0003 map columns)
 ```
 
 Import alias: `@/*` → `src/*`. Schema is re-exported from `@/db/schema`.
@@ -116,22 +128,46 @@ Never `new Date().getHours()` or `toLocaleDateString` on the server.
 
 **Money:** BDT, integers, format with `taka()`; 12-hour times with `time12()` (`src/lib/utils.js`).
 
+**Emails:** build in `src/features/auth/*` on top of `sendBrevoEmail` (`src/lib/brevo.js`); escape every
+interpolated value. Send after a response with `waitUntil(promise.catch(...))` from `@vercel/functions`;
+an email failure must never fail a booking or payment.
+
+**QR tickets:** never put a raw booking id in a URL. Use `ticketVerifyUrl(bookingId)` /
+`signTicket` / `verifyTicketToken` (`src/lib/ticket-token.js`) and `qrDataUrlForUrl` (`src/lib/qrcode.js`).
+The token only proves we issued it; always re-read the booking. Email clients need a real URL
+(`/api/ticket-qr/<token>`), not a data URL.
+
+**Browser-only libraries** (Leaflet): import through a `"use client"` wrapper using
+`next/dynamic(..., { ssr: false })`, like `VenueMapLoader.jsx`.
+
+**Booking gate:** `createBookingHold` and `payForBooking` refuse unverified emails with
+`{ ok: false, needsVerify: true }`. Keep that check in any new booking or payment entry point.
+
 ## Roles
 
-`user.role`: `user` (player), `editor` (CMS content only), `admin` (everything). Grounds, bookings,
-payments, users are admin only (`adminOnly` in `AdminShell`). Check the role inside every admin action,
-not only in the layout. Admin-only pages also call `requireRole(["admin"])` themselves.
+`user.role`: `user` (player), `editor` (CMS content only), `admin` (everything). Editor is still live in
+the code (an older `ai-context.md` wrongly said 7a removed it). Branding, navigation, grounds, bookings,
+payments, coupons, users and ticket check-in are admin only (`adminOnly` in `AdminShell`, `ADMIN_ONLY` in
+actions). Check the role inside every admin action, not only in the layout. Admin-only pages also call
+`requireRole(["admin"])` themselves. `/verify/[token]` is public; only `markTicketUsed` needs admin.
 
-## Known gaps (as of 15 Oct 2026)
+## Known gaps (as of 25 Oct 2026)
 
-- `Agents.md` refers to `BLUEPRINT.md`, which is not in the repo. `ai-context.md` section 12 has the
-  remaining plan (Step 6); ask before assuming anything beyond it.
-- Steps 1 to 6 are done. Next: deploy by following `DEPLOY.md`.
-- Not built (ask first): audit log writes, booking emails/SMS, SSLCommerz refund API.
+- `BLUEPRINT.md` is not in the repo. `ai-context.md` section 12 has the remaining plan; ask before
+  assuming anything beyond it.
+- Steps 0 to 7c are done (7a email OTP, 7b QR tickets + check-in + receipt email, 7c venue map).
+  Migrations 0002 and 0003 must be applied on every database. Next: pre-deploy fixes, then `DEPLOY.md`.
+- `DEPLOY.md` is behind: its env table and checks lack `BREVO_*` and `TICKET_SECRET`.
+- `robots.js` doesn't disallow `/verify` and `/verify-email`.
+- Admin, Bookings has no "Checked in" column/filter (`getAdminBookings` doesn't read `checkedInAt`).
+- `/verify` shows 24-hour times and hard-codes "TurfZone" in `VerifyTicket` copy.
+- Open question for the client: keep `/verify/<token>` public, or staff-only?
+- Not built (ask first): audit log writes (incl. check-in), SMS, SSLCommerz refund API.
 - Default booking terms are a draft (24 h notice, 10 working days refunds); the venue must confirm them.
 
 ## End of session
 
-Update `Agents.md` section 8 (Step plan) and section 10 (Changelog), plus any file tables that changed,
-and `ai-context.md` sections 3, 12 and 13.
+Update `Agents.md` sections 2 (Where things stand), 8 (Step plan) and 10 (Changelog), plus any file
+tables in section 6 that changed; `ai-context.md` sections 3, 5, 6, 9 to 13; and this file's Layout and
+Known gaps.
 Commit only when asked.

@@ -9,7 +9,7 @@ import ImageUploader from "@/components/admin/ImageUploader";
 import { useToast } from "@/components/admin/Toast";
 import Button from "@/components/ui/Button";
 import { CharInput, TextInput, Select } from "@/components/ui/Inputs";
-import { SocialIcon } from "@/components/site/Footer";
+import SocialIcon from "@/components/site/SocialIcon";
 import { saveFooterSeo } from "@/features/cms/actions/settings";
 
 const PLATFORMS = [

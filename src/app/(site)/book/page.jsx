@@ -4,8 +4,12 @@ import { currentVenueDay, getPitches } from "@/features/booking/queries";
 import { getPromoBanners, getSiteSettings } from "@/features/cms/queries";
 import { getSession } from "@/lib/guards";
 import { getPayMethods } from "@/features/payment/methods";
+import { getI18n } from "@/i18n/server";
 
-export const metadata = { title: "Book a slot" };
+export async function generateMetadata() {
+    const { t } = await getI18n();
+    return { title: t("book.title") };
+}
 export const dynamic = "force-dynamic";
 
 const param = (v, re) => (typeof v === "string" && re.test(v) ? v : null);

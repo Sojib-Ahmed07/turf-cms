@@ -2,13 +2,15 @@
 import { Check, Clock3, MapPin, Navigation, Phone } from "lucide-react";
 import Button from "@/components/ui/Button";
 import VenueMapLoader from "./VenueMapLoader";
+import { getI18n } from "@/i18n/server";
 
 /**
  * "Find us" section. Shows the admin-set Leaflet map when latitude/longitude are saved
  * in Admin -> Branding; otherwise a styled illustration.
  * VenueMapLoader is a client component that lazy-loads Leaflet (ssr: false lives there).
  */
-export default function VenueInfo({ content, contact, siteName = "TurfZone", map = null }) {
+export default async function VenueInfo({ content, contact, siteName = "TurfZone", map = null }) {
+    const { t } = await getI18n();
     const phoneHref = contact.phone ? `tel:${contact.phone.replace(/[^\d+]/g, "")}` : null;
 
     return (
@@ -21,21 +23,21 @@ export default function VenueInfo({ content, contact, siteName = "TurfZone", map
                     )}
 
                     <dl className="mt-10 divide-y divide-line border-y border-line">
-                        {contact.address && <Row icon={MapPin} label="Address" value={contact.address} />}
-                        {contact.hours && <Row icon={Clock3} label="Hours" value={contact.hours} />}
-                        {contact.phone && <Row icon={Phone} label="Phone" value={contact.phone} />}
+                        {contact.address && <Row icon={MapPin} label={t("visit.address")} value={contact.address} />}
+                        {contact.hours && <Row icon={Clock3} label={t("visit.hours")} value={contact.hours} />}
+                        {contact.phone && <Row icon={Phone} label={t("visit.phone")} value={contact.phone} />}
                     </dl>
 
                     <div className="mt-8 flex flex-wrap gap-3">
                         {contact.mapUrl && (
                             <Button href={contact.mapUrl} variant="ink" size="lg" target="_blank" rel="noreferrer">
                                 <Navigation className="h-4 w-4" />
-                                Get directions
+                                {t("visit.directions")}
                             </Button>
                         )}
                         {phoneHref && (
                             <Button href={phoneHref} variant="outline" size="lg">
-                                Call the desk
+                                {t("visit.callDesk")}
                             </Button>
                         )}
                     </div>

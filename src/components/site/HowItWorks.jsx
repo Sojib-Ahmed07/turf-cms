@@ -1,10 +1,12 @@
 // src/components/site/HowItWorks.jsx
 import { CalendarCheck, ShieldCheck, Ticket } from "lucide-react";
+import { getI18n } from "@/i18n/server";
 
 const ICONS = [CalendarCheck, ShieldCheck, Ticket];
 
 /** Three-step sequence drawn along a touchline. */
-export default function HowItWorks({ content }) {
+export default async function HowItWorks({ content }) {
+    const { t } = await getI18n();
     return (
         <section className="border-y border-line bg-white">
             <div className="mx-auto grid max-w-7xl gap-12 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-12 lg:px-8">
@@ -23,7 +25,7 @@ export default function HowItWorks({ content }) {
                                     <Icon className="h-5 w-5" />
                                 </span>
                                 <div className="pt-1">
-                                    <p className="text-[13px] font-semibold text-brand-deep tnum">Step {i + 1}</p>
+                                    <p className="text-[13px] font-semibold text-brand-deep tnum">{t("how.step", { n: i + 1 })}</p>
                                     <h3 className="display mt-1 text-[28px] text-ink">{step.title}</h3>
                                     <p className="mt-2 max-w-[44ch] text-[15px] leading-relaxed text-ink-3">{step.body}</p>
                                 </div>

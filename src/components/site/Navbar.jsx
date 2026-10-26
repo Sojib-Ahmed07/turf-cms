@@ -16,6 +16,9 @@ import {
     ChevronDown,
 } from "lucide-react";
 import Logo from "./Logo";
+import LangToggle from "./LangToggle";
+import { useI18n } from "@/i18n/I18nProvider";
+import { bookButtonLabel, navLabel } from "@/i18n/nav";
 import Button from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { signOut, useSession } from "@/lib/auth-client";
@@ -26,6 +29,7 @@ import { signOut, useSession } from "@/lib/auth-client";
  * a "Sign in" flash on first paint. Live auth state comes from useSession().
  */
 export default function Navbar({ settings, items = [], user: initialUser = null }) {
+    const { t, locale } = useI18n();
     const { data: session, isPending } = useSession();
     const user = session?.user ?? (isPending ? initialUser : null);
 
@@ -37,7 +41,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
     const menuRef = useRef(null);
 
     const showMyBookings = settings?.showMyBookings !== false;
-    const bookLabel = settings?.menuButtonLabel || "Book a slot";
+    const bookLabel = bookButtonLabel(settings?.menuButtonLabel, t);
 
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 8);
@@ -97,7 +101,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
     }
 
     const drawerItems = showMyBookings
-        ? [...items, { label: "My bookings", href: "/bookings" }]
+        ? [...items, { label: "My bookings", href: "/bookings", id: "my-bookings" }]
         : items;
 
     return (
@@ -111,7 +115,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                 )}
             >
                 <nav className="mx-auto flex h-[68px] max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8">
-                    <Logo settings={settings} />
+                    <Logo settings={settings} homeLabel={t("common.homeOf", { name: settings?.siteName ?? "TurfZone" })} />
 
                     <ul className="ml-4 hidden items-center gap-1 lg:flex">
                         {items.map((item) => (
@@ -125,7 +129,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                             : "text-ink-3 hover:text-ink"
                                     )}
                                 >
-                                    {item.label}
+                                    {navLabel(item, t, locale)}
                                     {isActive(item.href) && (
                                         <span className="absolute inset-x-3.5 -bottom-[13px] h-[3px] rounded-t-full bg-brand" />
                                     )}
@@ -135,13 +139,14 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                     </ul>
 
                     <div className="ml-auto flex items-center gap-2">
+                        <LangToggle className="hidden md:inline-flex" />
                         {showMyBookings && (
                             <Link
                                 href="/bookings"
                                 className="hidden items-center gap-2 rounded-full px-3 py-2 text-[14px] font-medium text-ink-2 hover:bg-ink/5 hover:text-ink sm:inline-flex"
                             >
                                 <Ticket className="h-4 w-4" />
-                                My bookings
+                                {t("common.myBookings")}
                             </Link>
                         )}
 
@@ -152,7 +157,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                     onClick={() => setMenuOpen((v) => !v)}
                                     aria-haspopup="menu"
                                     aria-expanded={menuOpen}
-                                    aria-label="Your account"
+                                    aria-label={t("common.yourAccount")}
                                     className="flex items-center gap-1.5 rounded-full p-1 pr-2 hover:bg-ink/5"
                                 >
                                     <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-grass text-sm font-bold text-pitch ring-2 ring-white">
@@ -202,7 +207,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                                     className="flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm text-ink hover:bg-grass"
                                                 >
                                                     <UserIcon className="h-4 w-4 text-ink-3" />
-                                                    Your profile
+                                                    {t("common.yourProfile")}
                                                 </Link>
                                                 {showMyBookings && (
                                                     <Link
@@ -211,7 +216,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                                         className="flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm text-ink hover:bg-grass"
                                                     >
                                                         <Ticket className="h-4 w-4 text-ink-3" />
-                                                        My bookings
+                                                        {t("common.myBookings")}
                                                     </Link>
                                                 )}
                                                 {(user.role === "admin" ||
@@ -222,7 +227,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                                             className="flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm text-ink hover:bg-grass"
                                                         >
                                                             <MapPin className="h-4 w-4 text-ink-3" />
-                                                            Admin panel
+                                                            {t("common.adminPanel")}
                                                         </Link>
                                                     )}
                                             </div>
@@ -234,7 +239,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                                     className="flex w-full items-center gap-2.5 rounded-ctl px-3 py-2 text-left text-sm text-danger hover:bg-danger-soft"
                                                 >
                                                     <LogOut className="h-4 w-4" />
-                                                    Sign out
+                                                    {t("common.signOut")}
                                                 </button>
                                             </div>
                                         </motion.div>
@@ -246,7 +251,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                 href="/login"
                                 className="hidden rounded-full px-3 py-2 text-[14px] font-medium text-ink-2 hover:text-ink md:inline-flex"
                             >
-                                Sign in
+                                {t("common.signIn")}
                             </Link>
                         )}
 
@@ -257,7 +262,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                         <button
                             type="button"
                             onClick={() => setOpen(true)}
-                            aria-label="Open menu"
+                            aria-label={t("common.openMenu")}
                             className="grid h-10 w-10 place-items-center rounded-full bg-ink text-white lg:hidden"
                         >
                             <Menu className="h-[18px] w-[18px]" />
@@ -277,11 +282,12 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                     >
                         <div className="flex h-[68px] items-center justify-between px-4 sm:px-6">
-                            <Logo settings={settings} tone="light" />
+                            <Logo settings={settings} tone="light" homeLabel={t("common.homeOf", { name: settings?.siteName ?? "TurfZone" })} />
+                            <LangToggle tone="light" className="ml-auto mr-3" />
                             <button
                                 type="button"
                                 onClick={() => setOpen(false)}
-                                aria-label="Close menu"
+                                aria-label={t("common.closeMenu")}
                                 className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink"
                             >
                                 <X className="h-[18px] w-[18px]" />
@@ -333,7 +339,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                                 : "text-white/55"
                                         )}
                                     >
-                                        {item.label}
+                                        {navLabel(item, t, locale)}
                                         {isActive(item.href) && (
                                             <span className="h-2.5 w-2.5 rounded-full bg-brand" />
                                         )}
@@ -359,11 +365,11 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                         className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/25 px-5 text-sm font-semibold text-white hover:bg-white/10"
                                     >
                                         <LogOut className="h-4 w-4" />
-                                        Sign out
+                                        {t("common.signOut")}
                                     </button>
                                 ) : (
                                     <Button href="/login" variant="outline-light" size="lg">
-                                        Sign in
+                                        {t("common.signIn")}
                                     </Button>
                                 )}
                                 <Button href="/book" size="lg">

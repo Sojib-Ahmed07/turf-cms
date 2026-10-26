@@ -7,7 +7,7 @@ import Dialog from "@/components/ui/Dialog";
 import Button from "@/components/ui/Button";
 import PayMethodPicker from "./PayMethodPicker";
 import { MethodOffNotice, offCopy } from "./MethodOffDialog";
-import { taka } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
 
 /**
  * "How do you want to pay?" for an already-held booking (My bookings, Try payment again).
@@ -21,6 +21,7 @@ import { taka } from "@/lib/utils";
  *   onPay     (methodId) => void
  */
 export default function PayDialog({ open, onClose, methods = [], amount = 0, busy = false, error = "", onPay }) {
+    const { t, f } = useI18n();
     const enabled = methods.filter((m) => m.enabled);
     const [method, setMethod] = useState(enabled[0]?.id ?? "");
     const [offView, setOffView] = useState(null); // the switched-off method the player picked
@@ -45,7 +46,7 @@ export default function PayDialog({ open, onClose, methods = [], amount = 0, bus
     }
 
     if (showOff) {
-        const copy = offCopy(offView, enabled);
+        const copy = offCopy(offView, enabled, t);
         return (
             <Dialog open={open} onClose={busy ? undefined : close} title={copy.title} size="sm">
                 <div className="mb-5 flex items-start gap-3">
@@ -62,7 +63,7 @@ export default function PayDialog({ open, onClose, methods = [], amount = 0, bus
                         onPay(id);
                     }}
                     onClose={enabled.length ? () => setOffView(null) : close}
-                    closeLabel={enabled.length ? "Back" : "Close"}
+                    closeLabel={enabled.length ? t("common.back") : t("common.close")}
                     busy={busy}
                 />
             </Dialog>
@@ -73,17 +74,17 @@ export default function PayDialog({ open, onClose, methods = [], amount = 0, bus
         <Dialog
             open={open}
             onClose={busy ? undefined : close}
-            title="Choose how to pay"
-            description="Your slot stays held while you pay."
+            title={t("pay.chooseTitle")}
+            description={t("pay.chooseDesc")}
             size="sm"
             footer={
                 <>
                     <Button variant="outline" onClick={close} disabled={busy}>
-                        Not now
+                        {t("common.notNow")}
                     </Button>
                     <Button onClick={() => onPay(chosen)} disabled={busy || !chosen}>
                         <Lock className="h-4 w-4" />
-                        {busy ? "Opening payment…" : `Pay ${taka(amount)}`}
+                        {busy ? t("pay.opening") : t("pay.payAmount", { amount: f.taka(amount) })}
                     </Button>
                 </>
             }

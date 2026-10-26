@@ -39,10 +39,12 @@ const sameAmount = (a, b) => Math.abs(Number(a) - Number(b)) < 0.01;
 /**
  * Open a payment for a held booking. method: "bkash" | "sslcommerz" (see methods.js).
  * Returns { ok: true, data: { url } } (the browser goes there) or { ok: false, error, expired? }.
+ * i18n (optional): { t } from getI18n(), for messages in the player's language (English without it).
  */
-export async function startPayment(bookingId, user, method = "sslcommerz") {
+export async function startPayment(bookingId, user, method = "sslcommerz", i18n = null) {
+    const msg = (key, english) => (i18n ? i18n.t(`errors.${key}`) : english);
     const gateway = GATEWAYS.includes(method) ? method : "sslcommerz";
-    if (!isGatewayConfigured(gateway)) return { ok: false, error: "That payment method isn't available right now. Pick another." };
+    if (!isGatewayConfigured(gateway)) return { ok: false, error: msg("methodUnavailable", "That payment method isn't available right now. Pick another.") };
 
     const [b] = await db
         .select({
@@ -64,16 +66,16 @@ export async function startPayment(bookingId, user, method = "sslcommerz") {
         .where(and(eq(bookings.id, bookingId), eq(bookings.userId, user.id)))
         .limit(1);
 
-    if (!b) return { ok: false, error: "Booking not found." };
-    if (b.status === "confirmed") return { ok: false, error: "This booking is already paid." };
-    if (b.status !== "held") return { ok: false, error: "This booking can't be paid any more. Pick the slot again." };
+    if (!b) return { ok: false, error: msg("bookingNotFound", "Booking not found.") };
+    if (b.status === "confirmed") return { ok: false, error: msg("alreadyPaid", "This booking is already paid.") };
+    if (b.status !== "held") return { ok: false, error: msg("cantPay", "This booking can't be paid any more. Pick the slot again.") };
 
     const now = Date.now();
     const expires = b.holdExpiresAt ? new Date(b.holdExpiresAt).getTime() : 0;
     if (expires <= now) {
-        return { ok: false, expired: true, error: "Your reservation ran out. Pick the slot again." };
+        return { ok: false, expired: true, error: msg("holdExpired", "Your reservation ran out. Pick the slot again.") };
     }
-    if (!(Number(b.totalPrice) > 0)) return { ok: false, error: "This booking has nothing to pay." };
+    if (!(Number(b.totalPrice) > 0)) return { ok: false, error: msg("nothingToPay", "This booking has nothing to pay.") };
 
     const cap = new Date(b.createdAt).getTime() + MAX_HOLD_MINUTES * 60000;
     const stretched = Math.min(cap, now + HOLD_MINUTES * 60000);
@@ -102,7 +104,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz") {
                 .update(payments)
                 .set({ status: "failed", raw: { error: created.error }, updatedAt: new Date() })
                 .where(eq(payments.tranId, tranId));
-            return { ok: false, error: created.error };
+            return { ok: false, error: i18n ? i18n.t("errors.gatewayInit") : created.error };
         }
         await db
             .update(payments)
@@ -130,7 +132,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz") {
             .update(payments)
             .set({ status: "failed", raw: { error: session.error }, updatedAt: new Date() })
             .where(eq(payments.tranId, tranId));
-        return { ok: false, error: session.error };
+        return { ok: false, error: i18n ? i18n.t("errors.gatewayInit") : session.error };
     }
 
     await db

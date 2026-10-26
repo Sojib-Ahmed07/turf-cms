@@ -14,10 +14,10 @@ import { createBookingHold, previewCoupon } from "@/features/booking/actions";
 import { payForBooking } from "@/features/payment/actions";
 import PayMethodPicker from "@/features/payment/components/PayMethodPicker";
 import MethodOffDialog from "@/features/payment/components/MethodOffDialog";
-import { addDaysISO, shortDateLabel } from "@/lib/time";
+import { addDaysISO } from "@/lib/time";
 import { partOf } from "@/features/booking/parts";
 import { BOOKING_DAYS_AHEAD } from "@/features/booking/calendar";
-import { taka, time12 } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
 
 const DAYS_AHEAD = BOOKING_DAYS_AHEAD;
 
@@ -69,6 +69,7 @@ export default function BookingClient({
 }) {
     const paymentsLive = payMethods.length > 0;
     const enabledMethods = payMethods.filter((m) => m.enabled);
+    const { t, f } = useI18n();
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [leaving, setLeaving] = useState(false); // on the way to the payment page
@@ -96,7 +97,7 @@ export default function BookingClient({
 
     const pitch = pitches.find((p) => p.id === pitchId);
     const date = useMemo(() => addDaysISO(startDate, dayIndex), [startDate, dayIndex]);
-    const dateLabel = shortDateLabel(date);
+    const dateLabel = f.date(date);
     const boardKey = `${pitchId}|${date}|${reloadKey}`;
     const loading = Boolean(pitchId) && board.key !== boardKey;
     const blocks = board.key === boardKey ? board.blocks : [];
@@ -128,7 +129,7 @@ export default function BookingClient({
                 }
             })
             .catch(() => {
-                if (!cancelled) setBoard({ key, blocks: [], error: "We couldn't load the time slots. Check your connection and try again." });
+                if (!cancelled) setBoard({ key, blocks: [], error: "load" }); // translated when shown
             });
 
         return () => {
@@ -165,16 +166,16 @@ export default function BookingClient({
             else {
                 setCoupon(null);
                 setCouponCode(null);
-                setPayError(`Code ${couponCode} removed: ${res.error}`);
+                setPayError(t("book.codeRemoved", { code: couponCode, reason: res.error }));
             }
         });
         return () => {
             cancelled = true;
         };
-    }, [couponCode, slotKey]);
+    }, [couponCode, slotKey, t]);
 
     async function applyCoupon(code) {
-        if (!block || !pitch) return { ok: false, error: "Pick a time slot first." };
+        if (!block || !pitch) return { ok: false, error: t("book.pickSlotFirst") };
         setPayError("");
         const res = await previewCoupon({ pitchId: pitch.id, blockId: block.id, date, couponCode: code });
         if (res.ok) {
@@ -268,7 +269,7 @@ export default function BookingClient({
                 }
                 if (res.couponError) {
                     removeCoupon();
-                    setPayError(`${res.error} The code was removed; check the price and try again.`);
+                    setPayError(t("book.codeRemovedRecheck", { reason: res.error }));
                     return;
                 }
                 if (res.needsLogin) {
@@ -313,8 +314,8 @@ export default function BookingClient({
     if (!pitches.length) {
         return (
             <div className="mx-auto max-w-3xl px-4 py-24 text-center">
-                <h1 className="display text-[40px] text-ink">No grounds open for booking</h1>
-                <p className="mt-3 text-ink-3">Check back soon, or call the desk to book.</p>
+                <h1 className="display text-[40px] text-ink">{t("book.noGroundsTitle")}</h1>
+                <p className="mt-3 text-ink-3">{t("book.noGroundsBody")}</p>
             </div>
         );
     }
@@ -322,9 +323,9 @@ export default function BookingClient({
     return (
         <div className="mx-auto max-w-7xl px-4 pb-32 pt-8 sm:px-6 sm:pt-12 lg:px-8 lg:pb-24">
             <header className="mb-10 max-w-2xl">
-                <h1 className="display text-[clamp(40px,6vw,72px)] text-ink">Book a slot</h1>
+                <h1 className="display text-[clamp(40px,6vw,72px)] text-ink">{t("book.title")}</h1>
                 <p className="mt-3 text-[16px] text-ink-3">
-                    Prices change with the time of day. Every price includes floodlights and the changing room.
+                    {t("book.intro")}
                 </p>
             </header>
 
@@ -333,48 +334,48 @@ export default function BookingClient({
                     <div className="flex items-start gap-3">
                         <MailWarning className="mt-0.5 h-5 w-5 shrink-0 text-ink" />
                         <div>
-                            <p className="font-semibold text-ink">Verify your email to book</p>
+                            <p className="font-semibold text-ink">{t("book.verifyTitle")}</p>
                             <p className="text-[14px] text-ink-2">
-                                We sent a 6-digit code to your inbox when you signed up. Enter it once and you can book any slot.
+                                {t("book.verifyBody")}
                             </p>
                         </div>
                     </div>
                     <Button href={verifyHref} variant="ink" size="sm">
-                        Verify now
+                        {t("book.verifyNow")}
                     </Button>
                 </div>
             )}
 
             <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
                 <div className="space-y-10 lg:col-span-8">
-                    <Step n={1} title="Ground">
+                    <Step n={f.digits(1)} title={t("book.stepGround")}>
                         <PitchPicker pitches={pitches} value={pitchId} onChange={choosePitch} />
                     </Step>
 
-                    <Step n={2} title="Date">
+                    <Step n={f.digits(2)} title={t("book.stepDate")}>
                         <DateStrip start={startAsDate} days={DAYS_AHEAD} value={dayIndex} onChange={chooseDay} />
                     </Step>
 
-                    <Step n={3} title="Time">
+                    <Step n={f.digits(3)} title={t("book.stepTime")}>
                         {banner && <PromoBanner banner={banner} variant="inline" className="mb-6" />}
 
                         {loading ? (
-                            <SlotSkeleton />
+                            <SlotSkeleton label={t("book.loadingSlots")} />
                         ) : loadError ? (
                             <div className="flex flex-col items-start gap-3 rounded-card bg-danger-soft p-5 text-[14px] text-danger">
                                 <p className="flex items-center gap-2 font-semibold">
                                     <AlertCircle className="h-4 w-4" />
-                                    {loadError}
+                                    {t("book.loadError")}
                                 </p>
                                 <Button variant="outline" size="sm" onClick={reload}>
                                     <RefreshCw className="h-3.5 w-3.5" />
-                                    Try again
+                                    {t("common.tryAgain")}
                                 </Button>
                             </div>
                         ) : blocks.length === 0 ? (
                             <div className="rounded-card border-2 border-dashed border-line p-10 text-center">
-                                <p className="display text-[24px] text-ink">No slots on this day</p>
-                                <p className="mt-2 text-[14px] text-ink-3">Pick another date or another ground.</p>
+                                <p className="display text-[24px] text-ink">{t("book.noSlotsTitle")}</p>
+                                <p className="mt-2 text-[14px] text-ink-3">{t("book.noSlotsBody")}</p>
                             </div>
                         ) : (
                             <SlotBoard blocks={blocks} selectedId={block?.id} onSelect={setBlockId} />
@@ -422,24 +423,24 @@ export default function BookingClient({
                 <div className="mx-auto flex max-w-xl items-center gap-4">
                     <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] text-ink-3">
-                            {block ? `${pitch?.name}, ${dateLabel}, ${time12(block.start)}` : "No slot selected"}
+                            {block ? `${pitch?.name}, ${dateLabel}, ${f.time(block.start)}` : t("book.noSlot")}
                         </p>
                         <p className="display text-[24px] text-ink tnum">
-                            {taka(total)}
+                            {f.taka(total)}
                             {activeCoupon && <span className="ml-2 text-[13px] font-semibold text-brand-deep">{activeCoupon.code}</span>}
                         </p>
                     </div>
                     <Button size="lg" disabled={!block || busy} onClick={handlePay}>
                         <Lock className="h-4 w-4" />
                         {busy
-                            ? "Reserving…"
+                            ? t("book.reserving")
                             : needsVerify
-                                ? "Verify to book"
+                                ? t("book.verifyToBook")
                                 : !isSignedIn
-                                    ? "Sign in to book"
+                                    ? t("book.signInToBook")
                                     : block && total === 0
-                                        ? "Book for free"
-                                        : `Pay ${taka(total)}`}
+                                        ? t("book.bookFree")
+                                        : t("book.pay", { amount: f.taka(total) })}
                     </Button>
                 </div>
             </div>
@@ -459,9 +460,9 @@ function Step({ n, title, children }) {
     );
 }
 
-function SlotSkeleton() {
+function SlotSkeleton({ label }) {
     return (
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4" aria-label="Loading time slots">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4" aria-label={label}>
             {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="h-[104px] animate-pulse rounded-[16px] bg-white ring-1 ring-line" />
             ))}

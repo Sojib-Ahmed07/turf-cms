@@ -5,7 +5,8 @@ import { useState } from "react";
 import { CalendarDays, Clock3, Hourglass, Lock, MapPin, Tag, X } from "lucide-react";
 import Button from "@/components/ui/Button";
 import PayMethodPicker from "@/features/payment/components/PayMethodPicker";
-import { cn, taka, time12 } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
+import { cn } from "@/lib/utils";
 
 /**
  * Right-hand checkout card. State lives in BookingClient:
@@ -33,6 +34,7 @@ export default function BookingSummary({
     method = "",
     onMethodChange,
 }) {
+    const { t, f } = useI18n();
     const [code, setCode] = useState("");
     const [checking, setChecking] = useState(false);
     const [codeError, setCodeError] = useState("");
@@ -45,7 +47,7 @@ export default function BookingSummary({
         e.preventDefault();
         if (!code.trim() || !onApplyCoupon) return;
         if (!block) {
-            setCodeError("Pick a time slot first, then apply the code.");
+            setCodeError(t("summary.pickSlotForCode"));
             return;
         }
         setChecking(true);
@@ -59,8 +61,8 @@ export default function BookingSummary({
     return (
         <aside className="overflow-hidden rounded-card bg-white ring-1 ring-line">
             <div className="bg-pitch px-6 pb-6 pt-5 text-white">
-                <p className="text-[13px] font-medium text-white/60">Your booking</p>
-                <p className="display mt-1 text-[30px]">{pitch?.name ?? "Pick a ground"}</p>
+                <p className="text-[13px] font-medium text-white/60">{t("summary.yourBooking")}</p>
+                <p className="display mt-1 text-[30px]">{pitch?.name ?? t("summary.pickGround")}</p>
                 <p className="mt-0.5 text-[14px] text-white/60">{pitch?.format}</p>
             </div>
 
@@ -72,14 +74,14 @@ export default function BookingSummary({
 
             <div className="space-y-6 p-6">
                 <dl className="space-y-3 text-[14px]">
-                    <Line icon={CalendarDays} label="Date" value={dateLabel} />
+                    <Line icon={CalendarDays} label={t("summary.date")} value={dateLabel} />
                     <Line
                         icon={Clock3}
-                        label="Time"
-                        value={block ? `${time12(block.start)} to ${time12(block.end)}` : "Choose a slot"}
+                        label={t("summary.time")}
+                        value={block ? t("summary.timeRange", { start: f.time(block.start), end: f.time(block.end) }) : t("summary.chooseSlot")}
                         muted={!block}
                     />
-                    {venue && <Line icon={MapPin} label="Venue" value={venue} />}
+                    {venue && <Line icon={MapPin} label={t("summary.venue")} value={venue} />}
                 </dl>
 
                 {/* Coupon */}
@@ -87,9 +89,9 @@ export default function BookingSummary({
                     <div className="flex items-center justify-between rounded-ctl bg-brand-soft px-4 py-3">
                         <span className="flex items-center gap-2 text-[14px] font-semibold text-brand-deep">
                             <Tag className="h-4 w-4" />
-                            {coupon.code} applied, {taka(coupon.discount)} off
+                            {t("summary.applied", { code: coupon.code, amount: f.taka(coupon.discount) })}
                         </span>
-                        <button type="button" aria-label="Remove code" onClick={onRemoveCoupon} className="grid h-7 w-7 place-items-center rounded-full text-brand-deep hover:bg-white/60">
+                        <button type="button" aria-label={t("summary.removeCode")} onClick={onRemoveCoupon} className="grid h-7 w-7 place-items-center rounded-full text-brand-deep hover:bg-white/60">
                             <X className="h-3.5 w-3.5" />
                         </button>
                     </div>
@@ -102,8 +104,8 @@ export default function BookingSummary({
                                     setCode(e.target.value);
                                     setCodeError("");
                                 }}
-                                placeholder="Promo code"
-                                aria-label="Promo code"
+                                placeholder={t("summary.promo")}
+                                aria-label={t("summary.promo")}
                                 maxLength={30}
                                 className="h-11 min-w-0 flex-1 bg-transparent px-4 text-[14px] font-semibold uppercase tracking-wider outline-none placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-ink-4"
                             />
@@ -112,7 +114,7 @@ export default function BookingSummary({
                                 disabled={checking || !code.trim()}
                                 className="m-1 rounded-[10px] bg-chalk px-4 text-[13px] font-semibold text-ink hover:bg-grass disabled:opacity-50"
                             >
-                                {checking ? "Checking…" : "Apply"}
+                                {checking ? t("summary.checking") : t("summary.apply")}
                             </button>
                         </form>
                         {codeError && <p className="mt-2 text-[13px] font-medium text-danger">{codeError}</p>}
@@ -121,11 +123,11 @@ export default function BookingSummary({
 
                 {/* Totals */}
                 <div className="space-y-2 border-t border-dashed border-line pt-5 text-[14px]">
-                    <Row label="Slot price" value={taka(subtotal)} />
-                    {discount > 0 && <Row label="Discount" value={`−${taka(discount)}`} accent />}
+                    <Row label={t("summary.slotPrice")} value={f.taka(subtotal)} />
+                    {discount > 0 && <Row label={t("summary.discount")} value={`−${f.taka(discount)}`} accent />}
                     <div className="flex items-end justify-between pt-2">
-                        <span className="font-semibold text-ink">Total</span>
-                        <span className="display text-[34px] text-ink tnum">{taka(total)}</span>
+                        <span className="font-semibold text-ink">{t("summary.total")}</span>
+                        <span className="display text-[34px] text-ink tnum">{f.taka(total)}</span>
                     </div>
                 </div>
 
@@ -138,20 +140,20 @@ export default function BookingSummary({
                 <Button size="lg" className="h-14 w-full text-base" disabled={!block || busy} onClick={onPay}>
                     <Lock className="h-4 w-4" />
                     {!block
-                        ? "Choose a slot to continue"
+                        ? t("summary.chooseSlotToContinue")
                         : busy
-                            ? "Reserving your slot…"
+                            ? t("summary.reservingSlot")
                             : isSignedIn
                                 ? total === 0
-                                    ? "Book for free"
-                                    : `Pay ${taka(total)}`
-                                : "Sign in to book"}
+                                    ? t("book.bookFree")
+                                    : t("book.pay", { amount: f.taka(total) })
+                                : t("book.signInToBook")}
                 </Button>
 
                 <div className="space-y-3">
                     <p className="flex items-start gap-2 text-[13px] leading-snug text-ink-3">
                         <Hourglass className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        We hold the slot for 15 minutes while you pay.
+                        {t("summary.held")}
                     </p>
                     {acceptedBadges(methods).length > 0 && (
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -160,7 +162,7 @@ export default function BookingSummary({
                                     {m}
                                 </span>
                             ))}
-                            <span className="ml-1 text-[11px] text-ink-3">Secure checkout</span>
+                            <span className="ml-1 text-[11px] text-ink-3">{t("summary.secure")}</span>
                         </div>
                     )}
                 </div>

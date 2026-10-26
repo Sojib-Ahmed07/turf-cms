@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, ChevronDown, MapPin, Search } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { PARTS } from "@/features/booking/parts";
-import { addDaysISO, shortDateLabel } from "@/lib/time";
+import { addDaysISO } from "@/lib/time";
+import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 // Value is passed to /book as ?part= and picks the first free slot in that part of the day.
 // Only parts the chosen ground (or any ground) actually has slots in are shown.
-const SHORT = { morning: "Morning", day: "Day", evening: "Evening", late: "Late night" };
+const SHORT_KEY = { morning: "parts.morning", day: "parts.dayShort", evening: "parts.evening", late: "parts.late" };
 const DAYS = 7;
 
 /**
@@ -19,6 +20,7 @@ const DAYS = 7;
  * pitches: active grounds; startDate: today's operating day "YYYY-MM-DD" (Asia/Dhaka).
  */
 export default function QuickBook({ pitches = [], startDate }) {
+    const { t, f } = useI18n();
     const router = useRouter();
     const [pitchId, setPitchId] = useState("");
     const [date, setDate] = useState(startDate ?? "");
@@ -29,21 +31,25 @@ export default function QuickBook({ pitches = [], startDate }) {
         if (!startDate) return [];
         return Array.from({ length: DAYS }, (_, i) => {
             const iso = addDaysISO(startDate, i);
-            const label = shortDateLabel(iso); // "Tue 13 Oct"
             return {
                 value: iso,
-                label: i === 0 ? `Today, ${label.slice(4)}` : i === 1 ? `Tomorrow, ${label.slice(4)}` : label,
+                label:
+                    i === 0
+                        ? t("quick.todayOn", { date: f.dayMonth(iso) })
+                        : i === 1
+                            ? t("quick.tomorrowOn", { date: f.dayMonth(iso) })
+                            : f.date(iso),
             };
         });
-    }, [startDate]);
+    }, [startDate, t, f]);
 
     const pitch = pitches.find((p) => p.id === pitchId);
     const available = new Set((pitch ? [pitch] : pitches).flatMap((p) => p.parts ?? PARTS.map((x) => x.key)));
-    const times = PARTS.filter((p) => available.has(p.key)).map((p) => ({ value: p.key, label: SHORT[p.key] }));
+    const times = PARTS.filter((p) => available.has(p.key)).map((p) => ({ value: p.key, label: t(SHORT_KEY[p.key]) }));
     // keep the player's choice when this ground has it, otherwise the nearest sensible part
     const part = times.some((t) => t.value === picked) ? picked : (times.find((t) => t.value === "evening") ?? times[0])?.value ?? "";
-    const pitchLabel = pitch ? [pitch.name, pitch.format].filter(Boolean).join(", ") : "Any ground";
-    const dateLabel = dates.find((d) => d.value === date)?.label ?? "Pick a date";
+    const pitchLabel = pitch ? [pitch.name, pitch.format].filter(Boolean).join(", ") : t("quick.anyGround");
+    const dateLabel = dates.find((d) => d.value === date)?.label ?? t("quick.pickDate");
 
     function onSubmit(e) {
         e.preventDefault();
@@ -63,12 +69,12 @@ export default function QuickBook({ pitches = [], startDate }) {
             >
                 <Picker
                     icon={MapPin}
-                    label="Ground"
+                    label={t("quick.ground")}
                     value={pitchLabel}
                     className="col-span-2 sm:col-span-1"
                     select={
-                        <select value={pitchId} onChange={(e) => setPitchId(e.target.value)} aria-label="Ground">
-                            <option value="">Any ground</option>
+                        <select value={pitchId} onChange={(e) => setPitchId(e.target.value)} aria-label={t("quick.ground")}>
+                            <option value="">{t("quick.anyGround")}</option>
                             {pitches.map((p) => (
                                 <option key={p.id} value={p.id}>
                                     {[p.name, p.format].filter(Boolean).join(", ")}
@@ -79,11 +85,11 @@ export default function QuickBook({ pitches = [], startDate }) {
                 />
                 <Picker
                     icon={CalendarDays}
-                    label="Date"
+                    label={t("quick.date")}
                     value={dateLabel}
                     className="col-span-2 sm:col-span-1"
                     select={
-                        <select value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date">
+                        <select value={date} onChange={(e) => setDate(e.target.value)} aria-label={t("quick.date")}>
                             {dates.map((d) => (
                                 <option key={d.value} value={d.value}>
                                     {d.label}
@@ -94,8 +100,8 @@ export default function QuickBook({ pitches = [], startDate }) {
                 />
 
                 <div className="col-span-2 bg-white px-5 py-3.5 lg:col-span-1">
-                    <span className="text-xs font-medium text-ink-3">Time of day</span>
-                    <div className="mt-1.5 flex gap-1 rounded-full bg-chalk p-1" role="radiogroup" aria-label="Time of day">
+                    <span className="text-xs font-medium text-ink-3">{t("quick.timeOfDay")}</span>
+                    <div className="mt-1.5 flex gap-1 rounded-full bg-chalk p-1" role="radiogroup" aria-label={t("quick.timeOfDay")}>
                         {times.map((t) => (
                             <button
                                 key={t.value}
@@ -117,7 +123,7 @@ export default function QuickBook({ pitches = [], startDate }) {
                 <div className="col-span-2 flex items-center bg-white p-3 lg:col-span-1">
                     <Button type="submit" size="lg" disabled={busy} className="w-full lg:h-full lg:rounded-[16px] lg:px-8">
                         <Search className="h-[18px] w-[18px]" />
-                        {busy ? "Opening slots" : "Find free slots"}
+                        {busy ? t("quick.opening") : t("quick.find")}
                     </Button>
                 </div>
             </form>

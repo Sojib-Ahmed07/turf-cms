@@ -3,7 +3,8 @@
 
 import { Check, Moon, Sun, Sunrise, Sunset } from "lucide-react";
 import { PARTS, partOf } from "@/features/booking/parts";
-import { cn, taka, time12 } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
+import { cn } from "@/lib/utils";
 
 const ICONS = { morning: Sunrise, day: Sun, evening: Sunset, late: Moon };
 const GROUPS = PARTS.map((p) => ({ ...p, icon: ICONS[p.key] }));
@@ -18,13 +19,14 @@ const minutes = (a, b) => {
 
 /** Time blocks grouped by part of day. state: free | booked | held | past; late = played after midnight */
 export default function SlotBoard({ blocks = [], selectedId, onSelect }) {
+    const { t } = useI18n();
     return (
         <div>
             <div className="mb-5 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-ink-3">
-                <Legend className="bg-white ring-1 ring-line">Free</Legend>
-                <Legend className="bg-pitch">Selected</Legend>
-                <Legend className="bg-flare">On hold</Legend>
-                <Legend className="bg-[repeating-linear-gradient(135deg,var(--color-line)_0_3px,transparent_3px_6px)] ring-1 ring-line">Booked</Legend>
+                <Legend className="bg-white ring-1 ring-line">{t("slots.free")}</Legend>
+                <Legend className="bg-pitch">{t("slots.selected")}</Legend>
+                <Legend className="bg-flare">{t("slots.onHold")}</Legend>
+                <Legend className="bg-[repeating-linear-gradient(135deg,var(--color-line)_0_3px,transparent_3px_6px)] ring-1 ring-line">{t("slots.booked")}</Legend>
             </div>
 
             <div className="space-y-8">
@@ -38,9 +40,9 @@ export default function SlotBoard({ blocks = [], selectedId, onSelect }) {
                         <section key={g.key}>
                             <header className="mb-3 flex items-center gap-2.5">
                                 <Icon className="h-4 w-4 text-ink-3" />
-                                <h3 className="text-[15px] font-semibold text-ink">{g.label}</h3>
+                                <h3 className="text-[15px] font-semibold text-ink">{t(`parts.${g.key}`)}</h3>
                                 <span className="text-[13px] text-ink-3">
-                                    {free ? `${free} free` : "Fully booked"}
+                                    {free ? t("slots.freeCount", { count: free }) : t("slots.fullyBooked")}
                                 </span>
                                 <span className="ml-1 h-px flex-1 bg-line" />
                             </header>
@@ -58,6 +60,7 @@ export default function SlotBoard({ blocks = [], selectedId, onSelect }) {
 }
 
 function SlotTile({ block, selected, onSelect }) {
+    const { t, f } = useI18n();
     const disabled = block.state !== "free";
     const mins = minutes(block.start, block.end);
 
@@ -78,10 +81,10 @@ function SlotTile({ block, selected, onSelect }) {
             )}
         >
             <span className={cn("text-[17px] font-bold tnum wide", block.state === "booked" && "text-ink-4 line-through decoration-ink-4/60")}>
-                {time12(block.start)}
+                {f.time(block.start)}
             </span>
             <span className={cn("text-[13px] tnum", selected ? "text-white/65" : "text-ink-3")}>
-                to {time12(block.end)}, {mins} min
+                {t("slots.until", { time: f.time(block.end), minutes: mins })}
             </span>
             <span className="mt-3 flex w-full items-center justify-between">
                 <span
@@ -90,7 +93,13 @@ function SlotTile({ block, selected, onSelect }) {
                         selected ? "text-white" : block.state === "free" ? "text-ink" : "text-ink-4"
                     )}
                 >
-                    {block.state === "booked" ? "Booked" : block.state === "held" ? "On hold" : block.state === "past" ? "Passed" : taka(block.price)}
+                    {block.state === "booked"
+                        ? t("slots.booked")
+                        : block.state === "held"
+                            ? t("slots.onHold")
+                            : block.state === "past"
+                                ? t("slots.passed")
+                                : f.taka(block.price)}
                 </span>
                 {selected && (
                     <span className="grid h-5 w-5 place-items-center rounded-full bg-brand text-white">

@@ -2,6 +2,8 @@
 "use client";
 
 import { Check, CreditCard, Smartphone } from "lucide-react";
+import { useI18n } from "@/i18n/I18nProvider";
+import { methodLabel } from "./MethodOffDialog";
 import { cn } from "@/lib/utils";
 
 const ICONS = { bkash: Smartphone, sslcommerz: CreditCard };
@@ -17,11 +19,17 @@ const MARK = { bkash: "bg-[#e2136e] text-white", sslcommerz: "bg-pitch text-whit
  *   compact   segmented pills (mobile checkout bar) instead of cards
  */
 export default function PayMethodPicker({ methods = [], value, onChange, compact = false, className }) {
+    const { t } = useI18n();
     if (methods.length < 2) return null;
+    const hint = (m) => {
+        const key = `pay.${m.id}.hint`;
+        const v = t(key);
+        return v === key ? m.hint : v;
+    };
 
     if (compact) {
         return (
-            <div role="radiogroup" aria-label="Payment method" className={cn("flex gap-1 rounded-full bg-chalk p-1 ring-1 ring-inset ring-line", className)}>
+            <div role="radiogroup" aria-label={t("pay.methodGroup")} className={cn("flex gap-1 rounded-full bg-chalk p-1 ring-1 ring-inset ring-line", className)}>
                 {methods.map((m) => {
                     const active = m.id === value;
                     return (
@@ -37,8 +45,8 @@ export default function PayMethodPicker({ methods = [], value, onChange, compact
                                 m.enabled === false && "text-ink-4 line-through decoration-1"
                             )}
                         >
-                            {m.id === "sslcommerz" ? "Card / other" : m.label}
-                            {m.enabled === false && <span className="sr-only"> (off right now)</span>}
+                            {m.id === "sslcommerz" ? t("pay.sslcommerz.short") : methodLabel(m, t)}
+                            {m.enabled === false && <span className="sr-only"> {t("pay.offSr")}</span>}
                         </button>
                     );
                 })}
@@ -48,7 +56,7 @@ export default function PayMethodPicker({ methods = [], value, onChange, compact
 
     return (
         <fieldset className={cn("space-y-2", className)}>
-            <legend className="mb-2 text-[13px] font-medium text-ink-3">Pay with</legend>
+            <legend className="mb-2 text-[13px] font-medium text-ink-3">{t("pay.payWith")}</legend>
             {methods.map((m) => {
                 const active = m.id === value;
                 const off = m.enabled === false;
@@ -68,12 +76,12 @@ export default function PayMethodPicker({ methods = [], value, onChange, compact
                         </span>
                         <span className="min-w-0 flex-1">
                             <span className={cn("flex items-center gap-2 text-[14px] font-semibold", off ? "text-ink-3" : "text-ink")}>
-                                {m.label}
+                                {methodLabel(m, t)}
                                 {off && (
-                                    <span className="rounded-full bg-flare-soft px-2 py-0.5 text-[11px] font-semibold text-flare-deep">Off right now</span>
+                                    <span className="rounded-full bg-flare-soft px-2 py-0.5 text-[11px] font-semibold text-flare-deep">{t("pay.offRightNow")}</span>
                                 )}
                             </span>
-                            <span className="block truncate text-[12px] text-ink-3">{m.hint}</span>
+                            <span className="block truncate text-[12px] text-ink-3">{hint(m)}</span>
                         </span>
                         <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full ring-1", active ? "bg-brand text-white ring-brand" : "ring-line")}>
                             {active && <Check className="h-3 w-3" strokeWidth={3} />}

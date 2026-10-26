@@ -7,6 +7,7 @@ import HowItWorks from "@/components/site/HowItWorks";
 import VenueInfo from "@/components/site/VenueInfo";
 import { getHeroSlides, getPromoBanners, getSections, getSiteSettings } from "@/features/cms/queries";
 import { getGroundsToday, withVenueHours } from "@/features/booking/queries";
+import { getI18n } from "@/i18n/server";
 
 // Live availability: render on every request (CMS content itself is cached).
 export const dynamic = "force-dynamic";
@@ -21,8 +22,10 @@ async function groundsTodaySafe() {
 }
 
 export default async function HomePage() {
+    const i18n = await getI18n();
+    const { t } = i18n;
     const [settings, slides, banners, sections, today] = await Promise.all([
-        getSiteSettings().then(withVenueHours),
+        getSiteSettings().then((s) => withVenueHours(s, i18n)),
         getHeroSlides(),
         getPromoBanners(),
         getSections(),
@@ -33,8 +36,8 @@ export default async function HomePage() {
         today.pitches.length === 0
             ? null
             : today.freeCount > 0
-                ? `${today.freeCount} ${today.freeCount === 1 ? "slot" : "slots"} free today`
-                : "Fully booked today";
+                ? t("hero.liveFree", { count: today.freeCount })
+                : t("hero.liveFull");
 
     return (
         <>

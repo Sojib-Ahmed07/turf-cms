@@ -112,7 +112,8 @@ export async function currentVenueDay(now = new Date()) {
     return currentOperatingDay(nightEnd, now);
 }
 
-export async function getVenueHoursLabel() {
+/** "Every day, 6 am to 3 am". Pass `i18n` ({ t, f } from getI18n) for the visitor's language. */
+export async function getVenueHoursLabel(i18n = null) {
     const rows = await db.select({ defaultBlocks: pitches.defaultBlocks }).from(pitches).where(eq(pitches.isActive, true));
     let open = null;
     let close = null;
@@ -129,12 +130,16 @@ export async function getVenueHoursLabel() {
         }
     }
     if (open === null) return "";
-    return `Every day, ${time12(minutesToHHMM(open))} to ${time12(minutesToHHMM(close))}`;
+    const from = minutesToHHMM(open);
+    const to = minutesToHHMM(close);
+    if (i18n) return i18n.t("visit.everyDay", { from: i18n.f.time(from), to: i18n.f.time(to) });
+    return `Every day, ${time12(from)} to ${time12(to)}`;
 }
 
-export async function withVenueHours(settings) {
+/** Fills contact.hours from the grounds when the admin left it empty. `i18n` as in getVenueHoursLabel. */
+export async function withVenueHours(settings, i18n = null) {
     if (settings?.contact?.hours) return settings;
-    const hours = await getVenueHoursLabel().catch(() => "");
+    const hours = await getVenueHoursLabel(i18n).catch(() => "");
     return hours ? { ...settings, contact: { ...settings.contact, hours } } : settings;
 }
 

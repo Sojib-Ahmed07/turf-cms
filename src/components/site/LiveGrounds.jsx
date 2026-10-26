@@ -4,13 +4,16 @@ import Link from "next/link";
 import { Ruler, Layers } from "lucide-react";
 import Button from "@/components/ui/Button";
 import PitchLines from "./PitchLines";
-import { canOptimize, cn, taka, time12 } from "@/lib/utils";
+import { canOptimize, cn } from "@/lib/utils";
+import { getI18n } from "@/i18n/server";
 
 /**
  * Home section: first ground featured, the rest as compact rows.
  * pitches come from getGroundsToday(): each has freeToday = ["19:30", ...] for `date`.
  */
-export default function LiveGrounds({ content, pitches = [], date }) {
+export default async function LiveGrounds({ content, pitches = [], date }) {
+    const i18n = await getI18n();
+    const { t, f } = i18n;
     const [featured, ...rest] = pitches;
 
     return (
@@ -23,14 +26,14 @@ export default function LiveGrounds({ content, pitches = [], date }) {
                     )}
                 </div>
                 <Button href="/book" variant="outline" size="lg">
-                    See the full schedule
+                    {t("grounds.seeSchedule")}
                 </Button>
             </div>
 
             {pitches.length === 0 ? (
                 <div className="mt-12 rounded-card border-2 border-dashed border-line p-12 text-center">
-                    <p className="display text-2xl text-ink">No grounds listed yet</p>
-                    <p className="mt-2 text-ink-3">Add a ground from the admin panel and it will show up here.</p>
+                    <p className="display text-2xl text-ink">{t("grounds.noneTitle")}</p>
+                    <p className="mt-2 text-ink-3">{t("grounds.noneBody")}</p>
                 </div>
             ) : (
                 <div className="mt-12 grid gap-4 lg:grid-cols-12">
@@ -49,14 +52,14 @@ export default function LiveGrounds({ content, pitches = [], date }) {
                                     <h3 className="display mt-1 text-[clamp(36px,4.6vw,56px)] text-white">{featured.name}</h3>
                                 </div>
                                 <p className="shrink-0 rounded-full bg-white px-4 py-2 text-[15px] font-bold text-ink tnum">
-                                    {taka(featured.hourlyRate)}
-                                    <span className="font-medium text-ink-3"> /hr</span>
+                                    {f.taka(featured.hourlyRate)}
+                                    <span className="font-medium text-ink-3"> {t("common.perHour")}</span>
                                 </p>
                             </div>
                         </div>
                         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-                            <Specs pitch={featured} />
-                            <FreeTimes pitch={featured} date={date} />
+                            <Specs pitch={featured} i18n={i18n} />
+                            <FreeTimes pitch={featured} date={date} i18n={i18n} />
                         </div>
                     </article>
 
@@ -76,11 +79,11 @@ export default function LiveGrounds({ content, pitches = [], date }) {
                                             </p>
                                         </div>
                                         <p className="shrink-0 text-[15px] font-bold text-ink tnum">
-                                            {taka(p.hourlyRate)}
-                                            <span className="font-medium text-ink-3">/hr</span>
+                                            {f.taka(p.hourlyRate)}
+                                            <span className="font-medium text-ink-3">{t("common.perHour")}</span>
                                         </p>
                                     </div>
-                                    <FreeTimes pitch={p} date={date} compact />
+                                    <FreeTimes pitch={p} date={date} compact i18n={i18n} />
                                 </div>
                             </article>
                         ))}
@@ -91,21 +94,21 @@ export default function LiveGrounds({ content, pitches = [], date }) {
     );
 }
 
-function Specs({ pitch }) {
+function Specs({ pitch, i18n: { t } }) {
     if (!pitch.size && !pitch.surface) return <div />;
     return (
         <dl className="flex gap-6 text-[14px]">
             {pitch.size && (
                 <div className="flex items-center gap-2 text-ink-2">
                     <Ruler className="h-4 w-4 text-ink-4" />
-                    <dt className="sr-only">Size</dt>
+                    <dt className="sr-only">{t("grounds.size")}</dt>
                     <dd>{pitch.size}</dd>
                 </div>
             )}
             {pitch.surface && (
                 <div className="flex items-center gap-2 text-ink-2">
                     <Layers className="h-4 w-4 text-ink-4" />
-                    <dt className="sr-only">Surface</dt>
+                    <dt className="sr-only">{t("grounds.surface")}</dt>
                     <dd>{pitch.surface}</dd>
                 </div>
             )}
@@ -134,35 +137,35 @@ function GroundPhoto({ pitch, sizes, className }) {
     );
 }
 
-function FreeTimes({ pitch, date, compact = false }) {
+function FreeTimes({ pitch, date, compact = false, i18n: { t, f } }) {
     const times = pitch.freeToday ?? [];
     if (!times.length) {
         return (
             <Link href={`/book?pitch=${pitch.id}`} className="text-[13px] font-medium text-ink-3 hover:text-ink">
-                No free slots left today. See other days
+                {t("grounds.noFreeToday")}
             </Link>
         );
     }
     const dateParam = date ? `&date=${date}` : "";
     return (
         <div>
-            {!compact && <p className="mb-2 text-xs font-medium text-ink-3">Still free today</p>}
+            {!compact && <p className="mb-2 text-xs font-medium text-ink-3">{t("grounds.stillFree")}</p>}
             <ul className="flex flex-wrap gap-1.5">
-                {times.slice(0, compact ? 3 : 4).map((t) => (
-                    <li key={t}>
+                {times.slice(0, compact ? 3 : 4).map((hhmm) => (
+                    <li key={hhmm}>
                         <Link
-                            href={`/book?pitch=${pitch.id}${dateParam}&t=${t}`}
+                            href={`/book?pitch=${pitch.id}${dateParam}&t=${hhmm}`}
                             className={cn(
                                 "inline-flex rounded-full bg-brand-soft px-3 py-1.5 text-[13px] font-semibold text-brand-deep tnum",
                                 "ring-1 ring-inset ring-transparent transition hover:bg-brand hover:text-brand-ink"
                             )}
                         >
-                            {time12(t)}
+                            {f.time(hhmm)}
                         </Link>
                     </li>
                 ))}
                 {compact && times.length > 3 && (
-                    <li className="px-2 py-1.5 text-[13px] font-medium text-ink-3">+{times.length - 3} more</li>
+                    <li className="px-2 py-1.5 text-[13px] font-medium text-ink-3">{t("grounds.more", { count: times.length - 3 })}</li>
                 )}
             </ul>
         </div>

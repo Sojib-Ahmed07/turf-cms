@@ -3,10 +3,14 @@ import Link from "next/link";
 import Logo from "./Logo";
 import FooterCta from "./FooterCta";
 import PitchLines from "./PitchLines";
+import SocialIcon from "./SocialIcon";
+import { getI18n } from "@/i18n/server";
+import { navLabel } from "@/i18n/nav";
 
 const PAY_METHODS = ["bKash", "Nagad", "Rocket", "Visa", "Mastercard", "Amex"];
 
-export default function Footer({ settings, items = [] }) {
+export default async function Footer({ settings, items = [] }) {
+    const { t, locale } = await getI18n();
     const { contact, socials = [] } = settings;
     const year = new Date().getFullYear();
 
@@ -19,7 +23,7 @@ export default function Footer({ settings, items = [] }) {
 
                 <div className="relative mx-auto grid max-w-7xl grid-cols-2 gap-10 px-6 py-14 sm:px-10 lg:grid-cols-12 lg:px-12">
                     <div className="col-span-2 lg:col-span-4">
-                        <Logo settings={settings} tone="light" />
+                        <Logo settings={settings} tone="light" homeLabel={t("common.homeOf", { name: settings.siteName })} />
                         {settings.tagline && (
                             <p className="mt-4 max-w-[30ch] text-[15px] leading-relaxed text-white/60">{settings.tagline}</p>
                         )}
@@ -40,24 +44,24 @@ export default function Footer({ settings, items = [] }) {
                         </ul>
                     </div>
 
-                    <FooterCol title="Explore" className="lg:col-span-2">
+                    <FooterCol title={t("footer.explore")} className="lg:col-span-2">
                         {items.map((i) => (
                             <li key={i.id ?? i.href}>
                                 <Link href={i.href} className="hover:text-white">
-                                    {i.label}
+                                    {navLabel(i, t, locale)}
                                 </Link>
                             </li>
                         ))}
                     </FooterCol>
 
-                    <FooterCol title="Account" className="lg:col-span-2">
-                        <li><Link href="/bookings" className="hover:text-white">My bookings</Link></li>
-                        <li><Link href="/profile" className="hover:text-white">Profile</Link></li>
-                        <li><Link href="/login" className="hover:text-white">Sign in</Link></li>
-                        <li><Link href="/terms" className="hover:text-white">Booking terms</Link></li>
+                    <FooterCol title={t("footer.account")} className="lg:col-span-2">
+                        <li><Link href="/bookings" className="hover:text-white">{t("common.myBookings")}</Link></li>
+                        <li><Link href="/profile" className="hover:text-white">{t("common.profile")}</Link></li>
+                        <li><Link href="/login" className="hover:text-white">{t("common.signIn")}</Link></li>
+                        <li><Link href="/terms" className="hover:text-white">{t("footer.terms")}</Link></li>
                     </FooterCol>
 
-                    <FooterCol title="Visit" className="col-span-2 lg:col-span-4">
+                    <FooterCol title={t("footer.visit")} className="col-span-2 lg:col-span-4">
                         {contact.address && <li>{contact.address}</li>}
                         {contact.hours && <li>{contact.hours}</li>}
                         {contact.phone && (
@@ -76,9 +80,9 @@ export default function Footer({ settings, items = [] }) {
                 </div>
 
                 <div className="relative mx-auto flex max-w-7xl flex-col gap-4 border-t border-white/10 px-6 py-6 text-[13px] text-white/50 sm:px-10 lg:flex-row lg:items-center lg:justify-between lg:px-12">
-                    <p>© {year} {settings.siteName}. All rights reserved.</p>
+                    <p>{t("footer.rights", { year, site: settings.siteName })}</p>
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="mr-1">Pay with</span>
+                        <span className="mr-1">{t("footer.payWith")}</span>
                         {PAY_METHODS.map((m) => (
                             <span key={m} className="rounded-md bg-white/8 px-2 py-1 text-[12px] font-semibold text-white/75 ring-1 ring-inset ring-white/10">
                                 {m}
@@ -101,26 +105,3 @@ function FooterCol({ title, className, children }) {
 }
 
 /** Minimal brand glyphs (lucide no longer ships brand icons). */
-export function SocialIcon({ name, className = "h-[18px] w-[18px]" }) {
-    if (name === "facebook")
-        return (
-            <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
-                <path d="M13.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.6-1.5h1.6V4.4c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.2H7.9v3h2.6V21h3Z" />
-            </svg>
-        );
-    if (name === "instagram")
-        return (
-            <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
-                <circle cx="12" cy="12" r="4" />
-                <circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none" />
-            </svg>
-        );
-    if (name === "youtube")
-        return (
-            <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
-                <path d="M21.6 7.2a2.6 2.6 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.6 2.6 0 0 0 2.4 7.2 27 27 0 0 0 2 12a27 27 0 0 0 .4 4.8 2.6 2.6 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.6 2.6 0 0 0 1.8-1.8A27 27 0 0 0 22 12a27 27 0 0 0-.4-4.8ZM10 15V9l5.2 3L10 15Z" />
-            </svg>
-        );
-    return <span className="text-xs font-bold uppercase">{name?.[0]}</span>;
-}

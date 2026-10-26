@@ -4,11 +4,13 @@
 import Image from "next/image";
 import { Check } from "lucide-react";
 import PitchLines from "@/components/site/PitchLines";
-import { canOptimize, cn, taka } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
+import { canOptimize, cn } from "@/lib/utils";
 
 export default function PitchPicker({ pitches = [], value, onChange }) {
+    const { t, f } = useI18n();
     return (
-        <div role="radiogroup" aria-label="Ground" className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0">
+        <div role="radiogroup" aria-label={t("pitch.label")} className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0">
             {pitches.map((p) => {
                 const active = p.id === value;
                 return (
@@ -33,7 +35,7 @@ export default function PitchPicker({ pitches = [], value, onChange }) {
                         <span className="min-w-0 flex-1">
                             <span className="display block truncate text-[19px] text-ink">{p.name}</span>
                             <span className="mt-0.5 block truncate text-[13px] text-ink-3">{p.format}</span>
-                            <span className="mt-1 block text-[13px] font-semibold text-ink-2 tnum">from {taka(p.hourlyRate)}/hr</span>
+                            <span className="mt-1 block text-[13px] font-semibold text-ink-2 tnum">{t("pitch.fromPrice", { price: f.taka(p.hourlyRate) })}</span>
                         </span>
                         <span
                             className={cn(

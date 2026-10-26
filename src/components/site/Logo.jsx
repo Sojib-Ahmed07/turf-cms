@@ -6,14 +6,14 @@ import { cn } from "@/lib/utils";
  * Shows the uploaded logo when there is one, otherwise a wordmark
  * built from the site name. `tone` picks the light/dark logo.
  */
-export default function Logo({ settings, tone = "dark", className }) {
+export default function Logo({ settings, tone = "dark", className, homeLabel }) {
     const src = tone === "light" ? settings?.logoDarkUrl : settings?.logoLightUrl;
     const name = settings?.siteName ?? "TurfZone";
 
     return (
         <Link
             href="/"
-            aria-label={`${name} home`}
+            aria-label={homeLabel ?? `${name} home`}
             className={cn("group inline-flex items-center gap-2.5", className)}
         >
             {src ? (

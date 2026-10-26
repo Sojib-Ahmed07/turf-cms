@@ -49,9 +49,10 @@ export async function couponUses(coupon, userId) {
  * Check a code for one slot. `block` is the server-resolved block ({ startTime, price }).
  * Returns { ok, coupon, discount, total } or { ok: false, error }.
  */
-export async function checkCouponForSlot({ code, pitchId, block, date, userId }) {
+/** i18n (optional): { t, f } from getI18n(), so the player sees the reason in their language. */
+export async function checkCouponForSlot({ code, pitchId, block, date, userId, i18n = null }) {
     const coupon = await getCouponByCode(code);
-    if (!coupon) return { ok: false, error: "That code isn't valid. Check the spelling." };
+    if (!coupon) return { ok: false, error: i18n ? i18n.t("coupon.invalid") : "That code isn't valid. Check the spelling." };
     const uses = await couponUses(coupon, userId);
     const r = evaluateCoupon(coupon, {
         subtotal: Number(block.price),
@@ -61,6 +62,7 @@ export async function checkCouponForSlot({ code, pitchId, block, date, userId })
         dayStart: block.dayStart,
         now: Date.now(),
         ...uses,
+        i18n,
     });
     return r.ok ? { ...r, coupon } : r;
 }

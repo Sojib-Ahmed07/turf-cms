@@ -1,6 +1,8 @@
 // src/app/layout.jsx
-import { Archivo } from "next/font/google";
+import { Anek_Bangla, Archivo } from "next/font/google";
 import { brandInk, getSiteSettings } from "@/features/cms/queries";
+import { I18nProvider } from "@/i18n/I18nProvider";
+import { getDictionary, getLocale } from "@/i18n/server";
 import "./globals.css";
 
 // Archivo is variable in weight AND width: the width axis gives the
@@ -9,6 +11,15 @@ const archivo = Archivo({
   subsets: ["latin"],
   axes: ["wdth"],
   variable: "--font-archivo",
+  display: "swap",
+});
+
+// Bangla letters (Archivo has none). Also variable in weight and width, so Bangla headings keep the same
+// expanded, sporty look. The browser picks it per character: Latin stays Archivo, Bangla uses Anek Bangla.
+const anekBangla = Anek_Bangla({
+  subsets: ["bengali"],
+  axes: ["wdth"],
+  variable: "--font-bangla",
   display: "swap",
 });
 
@@ -39,12 +50,21 @@ export async function generateMetadata() {
 }
 
 export default async function RootLayout({ children }) {
-  const settings = await getSiteSettings();
+  const [settings, locale] = await Promise.all([getSiteSettings(), getLocale()]);
   const brand = settings.brandColor;
 
   return (
-    <html lang="en" className={archivo.variable} style={{ "--brand": brand, "--brand-ink": brandInk(brand) }}>
-      <body className="min-h-svh antialiased">{children}</body>
+    <html
+      lang={locale}
+      className={`${archivo.variable} ${anekBangla.variable}`}
+      style={{ "--brand": brand, "--brand-ink": brandInk(brand) }}
+    >
+      <body className="min-h-svh antialiased">
+        {/* Only the active language's texts go to the browser (bn.js is checked complete by scripts/check-i18n.mjs). */}
+        <I18nProvider locale={locale} dict={getDictionary(locale)}>
+          {children}
+        </I18nProvider>
+      </body>
     </html>
   );
 }

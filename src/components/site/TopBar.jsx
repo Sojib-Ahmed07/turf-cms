@@ -4,9 +4,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
+import { useI18n } from "@/i18n/I18nProvider";
 
 /** Promo strip above the navbar (placement: top_bar). */
 export default function TopBar({ banner }) {
+    const { t } = useI18n();
     const [open, setOpen] = useState(true);
     if (!banner || !open) return null;
     const chip = banner.code ?? banner.badge; // coupon code if linked, otherwise the badge text
@@ -25,14 +27,14 @@ export default function TopBar({ banner }) {
                         href={banner.ctaHref}
                         className="shrink-0 font-semibold underline decoration-white/30 underline-offset-4 hover:decoration-white"
                     >
-                        {banner.ctaLabel || "Book now"}
+                        {banner.ctaLabel || t("common.bookNow")}
                     </Link>
                 )}
             </div>
             <button
                 type="button"
                 onClick={() => setOpen(false)}
-                aria-label="Dismiss offer"
+                aria-label={t("common.dismissOffer")}
                 className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white"
             >
                 <X className="h-3.5 w-3.5" />

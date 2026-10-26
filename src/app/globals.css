@@ -46,7 +46,7 @@
   --color-danger: #d64545;
   --color-danger-soft: #fdecec;
 
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-archivo), var(--font-bangla), ui-sans-serif, system-ui, sans-serif;
 
   --radius-frame: 28px;
   /* hero, big panels */
@@ -152,4 +152,14 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Bangla: vowel signs sit above and below the letters, so the tight Latin display settings would clip them. */
+html[lang="bn"] .display {
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+html[lang="bn"] body {
+  line-height: 1.6;
 }

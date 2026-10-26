@@ -10,6 +10,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Button from "@/components/ui/Button";
 import PitchLines from "./PitchLines";
+import BookingGuide from "./BookingGuide";
+import { useI18n } from "@/i18n/I18nProvider";
 import { canOptimize, cn } from "@/lib/utils";
 
 // "Shade over the image" from Admin > Hero slides. The bottom fade always stays so the text is readable.
@@ -19,14 +21,15 @@ const SHADE = {
     none: "",
 };
 
-const FALLBACK = {
+/** Shown when the admin hasn't added any slides (texts from the dictionary). */
+const fallbackSlide = (t) => ({
     id: "fallback",
     imageUrl: null,
-    heading: "Book your turf in under a minute",
-    subheading: "Pick a ground, choose a time, pay online. That's it.",
-    ctaLabel: "Book a slot",
+    heading: t("hero.fallbackHeading"),
+    subheading: t("hero.fallbackSub"),
+    ctaLabel: t("common.bookSlot"),
     ctaHref: "/book",
-};
+});
 
 /**
  * Slides come from Admin > Hero slides (getHeroSlides).
@@ -35,7 +38,8 @@ const FALLBACK = {
  * 2+ slides -> crossfading slider with autoplay + swipe
  */
 export default function HeroSlider({ slides = [], autoplayMs = 6000, pauseOnHover = true, liveNote }) {
-    const list = slides.length ? slides : [FALLBACK];
+    const { t } = useI18n();
+    const list = slides.length ? slides : [fallbackSlide(t)];
     const isSlider = list.length > 1;
 
     const [emblaRef, emblaApi] = useEmblaCarousel(
@@ -180,8 +184,9 @@ export default function HeroSlider({ slides = [], autoplayMs = 6000, pauseOnHove
                                         {active.ctaLabel}
                                     </Button>
                                 )}
-                                <Button href="/#grounds" variant="outline-light" size="lg">
-                                    See grounds
+                                <BookingGuide />
+                                <Button href="/#grounds" variant="outline-light" size="lg" className="hidden sm:inline-flex">
+                                    {t("hero.seeGrounds")}
                                 </Button>
                             </motion.div>
                         </motion.div>
@@ -235,7 +240,7 @@ export default function HeroSlider({ slides = [], autoplayMs = 6000, pauseOnHove
                                     key={s.id}
                                     type="button"
                                     onClick={() => go(i)}
-                                    aria-label={`Show slide ${i + 1}`}
+                                    aria-label={t("hero.showSlide", { n: i + 1 })}
                                     className="h-1 flex-1 overflow-hidden rounded-full bg-white/20"
                                 >
                                     {i === index && (
@@ -248,10 +253,10 @@ export default function HeroSlider({ slides = [], autoplayMs = 6000, pauseOnHove
                                 </button>
                             ))}
                         </div>
-                        <button type="button" onClick={prev} aria-label="Previous slide" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/20 backdrop-blur">
+                        <button type="button" onClick={prev} aria-label={t("hero.prevSlide")} className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/20 backdrop-blur">
                             <ChevronLeft className="h-4 w-4" />
                         </button>
-                        <button type="button" onClick={next} aria-label="Next slide" className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink">
+                        <button type="button" onClick={next} aria-label={t("hero.nextSlide")} className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink">
                             <ChevronRight className="h-4 w-4" />
                         </button>
                     </div>

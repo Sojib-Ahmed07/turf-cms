@@ -7,10 +7,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { CouponCode } from "./PromoBanner";
+import { useI18n } from "@/i18n/I18nProvider";
 import { canOptimize } from "@/lib/utils";
 
 /** Shows once per visitor (placement: popup). `delayMs` before opening. */
 export default function PromoPopup({ banner, delayMs = 2500 }) {
+    const { t } = useI18n();
     const [open, setOpen] = useState(false);
 
     useEffect(() => {
@@ -65,7 +67,7 @@ export default function PromoPopup({ banner, delayMs = 2500 }) {
                             <button
                                 type="button"
                                 onClick={close}
-                                aria-label="Close"
+                                aria-label={t("common.close")}
                                 className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/90 text-ink hover:bg-white"
                             >
                                 <X className="h-4 w-4" />
@@ -78,11 +80,11 @@ export default function PromoPopup({ banner, delayMs = 2500 }) {
                                 {banner.code && <CouponCode code={banner.code} />}
                                 {banner.ctaHref && (
                                     <Button href={banner.ctaHref} size="lg" onClick={close}>
-                                        {banner.ctaLabel || "Book now"}
+                                        {banner.ctaLabel || t("common.bookNow")}
                                     </Button>
                                 )}
                                 <button type="button" onClick={close} className="py-1 text-[13px] font-medium text-ink-3 hover:text-ink">
-                                    Maybe later
+                                    {t("common.maybeLater")}
                                 </button>
                             </div>
                         </div>

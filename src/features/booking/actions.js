@@ -13,6 +13,7 @@ import { isBlockPast } from "@/lib/time";
 import { HOLD_MINUTES, currentVenueDay, expireStaleHolds, getPitchById, resolveBlock } from "./queries";
 import { BOOKING_DAYS_AHEAD, isRealDate } from "./calendar";
 import { addDaysISO } from "@/lib/time";
+import { getI18n } from "@/i18n/server";
 import { checkCouponForSlot, redeemCoupon } from "@/features/coupons/service";
 import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
 
@@ -50,53 +51,57 @@ function isUniqueViolation(err) {
 }
 
 export async function previewCoupon(input) {
+    const i18n = await getI18n();
+    const { t } = i18n;
     try {
         const parsed = holdSchema.safeParse(input);
-        if (!parsed.success || !parsed.data.couponCode) return { ok: false, error: "Type a promo code first." };
+        if (!parsed.success || !parsed.data.couponCode) return { ok: false, error: t("errors.typeCode") };
         const { pitchId, blockId, date, couponCode } = parsed.data;
-        if (await outsideWindow(date)) return { ok: false, error: "Pick a date from the booking calendar." };
+        if (await outsideWindow(date)) return { ok: false, error: t("errors.pickCalendarDate") };
         const user = await currentUser();
 
         const pitch = await getPitchById(pitchId);
         const block = pitch && (await resolveBlock(pitch, date, blockId));
-        if (!block) return { ok: false, error: "Pick a time slot first." };
+        if (!block) return { ok: false, error: t("errors.pickSlotFirst") };
 
-        const r = await checkCouponForSlot({ code: couponCode, pitchId, block, date, userId: user?.id ?? null });
+        const r = await checkCouponForSlot({ code: couponCode, pitchId, block, date, userId: user?.id ?? null, i18n });
         if (!r.ok) return r;
         return { ok: true, data: { code: r.coupon.code, discount: r.discount, total: r.total } };
     } catch (err) {
         console.error("[previewCoupon]", err);
-        return { ok: false, error: "Couldn't check the code. Try again." };
+        return { ok: false, error: t("errors.codeCheckFailed") };
     }
 }
 
 export async function createBookingHold(input) {
+    const i18n = await getI18n();
+    const { t } = i18n;
     try {
         const user = await currentUser();
-        if (!user) return { ok: false, needsLogin: true, error: "Sign in to book a slot." };
+        if (!user) return { ok: false, needsLogin: true, error: t("errors.signInToBook") };
         if (!user.emailVerified) {
             return {
                 ok: false,
                 needsVerify: true,
-                error: "Verify your email before booking. Check your inbox for the code.",
+                error: t("errors.verifyToBook"),
             };
         }
 
         const parsed = holdSchema.safeParse(input);
-        if (!parsed.success) return { ok: false, error: "Pick a ground, date and time first." };
+        if (!parsed.success) return { ok: false, error: t("errors.pickAll") };
         const { pitchId, blockId, date, couponCode } = parsed.data;
         if (await outsideWindow(date)) {
-            return { ok: false, error: `You can book up to ${BOOKING_DAYS_AHEAD} days ahead. Pick a date from the calendar.` };
+            return { ok: false, error: t("errors.outsideWindow", { days: BOOKING_DAYS_AHEAD }) };
         }
 
         const pitch = await getPitchById(pitchId);
-        if (!pitch) return { ok: false, error: "This ground isn't taking bookings right now." };
+        if (!pitch) return { ok: false, error: t("errors.groundClosed") };
 
         const block = await resolveBlock(pitch, date, blockId);
-        if (!block) return { ok: false, error: "That time slot no longer exists. Pick another time." };
+        if (!block) return { ok: false, error: t("errors.slotGone") };
 
         if (isBlockPast(date, block.startTime, block.dayStart)) {
-            return { ok: false, error: "That slot has already started. Pick a later time." };
+            return { ok: false, error: t("errors.slotStarted") };
         }
 
         await expireStaleHolds({ pitchId, date });
@@ -109,14 +114,14 @@ export async function createBookingHold(input) {
         if (active.length >= MAX_ACTIVE_HOLDS) {
             return {
                 ok: false,
-                error: `You already have ${active.length} slots waiting for payment. Pay for or cancel one first.`,
+                error: t("errors.tooManyHolds", { count: active.length }),
             };
         }
 
         let couponId = null;
         let discount = 0;
         if (couponCode) {
-            const c = await checkCouponForSlot({ code: couponCode, pitchId, block, date, userId: user.id });
+            const c = await checkCouponForSlot({ code: couponCode, pitchId, block, date, userId: user.id, i18n });
             if (!c.ok) return { ok: false, couponError: true, error: c.error };
             couponId = c.coupon.id;
             discount = c.discount;
@@ -168,22 +173,23 @@ export async function createBookingHold(input) {
                 if (!isUniqueViolation(err)) throw err;
                 const msg = String(err?.message ?? "") + String(err?.cause?.message ?? "") + String(err?.cause?.constraint ?? "");
                 if (!msg.includes("bookings_code_unique")) {
-                    return { ok: false, error: "Someone just booked this slot. Pick another time." };
+                    return { ok: false, error: t("errors.slotTaken") };
                 }
             }
         }
-        return { ok: false, error: "Couldn't reserve the slot. Try again." };
+        return { ok: false, error: t("errors.reserveFailed") };
     } catch (err) {
         console.error("[createBookingHold]", err);
-        return { ok: false, error: "Couldn't reserve the slot. Try again." };
+        return { ok: false, error: t("errors.reserveFailed") };
     }
 }
 
 export async function cancelHeldBooking(bookingId) {
+    const { t } = await getI18n();
     try {
         const user = await currentUser();
-        if (!user) return { ok: false, needsLogin: true, error: "Sign in first." };
-        if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: "Booking not found." };
+        if (!user) return { ok: false, needsLogin: true, error: t("errors.signInFirst") };
+        if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: t("errors.bookingNotFound") };
 
         const rows = await db
             .update(bookings)
@@ -192,12 +198,12 @@ export async function cancelHeldBooking(bookingId) {
             .returning({ id: bookings.id });
 
         if (rows.length === 0) {
-            return { ok: false, error: "Only bookings waiting for payment can be cancelled here. For paid bookings, call the desk." };
+            return { ok: false, error: t("errors.cancelOnlyHeld") };
         }
         revalidatePath("/bookings");
         return { ok: true };
     } catch (err) {
         console.error("[cancelHeldBooking]", err);
-        return { ok: false, error: "Couldn't cancel the booking. Try again." };
+        return { ok: false, error: t("errors.cancelFailed") };
     }
 }

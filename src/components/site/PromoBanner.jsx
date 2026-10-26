@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Check, Copy, Clock3, Trophy } from "lucide-react";
 import Button from "@/components/ui/Button";
 import PitchLines from "./PitchLines";
+import { useI18n } from "@/i18n/I18nProvider";
 import { canOptimize, cn } from "@/lib/utils";
 
 /**
@@ -23,6 +24,7 @@ export default function PromoBanner({ banner, variant = "ticket", className }) {
 
 /* ---------- Ticket: image stub + perforation + details ---------- */
 function TicketCard({ banner, className }) {
+    const { t } = useI18n();
     return (
         <section id="offers" className={cn("mx-auto max-w-6xl px-3 sm:px-6", className)}>
             <div className="relative grid overflow-hidden rounded-card bg-white ring-1 ring-line md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -59,7 +61,7 @@ function TicketCard({ banner, className }) {
                         {banner.code && <CouponCode code={banner.code} />}
                         {banner.ctaHref && (
                             <Button href={banner.ctaHref} variant="ink" size="lg">
-                                {banner.ctaLabel || "Book now"}
+                                {banner.ctaLabel || t("common.bookNow")}
                             </Button>
                         )}
                     </div>
@@ -71,6 +73,7 @@ function TicketCard({ banner, className }) {
 
 /* ---------- Band: full-width dark strip ---------- */
 function Band({ banner, className }) {
+    const { t } = useI18n();
     return (
         <section className={cn("px-3 sm:px-4", className)}>
             <div className="relative overflow-hidden rounded-frame bg-pitch px-6 py-12 text-white sm:px-12 sm:py-16">
@@ -87,7 +90,7 @@ function Band({ banner, className }) {
                     </div>
                     {banner.ctaHref && (
                         <Button href={banner.ctaHref} variant="flare" size="lg">
-                            {banner.ctaLabel || "Book now"}
+                            {banner.ctaLabel || t("common.bookNow")}
                         </Button>
                     )}
                 </div>
@@ -109,6 +112,7 @@ function Inline({ banner, className }) {
 
 /* ---------- Coupon chip with copy ---------- */
 export function CouponCode({ code, size = "md", tone = "light" }) {
+    const { t } = useI18n();
     const [copied, setCopied] = useState(false);
     const copy = () => {
         navigator.clipboard?.writeText(code);
@@ -135,7 +139,7 @@ export function CouponCode({ code, size = "md", tone = "light" }) {
                 )}
             >
                 {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                {copied ? "Copied" : "Copy"}
+                {copied ? t("common.copied") : t("common.copy")}
             </span>
         </button>
     );

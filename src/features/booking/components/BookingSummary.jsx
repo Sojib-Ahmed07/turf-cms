@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { CalendarDays, Clock3, Hourglass, Lock, MapPin, Tag, X } from "lucide-react";
 import Button from "@/components/ui/Button";
+import PayMethodPicker from "@/features/payment/components/PayMethodPicker";
 import { cn, taka, time12 } from "@/lib/utils";
 
 /**
@@ -13,6 +14,7 @@ import { cn, taka, time12 } from "@/lib/utils";
  *   onApplyCoupon(code)            async, returns { ok, error }
  *   onRemoveCoupon()               clear the code
  *   showCoupon                     show the promo code box (default on)
+ *   methods / method / onMethodChange  payment methods [{ id, label, hint }] and the chosen one
  */
 export default function BookingSummary({
     pitch,
@@ -27,6 +29,9 @@ export default function BookingSummary({
     coupon = null,
     onApplyCoupon,
     onRemoveCoupon,
+    methods = [],
+    method = "",
+    onMethodChange,
 }) {
     const [code, setCode] = useState("");
     const [checking, setChecking] = useState(false);
@@ -124,6 +129,10 @@ export default function BookingSummary({
                     </div>
                 </div>
 
+                {block && total > 0 && onMethodChange && (
+                    <PayMethodPicker methods={methods} value={method} onChange={onMethodChange} />
+                )}
+
                 {error && <p className="rounded-ctl bg-danger-soft px-4 py-3 text-[13px] font-medium text-danger">{error}</p>}
 
                 <Button size="lg" className="h-14 w-full text-base" disabled={!block || busy} onClick={onPay}>
@@ -144,18 +153,29 @@ export default function BookingSummary({
                         <Hourglass className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         We hold the slot for 15 minutes while you pay.
                     </p>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        {["bKash", "Nagad", "Rocket", "Visa", "Mastercard"].map((m) => (
-                            <span key={m} className="rounded-md bg-chalk px-2 py-1 text-[11px] font-semibold text-ink-2 ring-1 ring-inset ring-line">
-                                {m}
-                            </span>
-                        ))}
-                        <span className="ml-1 text-[11px] text-ink-3">via SSLCommerz</span>
-                    </div>
+                    {acceptedBadges(methods).length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            {acceptedBadges(methods).map((m) => (
+                                <span key={m} className="rounded-md bg-chalk px-2 py-1 text-[11px] font-semibold text-ink-2 ring-1 ring-inset ring-line">
+                                    {m}
+                                </span>
+                            ))}
+                            <span className="ml-1 text-[11px] text-ink-3">Secure checkout</span>
+                        </div>
+                    )}
                 </div>
             </div>
         </aside>
     );
+}
+
+/** Small "we accept" badges for the methods that are switched on. */
+function acceptedBadges(methods) {
+    const ids = methods.filter((m) => m.enabled !== false).map((m) => m.id);
+    const list = [];
+    if (ids.includes("bkash") || ids.includes("sslcommerz")) list.push("bKash");
+    if (ids.includes("sslcommerz")) list.push("Nagad", "Rocket", "Visa", "Mastercard");
+    return list;
 }
 
 function Line({ icon: Icon, label, value, muted }) {

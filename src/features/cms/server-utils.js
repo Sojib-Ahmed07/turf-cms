@@ -40,7 +40,7 @@ export const link = (label = "Link") =>
         .trim()
         .max(300)
         .default("")
-        .refine((v) => v === "" || /^\/(?!\/)/.test(v) || /^https:\/\/[^\s]+$/.test(v) || /^(tel|mailto):[^\s]+$/.test(v), {
+        .refine((v) => v === "" || /^\/(?![\/\\])/.test(v) || /^https:\/\/[^\s]+$/.test(v) || /^(tel|mailto):[^\s]+$/.test(v), {
             message: `${label} must start with / (a page on this site) or https://`,
         });
 

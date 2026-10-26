@@ -3,7 +3,7 @@ import BookingClient from "@/features/booking/components/BookingClient";
 import { currentVenueDay, getPitches } from "@/features/booking/queries";
 import { getPromoBanners, getSiteSettings } from "@/features/cms/queries";
 import { getSession } from "@/lib/guards";
-import { isSslczConfigured } from "@/lib/sslcommerz";
+import { getPayMethods } from "@/features/payment/methods";
 
 export const metadata = { title: "Book a slot" };
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ export default async function BookPage({ searchParams }) {
             venue={settings.contact.address}
             isSignedIn={Boolean(session?.user)}
             emailVerified={Boolean(session?.user?.emailVerified)}
-            paymentsLive={isSslczConfigured()}
+            payMethods={await getPayMethods()}
         />
     );
 }

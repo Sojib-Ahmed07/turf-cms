@@ -12,11 +12,14 @@ import PromoBanner from "@/components/site/PromoBanner";
 import Button from "@/components/ui/Button";
 import { createBookingHold, previewCoupon } from "@/features/booking/actions";
 import { payForBooking } from "@/features/payment/actions";
+import PayMethodPicker from "@/features/payment/components/PayMethodPicker";
+import MethodOffDialog from "@/features/payment/components/MethodOffDialog";
 import { addDaysISO, shortDateLabel } from "@/lib/time";
 import { partOf } from "@/features/booking/parts";
+import { BOOKING_DAYS_AHEAD } from "@/features/booking/calendar";
 import { taka, time12 } from "@/lib/utils";
 
-const DAYS_AHEAD = 14;
+const DAYS_AHEAD = BOOKING_DAYS_AHEAD;
 
 /** First free block matching ?t=HH:MM, or the first free one inside ?part=. */
 function pickInitialBlock(blocks, time, part) {
@@ -48,7 +51,8 @@ function pickInitialBlock(blocks, time, part) {
  *   venue          venue line for the summary card (site address)
  *   isSignedIn     boolean
  *   emailVerified  boolean: unverified players see a verify banner and can't reserve
- *   paymentsLive   SSLCommerz is configured: Pay goes straight to the gateway
+ *   payMethods     [{ id, label, hint, enabled }] from getPayMethods(): methods that are set up (empty = pay at the desk);
+ *                  enabled:false = the admin switched it off (picking it shows "use another method")
  */
 export default function BookingClient({
     pitches,
@@ -61,8 +65,10 @@ export default function BookingClient({
     venue = "",
     isSignedIn,
     emailVerified = false,
-    paymentsLive = false,
+    payMethods = [],
 }) {
+    const paymentsLive = payMethods.length > 0;
+    const enabledMethods = payMethods.filter((m) => m.enabled);
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [leaving, setLeaving] = useState(false); // on the way to the payment page
@@ -79,6 +85,9 @@ export default function BookingClient({
     const [board, setBoard] = useState({ key: null, blocks: [], error: "" }); // last loaded slot board
     const [blockId, setBlockId] = useState(null);
     const [payError, setPayError] = useState("");
+    const [payMethod, setPayMethod] = useState(enabledMethods[0]?.id ?? payMethods[0]?.id ?? "");
+    // "This method is off" dialog: { off, alternatives, bookingId?, code? } (bookingId when the slot is already held)
+    const [offDialog, setOffDialog] = useState(null);
     const [couponCode, setCouponCode] = useState(null); // code the player applied (kept when they change slot)
     const [coupon, setCoupon] = useState(null); // { code, discount, total, key } as last checked
     const [reloadKey, setReloadKey] = useState(0);
@@ -182,9 +191,55 @@ export default function BookingClient({
 
     const total = activeCoupon ? activeCoupon.total : Number(block?.price ?? 0);
 
-    function handlePay() {
+    /** Picker change: a switched-off method opens the dialog instead of being selected. */
+    function chooseMethod(id) {
+        const m = payMethods.find((x) => x.id === id);
+        if (m && !m.enabled) {
+            setOffDialog({ off: m, alternatives: enabledMethods });
+            return;
+        }
+        setPayMethod(id);
+    }
+
+    /** Pay for a booking that is already held (after the admin switched a method off mid-checkout). */
+    function payHeld(bookingId, code, method) {
+        startTransition(async () => {
+            const pay = await payForBooking(bookingId, method);
+            if (pay.ok) {
+                setLeaving(true);
+                window.location.assign(pay.data.url);
+                return;
+            }
+            if (pay.methodOff) {
+                setOffDialog({ off: pay.off, alternatives: pay.available, bookingId, code });
+                return;
+            }
+            router.push(`/bookings?held=${code}&pay=failed`);
+        });
+    }
+
+    function onUseMethod(id) {
+        const d = offDialog;
+        setPayMethod(id);
+        if (d?.bookingId) {
+            payHeld(d.bookingId, d.code, id);
+            return;
+        }
+        setOffDialog(null);
+        handlePay(id);
+    }
+
+    function closeOffDialog() {
+        const d = offDialog;
+        setOffDialog(null);
+        // The slot is already held: show it in My bookings so the player can pay later or cancel.
+        if (d?.bookingId) router.push(`/bookings?held=${d.code}`);
+    }
+
+    function handlePay(methodOverride) {
         if (!block || !pitch) return;
         setPayError("");
+        const method = typeof methodOverride === "string" ? methodOverride : payMethod;
 
         if (!isSignedIn) {
             const back = `/book?pitch=${pitch.id}&date=${date}`;
@@ -194,6 +249,14 @@ export default function BookingClient({
         if (needsVerify) {
             router.push(verifyHref);
             return;
+        }
+        // Don't reserve the slot with a method the admin switched off: say which one is on instead.
+        if (paymentsLive && total > 0) {
+            const m = payMethods.find((x) => x.id === method);
+            if (!m || !m.enabled) {
+                setOffDialog({ off: m ?? null, alternatives: enabledMethods });
+                return;
+            }
         }
 
         startTransition(async () => {
@@ -226,11 +289,16 @@ export default function BookingClient({
                 router.push(`/bookings?held=${res.data.code}`);
                 return;
             }
-            // Slot is held; open the SSLCommerz payment page.
-            const pay = await payForBooking(res.data.bookingId);
+            // Slot is held; open the chosen gateway (bKash or SSLCommerz).
+            const pay = await payForBooking(res.data.bookingId, method);
             if (pay.ok) {
                 setLeaving(true);
                 window.location.assign(pay.data.url);
+                return;
+            }
+            if (pay.methodOff) {
+                // Switched off between page load and Pay: the slot is held, offer the method that is on.
+                setOffDialog({ off: pay.off, alternatives: pay.available, bookingId: res.data.bookingId, code: res.data.code });
                 return;
             }
             if (pay.needsVerify) {
@@ -328,14 +396,29 @@ export default function BookingClient({
                             coupon={activeCoupon}
                             onApplyCoupon={applyCoupon}
                             onRemoveCoupon={removeCoupon}
+                            methods={payMethods}
+                            method={payMethod}
+                            onMethodChange={chooseMethod}
                         />
                     </div>
                 </div>
             </div>
 
+            <MethodOffDialog
+                open={Boolean(offDialog)}
+                onClose={closeOffDialog}
+                off={offDialog?.off ?? null}
+                alternatives={offDialog?.alternatives ?? []}
+                onUse={onUseMethod}
+                busy={busy}
+            />
+
             {/* Mobile checkout bar */}
             <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 px-4 py-3 backdrop-blur-xl lg:hidden">
                 {payError && <p className="mx-auto mb-2 max-w-xl text-[13px] font-medium text-danger">{payError}</p>}
+                {block && total > 0 && isSignedIn && !needsVerify && (
+                    <PayMethodPicker compact methods={payMethods} value={payMethod} onChange={chooseMethod} className="mx-auto mb-2 max-w-xl" />
+                )}
                 <div className="mx-auto flex max-w-xl items-center gap-4">
                     <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] text-ink-3">

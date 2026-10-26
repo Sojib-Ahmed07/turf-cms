@@ -66,8 +66,9 @@ export async function checkCouponForSlot({ code, pitchId, block, date, userId })
 }
 
 /**
- * Make a coupon use permanent for a confirmed booking. Safe to call twice:
- * it only records once per booking.
+ * Make a coupon use permanent for a confirmed booking. Safe to call twice, even at the same moment:
+ * the unique index on coupon_redemptions.booking_id lets only one insert win, and only the winner
+ * bumps usedCount.
  */
 export async function redeemCoupon(bookingId) {
     const [b] = await db
@@ -77,19 +78,18 @@ export async function redeemCoupon(bookingId) {
         .limit(1);
     if (!b?.couponId) return false;
 
-    const [done] = await db
-        .select({ id: couponRedemptions.id })
-        .from(couponRedemptions)
-        .where(eq(couponRedemptions.bookingId, bookingId))
-        .limit(1);
-    if (done) return false;
+    const inserted = await db
+        .insert(couponRedemptions)
+        .values({
+            couponId: b.couponId,
+            userId: b.userId,
+            bookingId,
+            amount: String(b.discount ?? 0),
+        })
+        .onConflictDoNothing({ target: couponRedemptions.bookingId })
+        .returning({ id: couponRedemptions.id });
+    if (inserted.length === 0) return false; // already recorded for this booking
 
-    await db.insert(couponRedemptions).values({
-        couponId: b.couponId,
-        userId: b.userId,
-        bookingId,
-        amount: String(b.discount ?? 0),
-    });
     await db
         .update(coupons)
         .set({ usedCount: sql`${coupons.usedCount} + 1` })

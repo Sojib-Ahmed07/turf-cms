@@ -10,7 +10,9 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { bookings } from "@/db/schema";
 import { isBlockPast } from "@/lib/time";
-import { HOLD_MINUTES, expireStaleHolds, getPitchById, resolveBlock } from "./queries";
+import { HOLD_MINUTES, currentVenueDay, expireStaleHolds, getPitchById, resolveBlock } from "./queries";
+import { BOOKING_DAYS_AHEAD, isRealDate } from "./calendar";
+import { addDaysISO } from "@/lib/time";
 import { checkCouponForSlot, redeemCoupon } from "@/features/coupons/service";
 import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
 
@@ -34,6 +36,13 @@ function bookingCode() {
     return "TZ-" + Array.from(bytes, (b) => chars[b % chars.length]).join("");
 }
 
+/** The date must be a real day inside the booking window the /book page offers (today + 13 days). */
+async function outsideWindow(date) {
+    if (!isRealDate(date)) return true;
+    const { date: today } = await currentVenueDay();
+    return date < today || date > addDaysISO(today, BOOKING_DAYS_AHEAD - 1);
+}
+
 function isUniqueViolation(err) {
     const code = err?.code ?? err?.cause?.code;
     const msg = String(err?.message ?? "") + String(err?.cause?.message ?? "");
@@ -45,6 +54,7 @@ export async function previewCoupon(input) {
         const parsed = holdSchema.safeParse(input);
         if (!parsed.success || !parsed.data.couponCode) return { ok: false, error: "Type a promo code first." };
         const { pitchId, blockId, date, couponCode } = parsed.data;
+        if (await outsideWindow(date)) return { ok: false, error: "Pick a date from the booking calendar." };
         const user = await currentUser();
 
         const pitch = await getPitchById(pitchId);
@@ -75,6 +85,9 @@ export async function createBookingHold(input) {
         const parsed = holdSchema.safeParse(input);
         if (!parsed.success) return { ok: false, error: "Pick a ground, date and time first." };
         const { pitchId, blockId, date, couponCode } = parsed.data;
+        if (await outsideWindow(date)) {
+            return { ok: false, error: `You can book up to ${BOOKING_DAYS_AHEAD} days ahead. Pick a date from the calendar.` };
+        }
 
         const pitch = await getPitchById(pitchId);
         if (!pitch) return { ok: false, error: "This ground isn't taking bookings right now." };

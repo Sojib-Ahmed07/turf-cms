@@ -24,7 +24,8 @@ function formatTime(iso) {
     return new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Dhaka" });
 }
 
-export default function VerifyTicket({ state, booking, canCheckIn = false }) {
+/** wrongDay: admin view of a valid ticket for another day (no "Mark as used", explain why). */
+export default function VerifyTicket({ state, booking, canCheckIn = false, wrongDay = false }) {
     const router = useRouter();
     const tone = TONE[state] ?? TONE.invalid;
     const Icon = tone.icon;
@@ -74,6 +75,12 @@ export default function VerifyTicket({ state, booking, canCheckIn = false }) {
                     </div>
 
                     {error && <p className="mt-4 rounded-ctl bg-danger-soft px-4 py-3 text-[13px] font-medium text-danger">{error}</p>}
+
+                    {wrongDay && (
+                        <p className="mt-5 rounded-ctl bg-flare-soft px-4 py-3 text-[13px] font-medium text-flare-deep">
+                            This ticket is for {booking.playDateLabel}, not today. It can be marked as used on match day.
+                        </p>
+                    )}
 
                     {canCheckIn && (
                         <Button className="mt-5 w-full" variant="ink" onClick={markUsed} disabled={busy}>

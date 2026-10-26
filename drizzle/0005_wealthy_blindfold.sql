@@ -1,0 +1,2 @@
+ALTER TABLE "site_settings" ADD COLUMN "override_revenue_today" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "site_settings" ADD COLUMN "override_revenue_month" integer DEFAULT 0 NOT NULL;

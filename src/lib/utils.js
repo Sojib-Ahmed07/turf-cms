@@ -37,3 +37,15 @@ export function canOptimize(src) {
         return false;
     }
 }
+
+/**
+ * Where to go after sign-in / sign-up / email verification. Only paths on this site are allowed:
+ * "/book?pitch=x" stays, but "https://evil.example", "//evil.example" and "/\\evil.example" become "/".
+ * Stops a link like /login?next=https://phishing.example from sending a freshly signed-in player away.
+ */
+export function safeNext(raw, fallback = "/") {
+    if (typeof raw !== "string" || raw.length > 500) return fallback;
+    if (!raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
+    if (/[\u0000-\u001f\\]/.test(raw)) return fallback;
+    return raw;
+}

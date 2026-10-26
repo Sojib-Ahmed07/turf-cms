@@ -1,7 +1,7 @@
 # AGENTS.md — TurfZone CMS, current progress
 
 Read this file first in every new chat. It records what exists in the codebase right now, how it is
-written, and what to do next. Last updated **25 Oct 2026** (after Steps 7a, 7b and 7c). `BLUEPRINT.md`
+written, and what to do next. Last updated **26 Oct 2026** (after Steps 7a to 8b and the security review). `BLUEPRINT.md`
 (the original end-state plan) is **not in the repo**; `ai-context.md` section 12 holds the remaining plan.
 
 At the end of every session, update section 2 (Where things stand), section 8 (Step plan), section 10
@@ -10,13 +10,13 @@ At the end of every session, update section 2 (Where things stand), section 8 (S
 ## 1. Project in one paragraph
 
 TurfZone CMS is a turf-booking website for one venue in Bangladesh, built for a client.
-Players register (email code), pick a ground, date and time block, pay through SSLCommerz, and get a
+Players register (email code), pick a ground, date and time block, pay directly with bKash or through SSLCommerz, and get a
 booking ticket with a signed QR code (on screen and by email); staff scan it at the gate. The
 design is fixed in code; the admin edits logos, images, text, map location, hero slides, offer banners,
 menu labels, footer and SEO from `/admin`. **The design comes from the new UI; the booking functionality comes from
 the prototype (`turf.zip`, the old `turf-website` project)**: pitches with default time blocks,
 per-date overrides, slot availability, past-slot rules, after-midnight slots and the admin slot editor.
-bKash from the prototype is replaced by SSLCommerz. Sample venue: "TurfZone", Mirpur 12, Dhaka, three
+bKash from the prototype was first replaced by SSLCommerz; Step 8a added direct bKash (Tokenized Checkout) back beside it. Sample venue: "TurfZone", Mirpur 12, Dhaka, three
 grounds, open 6 am to 3 am, prices in BDT (৳).
 
 ## 2. Where things stand
@@ -49,21 +49,31 @@ grounds, open 6 am to 3 am, prices in BDT (৳).
   or free booking, resend with **Email receipt**), `/api/ticket-qr/[token]` PNG for emails. Migration 0002.
 - **Step 7c delivered (22 Oct):** venue map. Admin sets latitude/longitude/zoom/label/address in Branding; the home
   "Find us" section shows a Leaflet/OpenStreetMap map (illustration when empty). Migration 0003.
-- **Lint (25 Oct):** 0 errors, 2 warnings (`no-img-element` on the QR images; intentional).
-- **Next:** small pre-deploy fixes (update `DEPLOY.md` for Brevo/`TICKET_SECRET`, `robots.js` disallow `/verify`,
-  "Checked in" column in admin bookings), then deploy (follow `DEPLOY.md`).
+- **Lint / build (26 Oct):** lint 0 errors, 2 warnings (`no-img-element` on the QR images; intentional); `npm run build`
+  passes on the developer's machine with Next 16.4.3.
+- **Step 8a delivered (25 Oct):** direct bKash Tokenized Checkout beside SSLCommerz. Players pick "bKash" or
+  "Card or other wallet" on /book, My bookings and the retry button; `/api/payment/bkash/callback` executes the payment
+  and confirms through the same claim/settle code as SSLCommerz. `payments.gateway` (migration 0004). Sandbox
+  click-through still to do on the dev machine.
+- **Step 8b delivered (26 Oct):** admin on/off switch per payment method (Admin, Payments, "Payment methods").
+  A switched-off method shows "Off right now"; picking or paying with it opens a dialog that names the method that
+  is on and pays with it. Stored in `page_sections` key `payments` (no migration). Direct Nagad was **dropped (26 Oct)**: Nagad only accepts whitelisted fixed server IPs and Vercel Static IPs cost $100/month per project. Nagad stays available through SSLCommerz. Don't build it unless asked.
+- **Security review (26 Oct):** see the changelog entry. Next.js 16.4.3, open-redirect fix, booking window, phone hooks,
+  editor data, resend limit, match-day check-in, bKash slot check, security headers, robots.
+- **Next:** small pre-deploy fixes (`DEPLOY.md` for Brevo/`TICKET_SECRET`/`BKASH_*`, "Checked in" column), then deploy.
 
 ## 3. Stack in use
 
 | Package | Purpose |
 |---|---|
-| `next` 16.4, `react` 19.3 | App Router, JavaScript only |
+| `next` 16.4.3, `react` 19.3 | App Router, JavaScript only (16.4.3: security patch; never go back to 16.4.0–16.4.2) |
 | `tailwindcss` v4, `@tailwindcss/postcss` | Styling |
 | `drizzle-orm` 0.45, `drizzle-kit` 0.31, `@neondatabase/serverless` | Database (Neon Postgres) |
 | `better-auth` 1.7 | Auth, drizzle adapter, `role` + `phone` additional fields, `emailOTP` plugin |
 | `zod` 4 | Validation |
 | `framer-motion`, `lucide-react`, `embla-carousel-*`, `clsx`, `tailwind-merge` | UI |
 | `qrcode` 1.5 | Server-side QR PNGs for tickets (`src/lib/qrcode.js`) |
+| (no package) bKash Tokenized Checkout | Direct bKash payments over REST (`src/lib/bkash.js`) |
 | `leaflet` 1.9, `react-leaflet` 5 | Venue map (OpenStreetMap tiles, no API key) |
 | `@vercel/functions` | `waitUntil` for receipt emails after the response |
 | `dotenv`, `server-only` | Env loading for scripts, server-only guard |
@@ -128,17 +138,17 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
 | `pool.js` | `getTxDb()` WebSocket Pool for interactive transactions (not used: payments use a conditional-update claim instead) |
 | `schema/auth.js` | `user` (with `emailVerified`, `phone`, `role`), `session`, `account`, `verification` (also holds OTP codes) |
 | `schema/booking.js` | `pitches`, `time_blocks` |
-| `schema/commerce.js` | `coupons`, `bookings` (FKs to pitches/time_blocks, unique active slot index, `checkedInAt`, `checkedInBy` -> user), `coupon_redemptions`, `payments`, `audit_log` |
+| `schema/commerce.js` | `coupons`, `bookings` (FKs to pitches/time_blocks, unique active slot index, `checkedInAt`, `checkedInBy` -> user), `coupon_redemptions`, `payments` (`gateway`, `sessionKey` index), `audit_log` |
 | `schema/cms.js` | `site_settings` (incl. `mapLat`, `mapLng`, `mapZoom`, `mapLabel`, `mapAddress`), `nav_items`, `hero_slides`, `promo_banners`, `page_sections`, `media` |
 | `seed.js` | settings row, nav, sections, hero, banners, coupons, 3 pitches with default blocks, promotes `SEED_ADMIN_EMAIL` to admin (no map coordinates) |
 
 Migrations (`drizzle/`): `0000` initial schema, `0001` booking FKs + `bookings_active_slot_uq`, `0002` `bookings.checked_in_at/by`,
-`0003` `site_settings.map_*`.
+`0003` `site_settings.map_*`, `0004` `payments.gateway` + `payments_session_key_idx`.
 
 ### Lib (`src/lib/`)
 | File | Exports |
 |---|---|
-| `auth.js` | Better Auth server instance; `emailOTP` (6 digits, 5 min, 3 attempts, only `email-verification` sends mail); `requireEmailVerification: false`; `isGoogleEnabled` |
+| `auth.js` | Better Auth server instance; `emailOTP` (6 digits, 5 min, 3 attempts, only `email-verification` sends mail); `requireEmailVerification: false`; `databaseHooks.user.create/update.before` validate phone (BD mobile) and trim/cap name; `isGoogleEnabled`. Built-in rate limits in production: sign-in/up 3 per 10 s, OTP sends 3 per min (memory, per instance) |
 | `auth-client.js` | `authClient` (with `emailOTPClient`), `signIn`, `signUp`, `signOut`, `useSession` |
 | `brevo.js` | `sendBrevoEmail({ to, subject, html, text })`, throws on missing env / non-2xx |
 | `ticket-token.js` | `signTicket(bookingId)`, `verifyTicketToken(token)` -> `{ bookingId }` or null (HMAC-SHA256, `TICKET_SECRET` or `BETTER_AUTH_SECRET`, 365 days), `ticketVerifyUrl(bookingId)` |
@@ -147,22 +157,24 @@ Migrations (`drizzle/`): `0000` initial schema, `0001` booking FKs + `bookings_a
 | `action.js` | `action(schema, roles, handler)` wrapper for admin actions |
 | `time.js` | `DEFAULT_DAY_START`, `dhakaDate`, `dhakaTime`, `hhmmToMinutes`, `minutesToHHMM`, `addDaysISO`, `dayStartOf(blocks)`, `isAfterMidnight(hhmm, dayStart)`, `operatingMinutes(hhmm, dayStart)`, `playDateOf`, `isBlockPast(date, start, dayStart)`, `nightEndOf(blocks)`, `currentOperatingDay(nightEnd)`, `shortDateLabel`. `DAY_START_HOUR` kept only for old imports |
 | `cache-tags.js`, `utils.js` | tags, `cn`/`taka`/`time12` |
-| `env.js` | `checkEnv(env)` → `{ errors, warnings }`, `assertEnv()` (throws on a live production server). Called once at start-up from `src/instrumentation.js`. Warns on missing `BREVO_*` and missing/short `TICKET_SECRET` |
+| `env.js` | `checkEnv(env)` → `{ errors, warnings }`, `assertEnv()` (throws on a live production server). Called once at start-up from `src/instrumentation.js`. Warns on missing `BREVO_*`, missing/short `TICKET_SECRET`, partial `BKASH_*`, sandbox `SSLCZ_IS_LIVE`/`BKASH_IS_LIVE` on a live server; refuses `*_API_BASE` test vars live |
+| `phone.js` | Pure: `BD_PHONE_RE`, `BD_PHONE_HINT`, `normalizeBdPhone`, `cleanBdPhone` (used by auth hooks + profile) |
+| `utils.js` (also) | `safeNext(raw)`: same-site path or "/" (every `?next=` redirect) |
 
 ### Booking feature (`src/features/booking/`)
 | File | What it does |
 |---|---|
 | `slots.js` | Prototype slot engine (pure): generate/validate/resize/delete blocks, 12h formatting. Used by the admin slot editor in Step 3 |
 | `queries.js` | `currentVenueDay`, `getSheetDayStarts`, `defaultSheet`, `getVenueHoursLabel`, `withVenueHours`, `getPitches`, `getPitchById`, `toPitchView`, `getTimeBlocksForPitch`, `resolveBlock` (+ `dayStart`), `getTakenSlots`, `getSlotBoard`, `expireStaleHolds`, `getMyBookings` (adds `ticketToken` + `qrDataUrl` for confirmed, not yet played), `getBookingForUser`, `HOLD_MINUTES` |
-| `actions.js` | `previewCoupon({ code, pitchId, blockId, date })`, `createBookingHold({ pitchId, blockId, date, couponCode })` (`needsVerify` if email not verified; 0 total → confirmed free, `data.free`, receipt emailed), `cancelHeldBooking(bookingId)` |
-| `actions-email.js` | `resendTicketEmail(bookingId)`: own confirmed booking only → `sendBookingReceiptByBookingId` |
+| `actions.js` | `previewCoupon({ code, pitchId, blockId, date })`, `createBookingHold({ pitchId, blockId, date, couponCode })` (date must be real and inside the 14-day window; `needsVerify` if email not verified; 0 total → confirmed free, `data.free`, receipt emailed), `cancelHeldBooking(bookingId)` |
+| `actions-email.js` | `resendTicketEmail(bookingId)`: own confirmed booking only, max 3 per 15 min (logged in `audit_log` as `receipt_resend`) → `sendBookingReceiptByBookingId` |
 | `components/BookingClient.jsx` | Real data: fetches `/api/booked-slots`, loading/error/empty states, reserve, redirects to login with `next`; `emailVerified` prop shows a "Verify your email to book" banner and sends Pay to `/verify-email` |
-| `components/BookingSummary.jsx` | `onPay`, `busy`, `error`, `isSignedIn`, `coupon`, `onApplyCoupon`, `onRemoveCoupon`, `showCoupon` (default true); "Book for free" at 0 |
+| `components/BookingSummary.jsx` | `onPay`, `busy`, `error`, `isSignedIn`, `coupon`, `onApplyCoupon`, `onRemoveCoupon`, `showCoupon` (default true), `methods`/`method`/`onMethodChange` (PayMethodPicker); "Book for free" at 0 |
 | `components/PitchPicker.jsx` | Falls back to pitch lines when a ground has no photo |
-| `components/MyBookingsClient.jsx` | Real bookings, "reserved for you" notice, cancel held, `paymentsLive` flag, **Email receipt** (`onEmail`) |
+| `components/MyBookingsClient.jsx` | Real bookings, "reserved for you" notice, cancel held, `payMethods` (PayDialog / MethodOffDialog), **Email receipt** (`onEmail`) |
 | `components/BookingTicket.jsx` | `onCancel`, `onPay`, `onShow`, `onEmail`, `payHref`, `busy`, `highlight`; 72 px QR on confirmed bookings |
 | `components/TicketDialog.jsx` | Full ticket for a confirmed booking (code, ground, date, time, player, payment, 200 px QR "Show this at the gate", Add to calendar). Props `{ booking, onClose, playerName, venue: { name, address } }` |
-| `calendar.js` | Pure, for booking views with `dayStart`: `isAfterMidnight(b)`, `playDate(b)`, `calendarUrl(b)` (Google Calendar), `longDateLabel` ("Friday 16 October 2026") |
+| `calendar.js` | Pure, for booking views with `dayStart`: `isAfterMidnight(b)`, `playDate(b)`, `calendarUrl(b)` (Google Calendar), `longDateLabel` ("Friday 16 October 2026"); `BOOKING_DAYS_AHEAD` (14), `isRealDate(iso)` |
 | `parts.js` | Pure: `PARTS`, `partOf(start, late)`, `partsOf(blocks)` |
 | `components/DateStrip.jsx`, `SlotBoard.jsx` | Unchanged UI |
 
@@ -180,9 +192,9 @@ Register flow: `signUp.email()` → `authClient.emailOtp.sendVerificationOtp({ e
 ### QR tickets and check-in (Step 7b)
 | File | What it does |
 |---|---|
-| `app/(site)/verify/[token]/page.jsx` | **Public** (not in `proxy.js`). Verifies the token, re-reads the booking. States in order: `invalid` (bad token), `not_found`, `cancelled`, `expired`, `unpaid` (held), `refunded`, `played` (start time past), `invalid` (other non-confirmed), else `valid`. `canCheckIn` = signed-in admin + `valid` + not checked in |
+| `app/(site)/verify/[token]/page.jsx` | **Public** (not in `proxy.js`), `noindex` + disallowed in robots. Verifies the token, re-reads the booking. States in order: `invalid` (bad token), `not_found`, `cancelled`, `expired`, `unpaid` (held), `refunded`, `played` (start time past), `invalid` (other non-confirmed), else `valid`. `canCheckIn` = signed-in admin + `valid` + booking date is today's venue day + not checked in (`wrongDay` note otherwise) |
 | `components/site/VerifyTicket.jsx` | Coloured result card + booking rows (code, ground, date, "Night of", time, player, amount, checked in) + **Mark as used** |
-| `features/admin/actions/checkin.js` | `markTicketUsed({ bookingId })`: admin only; `UPDATE ... WHERE status='confirmed' AND checked_in_at IS NULL` sets `checkedInAt`/`checkedInBy`; error if already used; no audit_log |
+| `features/admin/actions/checkin.js` | `markTicketUsed({ bookingId })`: admin only; only when the booking's date is today's venue day (`currentVenueDay`); `UPDATE ... WHERE status='confirmed' AND checked_in_at IS NULL` sets `checkedInAt`/`checkedInBy`; error if already used; no audit_log |
 | `app/api/ticket-qr/[token]/route.js` | GET → PNG of the verify URL (404 for a bad token), `Cache-Control: immutable`. Used by emails |
 
 Rules: the QR only proves we issued it; state is always re-read. A fresh token (new `issuedAt`) is minted on every render,
@@ -203,18 +215,27 @@ booking and after a free booking (both `waitUntil`); not for walk-ins. Already-c
 ### Payment feature (`src/features/payment/`) and `src/lib/sslcommerz.js`
 | File | What it does |
 |---|---|
-| `lib/sslcommerz.js` | `initSession`, `validateOrder(valId)`, `queryTransaction(tranId)`, `isSslczConfigured()`, `prettyMethod(cardType)`. Sandbox unless `SSLCZ_IS_LIVE=true`. `SSLCZ_API_BASE` is only for tests (local mock) |
-| `service.js` | `startPayment(bookingId, user)`, `confirmPayment({ tranId, valId })` (idempotent; outcomes confirmed / slot_lost / duplicate / invalid / pending / unknown; on confirm also redeems the coupon and queues the receipt email), `recheckPayment(tranId)`, `recheckOpenPayments()`, `markPaymentClosed(tranId, status)`, `getPaymentResult(tranId)` |
-| `actions.js` | `payForBooking(bookingId)` → `{ ok, data: { url } }` (`needsVerify` if email not verified); the client does `window.location.assign(url)` |
+| `lib/sslcommerz.js` | `initSession`, `validateOrder(valId)`, `queryTransaction(tranId)`, `isSslczConfigured()`, `prettyMethod(cardType)` (`"BKASH"` → "bKash"). Sandbox unless `SSLCZ_IS_LIVE=true`. `SSLCZ_API_BASE` is only for tests (local mock) |
+| `lib/bkash.js` | Tokenized Checkout v1.2.0-beta: `isBkashConfigured()`, `createPayment({ tranId, amount, payerReference, callbackURL })` → `{ ok, paymentId, url }`, `executePayment(paymentId)`, `queryPayment(paymentId)`. Token cached per instance, re-granted once on 401. Sandbox unless `BKASH_IS_LIVE=true`; `BKASH_API_BASE` only for tests |
+| `methods.js` | `GATEWAYS = ["bkash", "sslcommerz"]`, `SWITCHES_KEY = "payments"`; `isGatewayConfigured(g)` / `configuredGateways()` (env keys, sync; used by callbacks, rechecks, cron); `getPaymentSwitches()` (admin switches from `page_sections`, uncached, missing = on); `await getPayMethods()` → configured `[{ id, label, hint, enabled }]`; `getPaymentMethodsAdmin()`; `gatewayName(g)` |
+| `service.js` | `startPayment(bookingId, user, method)`, `confirmPayment({ tranId, valId })` (SSLCommerz rows only; idempotent; outcomes confirmed / slot_lost / duplicate / invalid / pending / unknown), `confirmBkashPayment(paymentId)` (execute → query fallback; + `not_paid`), `closeBkashPayment(paymentId, status, raw)`, shared `claimAndSettle` (claim once, confirm, coupon, receipt email), `recheckPayment(tranId)` (per gateway; bKash = query only), `recheckOpenPayments()`, `markPaymentClosed(tranId, status)`, `getPaymentResult(tranId)` (+ `gateway`) |
+| `actions.js` | `payForBooking(bookingId, method?)` → `{ ok, data: { url } }` (`needsVerify` if email not verified; refuses an unconfigured method); the client does `window.location.assign(url)` |
+| `components/PayMethodPicker.jsx` | `{ methods, value, onChange, compact }`; cards or segmented pills; nothing with one method |
+| `components/PayDialog.jsx` | `{ open, onClose, methods, amount, busy, error, onPay(method) }` for held bookings (My bookings, retry); picking an off method swaps to the "off" message in the same dialog |
+| `components/MethodOffDialog.jsx` | Default `MethodOffDialog({ open, onClose, off, alternatives, onUse(id), busy, deskPhone })`; also `MethodOffNotice`, `offCopy(off, alternatives)`, `payLabel(m)` |
 | `result-page.js` | `loadPaymentResult(page, searchParams)` for the three result pages (re-checks once on success if still initiated) |
 | `components/PaymentResult.jsx` | States: success, pending, failed, cancelled, refund, missing. Google Calendar link |
-| `components/RetryPayButton.jsx` | "Try payment again" |
+| `components/RetryPayButton.jsx` | "Try payment again" `{ bookingId, methods, amount }`; opens `PayDialog` with 2+ methods |
 
-Routes: `POST /api/payment/sslcommerz/[event]` (success, fail, cancel, ipn), `GET /api/cron/expire-holds`
+Routes: `POST /api/payment/sslcommerz/[event]` (success, fail, cancel, ipn), `GET /api/payment/bkash/callback`
+(`?paymentID=&status=success|failure|cancel`), `GET /api/cron/expire-holds`
 (Bearer `CRON_SECRET`; `vercel.json` runs it daily at 03:00 Dhaka).
 
 Payment rules:
-- `tran_id` = `<booking code>-<6 chars>`, one `payments` row per attempt (`initiated` → `paid` | `failed` | `cancelled` | `refund_due` | `refunded`).
+- `tran_id` = `<booking code>-<6 chars>`, one `payments` row per attempt (`initiated` → `paid` | `failed` | `cancelled` | `refund_due` | `refunded`),
+  `gateway` = `sslcommerz` | `bkash`. bKash rows: `sessionKey` = `paymentID`, `bankTranId` = `trxID`, `cardType` = `"BKASH"`.
+- bKash: paid only after **execute** (or a status query) says `Completed` for the same paymentID, invoice (`tranId`), BDT and amount.
+  Rechecks never execute. Callback status in the URL is never trusted for "paid".
 - Only the Validation API is trusted (status VALID/VALIDATED, same tran_id, currency BDT, same amount). Callback fields are never trusted.
 - Claim = `UPDATE payments SET status='paid' WHERE status <> 'paid' RETURNING`; only the winner touches the booking.
 - Booking held or expired → confirmed (the unique slot index decides if an expired one can be revived).
@@ -255,7 +276,7 @@ Booking query added in Step 4: `getGroundsToday()` → `{ date, pitches: [...pit
 | File | What it does |
 |---|---|
 | `rules.js` | Pure: `normalizeCode`, `evaluateCoupon(coupon, ctx)` → `{ ok, discount, total }` or `{ ok:false, error }`, `discountLabel`, `timeWindowLabel`, `isHHMM` |
-| `service.js` | Server: `getCouponByCode`, `couponUses(coupon, userId)` (redemptions + active holds), `checkCouponForSlot`, `redeemCoupon(bookingId)` (once per booking) |
+| `service.js` | Server: `getCouponByCode`, `couponUses(coupon, userId)` (redemptions + active holds), `checkCouponForSlot`, `redeemCoupon(bookingId)` (once per booking, atomic via unique index + `onConflictDoNothing`) |
 
 ### Admin feature (`src/features/admin/`)
 | File | What it does |
@@ -265,11 +286,12 @@ Booking query added in Step 4: `getGroundsToday()` → `{ date, pitches: [...pit
 | `actions/bookings.js` | Admin only: `adminCancelBooking({ bookingId, reason })` (paid becomes `refund_due`), `markRefunded` (also marks its payments refunded), `createWalkInBooking` (confirmed, `source = walk_in`, BD phone check) |
 | `commerce-queries.js` | `couponStatus`, `getCouponsAdmin()`, `getPaymentsAdmin({ q, status, page })` (`PAYMENTS_PAGE_SIZE = 25`), `getUsersAdmin({ q })` |
 | `actions/coupons.js` | Admin only: `saveCoupon`, `setCouponActive`, `deleteCoupon` (refused once used); all `updateTag(TAGS.banners)` |
-| `actions/payments.js` | Admin only: `adminRecheckPayment(tranId)` → `{ outcome, message }`, `markPaymentRefunded(paymentId)` |
+| `actions/payments.js` | Admin only: `setPaymentMethodEnabled({ gateway, enabled })` (refuses on without keys), `adminRecheckPayment(tranId)` → `{ outcome, message }` (asks the row's own gateway), `markPaymentRefunded(paymentId)` |
+| `components/PaymentMethodsPanel.jsx` | Payment methods card on Admin, Payments: On / Off / Keys not set + switch per gateway, all-off warning |
 | `actions/users.js` | Admin only: `setUserRole({ userId, role })`, role `admin | editor | user` (not yourself, not the last admin) |
 | `actions/checkin.js` | Admin only: `markTicketUsed({ bookingId })` (see Step 7b above) |
 | `components/CouponsManager.jsx` | Codes table (switch, usage, discount given, status) + editor panel (limits, dates, grounds, days, hours) |
-| `components/PaymentsTable.jsx` | URL tabs + search, refund/risky alerts, Check with SSLCommerz, Mark refunded, pagination |
+| `components/PaymentsTable.jsx` | URL tabs + search, refund/risky alerts, gateway per row, Check with bKash / SSLCommerz (`readyGateways`), Mark refunded, pagination |
 | `components/UsersTable.jsx` | Search, role select Admin / Editor / Player (locked for yourself and the last admin) |
 | `components/GroundsList.jsx` | Ground cards, open switch, Edit (PitchForm), Edit slots link, empty state |
 | `components/PitchForm.jsx` | Add/edit ground dialog (`EMPTY_PITCH`); photo via ImageUploader (folder `pitches`) |
@@ -293,7 +315,7 @@ Shared: `src/components/ui/Dialog.jsx` (modal), `src/components/admin/TonightBoa
 | `/verify/[token]` | **Live**, public. QR ticket check; admins also get **Mark as used** |
 | `/login`, `/register` | **Live** (Better Auth, logo + side photo from CMS), forms wrapped in Suspense |
 | `/verify-email` | **Live** (`?email=&next=`), 6-digit code from Brevo |
-| `/admin` | **Live** overview |
+| `/admin` | **Live** overview (editors see only "Live on the website"; numbers, today board and bookings are admin only) |
 | `/admin/pitches`, `/admin/pitches/[id]` | **Live**, admin only |
 | `/admin/bookings` | **Live**, admin only (`?range=today|upcoming|week|all&q=&pitch=&status=&page=&walkin=1`) |
 | `/admin/{branding,navigation}` | **Live**, admin only |
@@ -305,6 +327,7 @@ Shared: `src/components/ui/Dialog.jsx` (modal), `src/components/admin/TonightBoa
 | `/api/booked-slots` | **Live** slot board JSON |
 | `/api/ticket-qr/[token]` | **Live** QR PNG for emails |
 | `/api/payment/sslcommerz/[event]` | **Live** SSLCommerz callbacks + IPN (POST) |
+| `/api/payment/bkash/callback` | **Live** bKash browser callback (GET) |
 | `/api/cron/expire-holds` | **Live** (Bearer `CRON_SECRET`) |
 
 ## 7. Review notes (12 Oct 2026)
@@ -347,9 +370,18 @@ Still open:
 - [x] **Step 7b** (19 Oct): `lib/ticket-token.js`, `lib/qrcode.js`, QR on tickets, public `/verify/[token]`, admin check-in
   (`actions/checkin.js`, migration 0002), receipt email (`features/auth/ticket-email.js`, auto + resend), `/api/ticket-qr/[token]`.
 - [x] **Step 7c** (22 Oct): venue map (migration 0003, Branding map panel, Leaflet `VenueMap` + `VenueMapLoader`).
-- [ ] **Pre-deploy fixes**: update `DEPLOY.md` (Brevo, `TICKET_SECRET`, QR/receipt checks); `robots.js` disallow `/verify`,
-  `/verify-email`; "Checked in" column + filter in Admin, Bookings; optional `time12()` + site name on `/verify`.
-- [ ] **Deploy**: follow `DEPLOY.md` (Vercel, live Neon branch, `db:migrate` 0000 to 0003, domain, Google OAuth, live SSLCommerz + IPN, external 15-min cron).
+- [x] **Step 8a** (25 Oct): direct bKash Tokenized Checkout (`lib/bkash.js`, `payment/methods.js`, bKash callback route,
+  `PayMethodPicker`, `PayDialog`, gateway-aware service/recheck/cron/admin, `payments.gateway` migration 0004, `BKASH_*` env).
+- [x] **Step 8b** (26 Oct): admin on/off switch per payment method (`PaymentMethodsPanel`, `setPaymentMethodEnabled`,
+  `page_sections` "payments"), "Off right now" in the picker, `MethodOffDialog`, `methodOff` answer from `payForBooking`.
+- [-] Direct Nagad: dropped (whitelisted fixed IP needed; Vercel Static IPs $100/month). Nagad stays inside SSLCommerz.
+- [x] **Security review** (26 Oct): Next 16.4.3, zod 4.6.7, `safeNext`, booking window, phone/name hooks, editor overview,
+  resend limit, match-day check-in, bKash slot check before execute, security headers, robots/noindex for verify pages.
+- [ ] **Confirm on the dev machine**: `payments.gateway` column exists; sandbox payment with bKash and SSLCommerz; method
+  switches; sign-up phone check; `?next=` redirect stays on site.
+- [ ] **Pre-deploy fixes**: update `DEPLOY.md` (Brevo, `TICKET_SECRET`, `BKASH_*`, QR/receipt checks); "Checked in" column
+  + filter in Admin, Bookings; optional `time12()` + site name on `/verify`.
+- [ ] **Deploy**: follow `DEPLOY.md` (Vercel, live Neon branch, `db:migrate` 0000 to 0004, domain, Google OAuth, live SSLCommerz + IPN, external 15-min cron).
 - [ ] Optional later: write admin actions (incl. check-in) to `audit_log`, SMS confirmations, SSLCommerz refund API (needs a fixed IP), remove `editor` if unused.
 
 ## 9. Gotchas
@@ -367,7 +399,13 @@ Still open:
 | Admin edit doesn't show on the site | The save action must call `updateTag(TAGS.x)` (server actions) for the tag the public read uses |
 | Upload: "isn't set up" / "couldn't be verified" | Cloudinary keys missing, or the secret doesn't match the cloud name and key |
 | `next/image` error "hostname is not configured" | Use `unoptimized={!canOptimize(src)}`, or add the host to `next.config.mjs` |
-| Pay button missing | `SSLCZ_STORE_ID` / `SSLCZ_STORE_PASSWORD` not set in `.env.local` (restart dev after editing) |
+| Pay button missing | No gateway configured: neither `SSLCZ_STORE_ID`/`SSLCZ_STORE_PASSWORD` nor all four `BKASH_*` set (restart dev after editing) |
+| "X is off right now" for players | The admin switched that method off in Admin, Payments, Payment methods |
+| `npm ci` says lock file out of sync | `package.json` and `package-lock.json` must be replaced together (or run `npm install`) |
+| Sign-up refused with the phone message | The phone isn't a Bangladeshi mobile (`01XXXXXXXXX`); checked server-side by the auth hook |
+| "You can book up to 14 days ahead" | The date is outside `BOOKING_DAYS_AHEAD` or not a real date (server check) |
+| Verify page: no Mark as used, "not today" note | Check-in only works on the booking's match day |
+| "We've already sent this receipt 3 times" | Resend limit (3 per 15 min per booking, `audit_log`) |
 | IPN never arrives locally | Expected: SSLCommerz can't reach localhost. The browser success callback confirms instead; IPN works once deployed |
 | Vercel deploy fails on cron schedule | Hobby plan allows daily crons only; keep `vercel.json` daily or use an external cron with the Bearer header |
 | Stale styles | Delete `.next`, restart dev |
@@ -385,6 +423,10 @@ Still open:
 | `window is not defined` (Leaflet) | Only import `VenueMap` through `VenueMapLoader` |
 | Map shows the illustration | Latitude/longitude empty in Admin, Branding, Map location |
 | Lint warns `no-img-element` on QR images | Intentional (data URLs); 0 errors is the bar |
+| "Pay with bKash" missing | All four `BKASH_*` keys needed; restart dev after editing `.env.local` |
+| bKash payment ends on "didn't go through" | Logs `[bkash:not_paid]` show bKash's code (PIN/OTP, test wallet balance, timeout); slot stays held |
+| `[bkash:grant]` in logs | Wrong bKash keys, or sandbox keys with `BKASH_IS_LIVE=true` |
+| `column "gateway" does not exist` | `npm run db:generate` then `npm run db:migrate` (0004) |
 
 ## 10. Changelog
 - 2026-10-11: Blueprint agreed. Phase 0 UI built (73 files). Project set up in `D:\projects\turf-cms`.
@@ -410,6 +452,40 @@ Still open:
 - 2026-10-22: Step 7c. Venue map: `site_settings.map_*` (migration 0003), Branding "Map location", `toSettings().map`, `VenueMap` (react-leaflet, OSM) via `VenueMapLoader` (`ssr: false`), `VenueInfo` falls back to the illustration.
 
 - 2026-10-25: Docs refreshed to match the code (`Agents.md`, `CLAUDE.md`, `ai-context.md`). Corrected: editor role still exists, `/verify` is public. Lint: 0 errors, 2 img warnings. Open: `DEPLOY.md` env table, robots, checked-in column.
+
+- 2026-10-25: Step 8a. Direct bKash Tokenized Checkout beside SSLCommerz: `lib/bkash.js`, `payment/methods.js`,
+  `api/payment/bkash/callback`, `confirmBkashPayment` (execute → query, shared `claimAndSettle`), per-gateway recheck in
+  cron/admin/success page, `PayMethodPicker` + `PayDialog` on /book, My bookings and retry, admin Payments shows the gateway,
+  `payments.gateway` + `payments_session_key_idx` (migration 0004), `BKASH_*` in `.env.example` and the env check.
+  Lint 0 errors; build compiles; bKash client tested against a mock (grant, 401 re-grant, create, execute 2117 → query).
+
+- 2026-10-26: Step 8b. Payment method switches: `methods.js` splits configured (env) from enabled (admin switch in
+  `page_sections` key `payments`), `getPayMethods()` is async and returns `enabled`, `setPaymentMethodEnabled`,
+  `PaymentMethodsPanel` on Admin, Payments, `MethodOffDialog` + "Off right now" in `PayMethodPicker`, `PayDialog` off view,
+  `payForBooking` returns `methodOff` with the methods that are on; /book checks before reserving. Rechecks/cron ignore the
+  switch. Direct Nagad dropped. Lint 0 errors; build compiles.
+
+- 2026-10-26: Developer applied everything: `npm ci` (next 16.4.3, zod 4.6.7), migration `0004_next_fabian_cortez`
+  generated + migrated, `npm run build` passes on Windows. Still to confirm: the `payments.gateway` column exists
+  (migrate printed no success line) and a real sandbox payment with bKash and SSLCommerz.
+
+- 2026-10-26: Security review + fixes. Next.js 16.4.0 → **16.4.3** (critical advisories: image-optimizer SVG RCE,
+  server-action DoS), zod → 4.6.7 (+ `overrides` for `@vercel/cli-config`). Open redirect via `?next=` fixed (`safeNext`
+  in `lib/utils.js`, used by login/register/verify-email/Google). Booking date must be a real day inside the 14-day
+  window (`BOOKING_DAYS_AHEAD`, `isRealDate` in `booking/calendar.js`; checked in `createBookingHold`/`previewCoupon`).
+  Phone/name validated server-side for sign-up and Better Auth update-user (`databaseHooks` in `lib/auth.js`,
+  `lib/phone.js`). Editors no longer see revenue/bookings on the overview. Receipt resend limited to 3 per 15 min
+  (`audit_log` action `receipt_resend`). Check-in only on match day (`markTicketUsed` + verify page note). bKash is not
+  executed when the slot is gone (no charge, no manual refund). Security headers in `next.config.mjs`;
+  `/verify/` + `/verify-email` disallowed in robots, verify page `noindex`. CMS link check rejects `/\\host`.
+  Remaining audit: 4 moderate in drizzle-kit's esbuild (dev only).
+
+- 2026-10-26: Payment robustness (from an external review). `claimAndSettle` follow-ups: a payment already marked paid
+  whose booking is still unpaid (crash between the two writes) is settled by `ensureSettled` on the next callback /
+  recheck (after 2 min) and by `repairUnsettledPayments()` in the cron job (runs before holds expire);
+  `duplicateOrConfirmed` decides refund_due only when another paid payment exists for the booking. `redeemCoupon`
+  is atomic: unique index `redemptions_booking_uq` on `coupon_redemptions.booking_id` + `onConflictDoNothing`, and
+  `usedCount` only bumps for the winning insert (migration generated on the dev machine).
 
 <!-- BEGIN:nextjs-agent-rules -->
 

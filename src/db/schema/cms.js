@@ -34,6 +34,8 @@ export const siteSettings = pgTable("site_settings", {
     mapZoom: integer("map_zoom"),
     mapLabel: text("map_label"),
     mapAddress: text("map_address"),
+    overrideRevenueToday: integer("override_revenue_today").notNull().default(0),
+    overrideRevenueMonth: integer("override_revenue_month").notNull().default(0),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     updatedBy: text("updated_by"),
 });

@@ -89,7 +89,11 @@ export const couponRedemptions = pgTable(
         amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
         createdAt: timestamp("created_at").notNull().defaultNow(),
     },
-    (t) => [index("redemptions_coupon_user_idx").on(t.couponId, t.userId)]
+    (t) => [
+        index("redemptions_coupon_user_idx").on(t.couponId, t.userId),
+        // One redemption per booking: makes redeemCoupon safe when two callbacks settle at once
+        uniqueIndex("redemptions_booking_uq").on(t.bookingId),
+    ]
 );
 
 export const payments = pgTable(
@@ -99,7 +103,11 @@ export const payments = pgTable(
         bookingId: uuid("booking_id")
             .notNull()
             .references(() => bookings.id, { onDelete: "cascade" }),
+        // Which gateway handled this attempt: "sslcommerz" | "bkash" (Nagad next)
+        gateway: text("gateway").notNull().default("sslcommerz"),
+        // Our transaction id (SSLCommerz tran_id, bKash merchantInvoiceNumber)
         tranId: text("tran_id").notNull().unique(),
+        // SSLCommerz session key, or the bKash paymentID
         sessionKey: text("session_key"),
         valId: text("val_id"),
         bankTranId: text("bank_tran_id"),
@@ -117,6 +125,7 @@ export const payments = pgTable(
     (t) => [
         index("payments_booking_idx").on(t.bookingId),
         index("payments_status_idx").on(t.status),
+        index("payments_session_key_idx").on(t.sessionKey),
     ]
 );
 

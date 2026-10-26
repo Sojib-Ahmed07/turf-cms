@@ -6,11 +6,12 @@ import { Field, Input } from "@/components/ui/Field";
 import Button from "@/components/ui/Button";
 import { Mail, KeyRound } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { safeNext } from "@/lib/utils";
 
 export function VerifyEmailForm({ initialEmail = "" }) {
     const router = useRouter();
     const params = useSearchParams();
-    const next = params.get("next") || "/";
+    const next = safeNext(params.get("next"));
     const [email] = useState(initialEmail || params.get("email") || "");
     const [otp, setOtp] = useState("");
     const [error, setError] = useState("");

@@ -8,13 +8,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { user } from "@/db/schema";
 import { auth } from "@/lib/auth";
-
-/** "+8801712345678", "8801712345678", "01712-345678" -> "01712345678"; anything else stays as typed (and fails the check). */
-function normalizeBdPhone(raw) {
-    const digits = String(raw ?? "").replace(/[\s-]/g, "");
-    const m = digits.match(/^(?:\+?88)?(01[3-9]\d{8})$/);
-    return m ? m[1] : digits;
-}
+import { BD_PHONE_HINT, BD_PHONE_RE, normalizeBdPhone } from "@/lib/phone";
 
 const profileSchema = z.object({
     name: z.string().trim().min(2, "Enter your name.").max(60, "Keep your name under 60 characters."),
@@ -22,7 +16,7 @@ const profileSchema = z.object({
         .string()
         .trim()
         .max(20)
-        .refine((v) => v === "" || /^01[3-9]\d{8}$/.test(v), "Enter a Bangladeshi mobile number, e.g. 01712345678."),
+        .refine((v) => v === "" || BD_PHONE_RE.test(v), BD_PHONE_HINT),
 });
 
 /** Update the signed-in player's name and mobile number. */

@@ -3,7 +3,8 @@
 import "server-only";
 import { getPaymentResult, recheckPayment } from "./service";
 import { getSiteSettings } from "@/features/cms/queries";
-import { isSslczConfigured, prettyMethod } from "@/lib/sslcommerz";
+import { prettyMethod } from "@/lib/sslcommerz";
+import { getPayMethods, isGatewayConfigured } from "./methods";
 
 /**
  * page: "success" | "failed" | "cancelled" (which URL the player landed on).
@@ -15,8 +16,8 @@ export async function loadPaymentResult(page, searchParams) {
 
     let r = tran ? await getPaymentResult(tran) : null;
 
-    // Came back from the gateway but we haven't confirmed yet (slow or lost callback): ask SSLCommerz once.
-    if (r && page === "success" && r.paymentStatus === "initiated" && isSslczConfigured()) {
+    // Came back from the gateway but we haven't confirmed yet (slow or lost callback): ask that gateway once.
+    if (r && page === "success" && r.paymentStatus === "initiated" && isGatewayConfigured(r.gateway)) {
         try {
             await recheckPayment(tran);
             r = await getPaymentResult(tran);
@@ -27,7 +28,8 @@ export async function loadPaymentResult(page, searchParams) {
 
     const settings = await getSiteSettings();
     const deskPhone = settings.contact.phone;
-    if (!r) return { status: "missing", booking: null, canRetry: false, deskPhone };
+    const payMethods = await getPayMethods();
+    if (!r) return { status: "missing", booking: null, canRetry: false, deskPhone, payMethods };
 
     let status;
     if (r.refundDue) status = "refund";
@@ -38,7 +40,8 @@ export async function loadPaymentResult(page, searchParams) {
     return {
         status,
         booking: { ...r.booking, paidWith: prettyMethod(r.booking.paidWith) },
-        canRetry: r.canRetry,
+        canRetry: r.canRetry && payMethods.length > 0,
         deskPhone,
+        payMethods,
     };
 }

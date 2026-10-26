@@ -12,6 +12,7 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { TextInput } from "@/components/ui/Inputs";
 import { adminRecheckPayment, markPaymentRefunded } from "@/features/admin/actions/payments";
+import PaymentMethodsPanel from "./PaymentMethodsPanel";
 import { cn, taka } from "@/lib/utils";
 
 const TABS = [
@@ -33,8 +34,12 @@ function href({ q, status, page }) {
     return `/admin/payments${s ? `?${s}` : ""}`;
 }
 
-/** data: from getPaymentsAdmin(); filters: { q, status } from the URL; gatewayReady: SSLCommerz configured */
-export default function PaymentsTable({ data, filters, gatewayReady = true }) {
+/**
+ * data: from getPaymentsAdmin(); filters: { q, status } from the URL;
+ * readyGateways: gateways with keys set, e.g. ["bkash", "sslcommerz"];
+ * methods: from getPaymentMethodsAdmin(), for the on/off switches
+ */
+export default function PaymentsTable({ data, filters, readyGateways = [], methods = [] }) {
     const router = useRouter();
     const [busyId, setBusyId] = useState(null);
     const [refund, setRefund] = useState(null);
@@ -66,7 +71,9 @@ export default function PaymentsTable({ data, filters, gatewayReady = true }) {
 
     return (
         <div className="mx-auto max-w-[1280px]">
-            <PageHeader title="Payments" description="Every SSLCommerz transaction. A booking is only confirmed after SSLCommerz validates its payment." />
+            <PageHeader title="Payments" description="Every bKash and SSLCommerz transaction. A booking is only confirmed after the gateway itself confirms the payment." />
+
+            <PaymentMethodsPanel methods={methods} showToast={showToast} />
 
             {(counts.refundDue > 0 || counts.risky > 0) && (
                 <div className="mb-6 grid gap-3 md:grid-cols-2">
@@ -137,7 +144,12 @@ export default function PaymentsTable({ data, filters, gatewayReady = true }) {
                                 <tr key={p.id} className={cn(p.risky ? "bg-flare-soft/60" : "hover:bg-chalk/60")}>
                                     <Td>
                                         <span className="block font-semibold text-ink tnum">{p.tranId}</span>
-                                        {p.bankTranId && <span className="block text-[12px] text-ink-3 tnum">Bank ref {p.bankTranId}</span>}
+                                        <span className="block text-[12px] text-ink-3">{p.gatewayLabel}</span>
+                                        {p.bankTranId && (
+                                            <span className="block text-[12px] text-ink-3 tnum">
+                                                {p.gateway === "bkash" ? "bKash TrxID" : "Bank ref"} {p.bankTranId}
+                                            </span>
+                                        )}
                                     </Td>
                                     <Td>
                                         <Link href={`/admin/bookings?range=all&q=${encodeURIComponent(p.bookingCode)}`} className="font-semibold text-ink hover:underline tnum">
@@ -167,10 +179,10 @@ export default function PaymentsTable({ data, filters, gatewayReady = true }) {
                                                     Mark refunded
                                                 </Button>
                                             )}
-                                            {gatewayReady && ["initiated", "failed", "cancelled"].includes(p.status) && (
+                                            {readyGateways.includes(p.gateway) && ["initiated", "failed", "cancelled"].includes(p.status) && (
                                                 <Button variant="outline" size="sm" disabled={pending} onClick={() => recheck(p)}>
                                                     <RefreshCw className={cn("h-3.5 w-3.5", busyId === p.id && "animate-spin")} />
-                                                    {busyId === p.id ? "Checking…" : "Check with SSLCommerz"}
+                                                    {busyId === p.id ? "Checking…" : `Check with ${p.gatewayLabel}`}
                                                 </Button>
                                             )}
                                         </div>

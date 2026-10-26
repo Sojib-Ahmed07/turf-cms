@@ -4,13 +4,14 @@ import { db } from "@/db";
 import { bookings, pitches, user as userTable } from "@/db/schema";
 import { verifyTicketToken } from "@/lib/ticket-token";
 import { getSession } from "@/lib/guards";
-import { getSheetDayStarts } from "@/features/booking/queries";
+import { currentVenueDay, getSheetDayStarts } from "@/features/booking/queries";
 import { isBlockPast } from "@/lib/time";
 import { longDateLabel, playDate, isAfterMidnight } from "@/features/booking/calendar";
 import { shortDateLabel } from "@/lib/time";
 import VerifyTicket from "@/components/site/VerifyTicket";
 
-export const metadata = { title: "Verify ticket" };
+// Shows a player's name and booking: never in search results.
+export const metadata = { title: "Verify ticket", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
 export default async function VerifyTicketPage({ params }) {
@@ -85,14 +86,15 @@ export default async function VerifyTicketPage({ params }) {
     else if (row.status !== "confirmed") state = "invalid";
 
     const session = await getSession();
-    const canCheckIn =
-        session?.user?.role === "admin" &&
-        state === "valid" &&
-        !booking.checkedInAt;
+    const isAdmin = session?.user?.role === "admin";
+    // Check-in only on match day (the venue day this booking's sheet belongs to).
+    const { date: today } = await currentVenueDay();
+    const wrongDay = state === "valid" && row.bookingDate !== today;
+    const canCheckIn = isAdmin && state === "valid" && !wrongDay && !booking.checkedInAt;
 
     return (
         <div className="mx-auto max-w-md px-4 pb-16 pt-10">
-            <VerifyTicket state={state} booking={booking} canCheckIn={canCheckIn} />
+            <VerifyTicket state={state} booking={booking} canCheckIn={canCheckIn} wrongDay={isAdmin && wrongDay && !booking.checkedInAt} />
         </div>
     );
 }

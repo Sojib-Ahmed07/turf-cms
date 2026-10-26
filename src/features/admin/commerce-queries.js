@@ -103,6 +103,8 @@ function paymentView(r) {
     return {
         id: r.id,
         tranId: r.tranId,
+        gateway: r.gateway,
+        gatewayLabel: r.gateway === "bkash" ? "bKash" : "SSLCommerz",
         bookingId: r.bookingId,
         bookingCode: r.bookingCode,
         bookingStatus: r.bookingStatus,
@@ -164,6 +166,7 @@ export async function getPaymentsAdmin({ q = "", status = "", page = 1 } = {}) {
             .select({
                 id: payments.id,
                 tranId: payments.tranId,
+                gateway: payments.gateway,
                 amount: payments.amount,
                 status: payments.status,
                 cardType: payments.cardType,

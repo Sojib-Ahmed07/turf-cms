@@ -8,6 +8,8 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { bookings } from "@/db/schema";
+import { currentVenueDay } from "@/features/booking/queries";
+import { shortDateLabel } from "@/lib/time";
 
 async function requireAdmin() {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -25,6 +27,18 @@ export async function markTicketUsed(input) {
         if (!admin) return DENIED;
         const parsed = schema.safeParse(input);
         if (!parsed.success) return { ok: false, error: "Booking not found." };
+
+        // Only on match day: a ticket for another day must not be used up early by mistake.
+        const [b] = await db
+            .select({ date: bookings.bookingDate })
+            .from(bookings)
+            .where(eq(bookings.id, parsed.data.bookingId))
+            .limit(1);
+        if (!b) return { ok: false, error: "Booking not found." };
+        const { date: today } = await currentVenueDay();
+        if (b.date !== today) {
+            return { ok: false, error: `This ticket is for ${shortDateLabel(b.date)}, not today. It can only be used on match day.` };
+        }
 
         const rows = await db
             .update(bookings)

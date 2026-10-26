@@ -1,8 +1,9 @@
 # CLAUDE.md — TurfZone CMS
 
-Turf-booking site + CMS for one venue in Dhaka (Next.js 16.4 App Router, React 19.3, Tailwind v4,
-Drizzle + Neon Postgres, Better Auth + email OTP, Zod 4, SSLCommerz, Cloudinary, Brevo email, `qrcode`,
-Leaflet). **JavaScript only, no TypeScript.** Last synced with the code: 25 Oct 2026 (Steps 0 to 7c done).
+Turf-booking site + CMS for one venue in Dhaka (Next.js 16.4.3 App Router, React 19.3, Tailwind v4,
+Drizzle + Neon Postgres, Better Auth + email OTP, Zod 4, SSLCommerz + direct bKash, Cloudinary, Brevo
+email, `qrcode`, Leaflet). **JavaScript only, no TypeScript.** Last synced with the code: 26 Oct 2026
+(Steps 0 to 8b done, security review done; direct Nagad dropped). Next.js **16.4.3** is a security patch: don't downgrade.
 
 @Agents.md
 
@@ -15,7 +16,7 @@ for other models (Gemini, DeepSeek); keep its sections 3, 5, 6, 9 to 13 in sync 
 
 `node_modules/`, `.next/`, `.git/`, `package-lock.json`, `drizzle/meta/*.json` (generated snapshots),
 `public/` binaries. Never print or commit `.env.local` (holds `DATABASE_URL`, `BETTER_AUTH_SECRET`,
-`TICKET_SECRET`, Google, SSLCommerz, Cloudinary and Brevo keys).
+`TICKET_SECRET`, Google, SSLCommerz, bKash, Cloudinary and Brevo keys).
 
 Exception: before using a Next.js API you are unsure about, read the matching guide in
 `node_modules/next/dist/docs/` (`01-app/`, `03-architecture/`). Next 16 differs from older versions
@@ -27,7 +28,8 @@ Exception: before using a Next.js API you are unsure about, read the matching gu
 ```
 npm run dev           # next dev --webpack (Turbopack crashes here; keep --webpack)
 npm run build         # next build; run this to check a change compiles
-npm run lint          # eslint . (0 errors as of 25 Oct 2026; 2 accepted no-img-element warnings on QR images)
+npm run lint          # eslint . (0 errors as of 26 Oct 2026; 2 accepted no-img-element warnings on QR images)
+npm ci                # clean install; package.json and package-lock.json must change together
 npm run start         # serve the production build
 npm run db:generate   # after editing src/db/schema/*, then:
 npm run db:migrate    # apply to Neon. Do not mix with db:push on the same database
@@ -52,6 +54,7 @@ src/
     api/auth/[...all]  Better Auth handler
     api/booked-slots   live slot board JSON (no-store)
     api/payment/sslcommerz/[event]  SSLCommerz callbacks: success | fail | cancel | ipn (POST)
+    api/payment/bkash/callback      bKash browser callback (GET ?paymentID=&status=)
     api/cron/expire-holds           daily: re-check lost payments, expire holds (Bearer CRON_SECRET)
     api/ticket-qr/[token]           QR PNG for a signed ticket token (receipt emails)
   components/
@@ -70,14 +73,17 @@ src/
     coupons/           rules.js (pure evaluateCoupon), service.js (checkCouponForSlot, redeemCoupon)
     cms/               queries.js (cached reads, settings.map), admin-queries.js, server-utils.js, actions/*,
                        upload-client.js, admin/ (8 live editors incl. TermsEditor; BrandingForm has Map location)
-    payment/           service.js (start, confirm + receipt email, recheck), actions.js (payForBooking),
-                       result-page.js, components/PaymentResult.jsx, RetryPayButton.jsx
+    payment/           service.js (start per gateway, confirm SSLCommerz / bKash, recheck per gateway, receipt email),
+                       actions.js (payForBooking(id, method)), methods.js (GATEWAYS, getPayMethods),
+                       result-page.js, components/ (PaymentResult, RetryPayButton, PayMethodPicker, PayDialog,
+                       MethodOffDialog)
   db/                  index.js (neon-http), pool.js (unused), schema/, seed.js
   lib/                 auth (emailOTP), auth-client, guards, action, time, utils, cache-tags, sslcommerz,
-                       cloudinary, brevo, ticket-token, qrcode, env
+                       bkash, cloudinary, brevo, ticket-token, qrcode, phone, env
   proxy.js             cookie check redirect for /admin, /bookings, /profile
   instrumentation.js   runs lib/env.js assertEnv() once at server start
-drizzle/               migrations 0000 to 0003 (0002 check-in columns, 0003 map columns)
+drizzle/               migrations 0000 to 0004 (0002 check-in, 0003 map, 0004_next_fabian_cortez payments.gateway)
+next.config.mjs        image hosts + security headers (X-Frame-Options DENY, nosniff, Referrer-Policy, HSTS)
 ```
 
 Import alias: `@/*` → `src/*`. Schema is re-exported from `@/db/schema`.
@@ -140,6 +146,18 @@ The token only proves we issued it; always re-read the booking. Email clients ne
 **Browser-only libraries** (Leaflet): import through a `"use client"` wrapper using
 `next/dynamic(..., { ssr: false })`, like `VenueMapLoader.jsx`.
 
+**Payments:** every gateway goes through `features/payment/methods.js` (add it to `GATEWAYS`,
+`isGatewayConfigured`, labels) and `service.js` (start branch, confirm that only trusts the gateway's own
+server-side answer, recheck branch), then reuses `claimAndSettle`. Never confirm from callback URL fields.
+UI takes `payMethods` from `await getPayMethods()`; never hard-code a gateway in a component.
+"Configured" (env keys, `isGatewayConfigured`) and "enabled" (admin switch, `page_sections` key `payments`)
+are different: only *starting* a payment checks the switch; callbacks, rechecks and cron must not.
+
+**Redirect targets:** any `next`/return path from the URL goes through `safeNext()` (`src/lib/utils.js`): only
+same-site paths. **Phones:** use `src/lib/phone.js` (`normalizeBdPhone`, `cleanBdPhone`, `BD_PHONE_RE`). Better Auth
+`databaseHooks` in `lib/auth.js` validate phone/name on sign-up and update-user; keep them when adding user fields.
+**Booking dates:** server-side window `BOOKING_DAYS_AHEAD` + `isRealDate` (`booking/calendar.js`).
+
 **Booking gate:** `createBookingHold` and `payForBooking` refuse unverified emails with
 `{ ok: false, needsVerify: true }`. Keep that check in any new booking or payment entry point.
 
@@ -151,18 +169,26 @@ payments, coupons, users and ticket check-in are admin only (`adminOnly` in `Adm
 actions). Check the role inside every admin action, not only in the layout. Admin-only pages also call
 `requireRole(["admin"])` themselves. `/verify/[token]` is public; only `markTicketUsed` needs admin.
 
-## Known gaps (as of 25 Oct 2026)
+## Known gaps (as of 26 Oct 2026)
 
 - `BLUEPRINT.md` is not in the repo. `ai-context.md` section 12 has the remaining plan; ask before
   assuming anything beyond it.
-- Steps 0 to 7c are done (7a email OTP, 7b QR tickets + check-in + receipt email, 7c venue map).
-  Migrations 0002 and 0003 must be applied on every database. Next: pre-deploy fixes, then `DEPLOY.md`.
-- `DEPLOY.md` is behind: its env table and checks lack `BREVO_*` and `TICKET_SECRET`.
-- `robots.js` doesn't disallow `/verify` and `/verify-email`.
+- Steps 0 to 8b are done (7a email OTP, 7b QR tickets + check-in + receipt email, 7c venue map,
+  8a direct bKash, 8b admin payment-method switches). Migrations 0002 to 0004 must be applied on every database.
+- Direct Nagad was dropped (needs a whitelisted fixed IP; Vercel Static IPs cost $100/month). Don't build it
+  unless asked; Nagad works through SSLCommerz.
+- To confirm on the dev machine: the `payments.gateway` column exists (migrate printed no success line), and a real
+  sandbox payment with bKash and SSLCommerz.
+- Next: pre-deploy fixes, then `DEPLOY.md`.
+- bKash refunds are manual (merchant panel), like SSLCommerz.
+- `DEPLOY.md` is behind: its env table and checks lack `BREVO_*`, `TICKET_SECRET` and `BKASH_*`.
 - Admin, Bookings has no "Checked in" column/filter (`getAdminBookings` doesn't read `checkedInAt`).
 - `/verify` shows 24-hour times and hard-codes "TurfZone" in `VerifyTicket` copy.
 - Open question for the client: keep `/verify/<token>` public, or staff-only?
-- Not built (ask first): audit log writes (incl. check-in), SMS, SSLCommerz refund API.
+- Not built (ask first): audit log writes for admin actions (only receipt resends are logged), SMS, SSLCommerz refund API.
+- Declined (26 Oct): a hidden page to override the revenue shown on /admin. Don't build editable or fake financial
+  figures that viewers can't tell apart from real ones.
+- `npm audit`: 4 moderate in drizzle-kit's esbuild (dev only); everything else clean.
 - Default booking terms are a draft (24 h notice, 10 working days refunds); the venue must confirm them.
 
 ## End of session

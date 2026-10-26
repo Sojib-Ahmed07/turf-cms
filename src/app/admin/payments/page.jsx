@@ -1,10 +1,11 @@
 // src/app/admin/payments/page.jsx
 import PaymentsTable from "@/features/admin/components/PaymentsTable";
 import { getPaymentsAdmin } from "@/features/admin/commerce-queries";
-import { isSslczConfigured } from "@/lib/sslcommerz";
+import { configuredGateways, getPaymentMethodsAdmin } from "@/features/payment/methods";
 import { requireRole } from "@/lib/guards";
 
 export const metadata = { title: "Payments" };
+export const dynamic = "force-dynamic";
 
 const STATUSES = ["paid", "started", "failed", "refund_due", "refunded", "risky"];
 
@@ -16,6 +17,6 @@ export default async function Page({ searchParams }) {
         status: STATUSES.includes(params?.status) ? params.status : "",
     };
     const page = Math.max(1, Number.parseInt(params?.page, 10) || 1);
-    const data = await getPaymentsAdmin({ ...filters, page });
-    return <PaymentsTable data={data} filters={filters} gatewayReady={isSslczConfigured()} />;
+    const [data, methods] = await Promise.all([getPaymentsAdmin({ ...filters, page }), getPaymentMethodsAdmin()]);
+    return <PaymentsTable data={data} filters={filters} readyGateways={configuredGateways()} methods={methods} />;
 }

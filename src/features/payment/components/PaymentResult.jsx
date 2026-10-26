@@ -51,8 +51,9 @@ const COPY = {
  * booking: from getPaymentResult().booking (null for "missing")
  * canRetry: the slot is still held, show "Try payment again"
  * deskPhone: venue phone from site settings
+ * payMethods: [{ id, label, hint }] for "Try payment again"
  */
-export default function PaymentResult({ status = "success", booking = null, canRetry = false, deskPhone = "" }) {
+export default function PaymentResult({ status = "success", booking = null, canRetry = false, deskPhone = "", payMethods = [] }) {
     const c = COPY[status] ?? COPY.missing;
     const Icon = c.icon;
     const dark = status === "success";
@@ -120,7 +121,14 @@ export default function PaymentResult({ status = "success", booking = null, canR
                                 )}
                                 {(status === "failed" || status === "cancelled") && (
                                     <>
-                                        {canRetry && <RetryPayButton bookingId={booking.bookingId} className="w-full sm:w-auto sm:flex-1" />}
+                                        {canRetry && (
+                                            <RetryPayButton
+                                                bookingId={booking.bookingId}
+                                                methods={payMethods}
+                                                amount={booking.total}
+                                                className="w-full sm:w-auto sm:flex-1"
+                                            />
+                                        )}
                                         <Button href="/book" variant={canRetry ? "outline" : "brand"} size="lg" className="w-full sm:w-auto sm:flex-1">
                                             Pick another slot
                                         </Button>

@@ -6,6 +6,7 @@ import { Field, Input } from "@/components/ui/Field";
 import Button from "@/components/ui/Button";
 import { Mail, Lock, User as UserIcon, Phone, KeyRound } from "lucide-react";
 import { signIn, signUp, authClient } from "@/lib/auth-client";
+import { safeNext } from "@/lib/utils";
 
 function GoogleIcon() {
     return (
@@ -21,7 +22,7 @@ function GoogleIcon() {
 export function GoogleButton({ label = "Continue with Google" }) {
     const [busy, setBusy] = useState(false);
     const params = useSearchParams();
-    const next = params.get("next") || "/";
+    const next = safeNext(params.get("next"));
 
     async function onClick() {
         setBusy(true);
@@ -44,7 +45,7 @@ export function GoogleButton({ label = "Continue with Google" }) {
 export function LoginForm() {
     const router = useRouter();
     const params = useSearchParams();
-    const next = params.get("next") || "/";
+    const next = safeNext(params.get("next"));
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -105,7 +106,7 @@ export function LoginForm() {
 export function RegisterForm() {
     const router = useRouter();
     const params = useSearchParams();
-    const next = params.get("next") || "/";
+    const next = safeNext(params.get("next"));
     const [form, setForm] = useState({ name: "", phone: "", email: "", password: "" });
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);

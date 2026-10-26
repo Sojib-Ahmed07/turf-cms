@@ -10,6 +10,8 @@ import Button from "@/components/ui/Button";
 import { cancelHeldBooking } from "@/features/booking/actions";
 import { resendTicketEmail } from "@/features/booking/actions-email";
 import { payForBooking } from "@/features/payment/actions";
+import PayDialog from "@/features/payment/components/PayDialog";
+import MethodOffDialog from "@/features/payment/components/MethodOffDialog";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -22,13 +24,22 @@ export default function MyBookingsClient({
     bookings = [],
     userName,
     highlightCode,
-    paymentsLive = false,
+    payMethods = [],
     payFailed = false,
     playerName = "",
     venue = {},
 }) {
     const router = useRouter();
+    const paymentsLive = payMethods.length > 0;
+    const enabledMethods = payMethods.filter((m) => m.enabled);
     const [tab, setTab] = useState("upcoming");
+    const [payFor, setPayFor] = useState(null); // booking waiting for a method choice (PayDialog)
+    const [payError, setPayError] = useState("");
+    const closePay = useCallback(() => {
+        setPayFor(null);
+        setPayError("");
+    }, []);
+    const [offInfo, setOffInfo] = useState(null); // { off, alternatives, bookingId }: "this method is off" dialog
     const [busy, setBusy] = useState(null);
     const [error, setError] = useState(payFailed ? "We couldn't open the payment page. Your slot is still held, so try Pay again." : "");
     const [flash, setFlash] = useState("");
@@ -55,19 +66,45 @@ export default function MyBookingsClient({
         });
     }
 
+    /** Pay clicked on a held booking: pick a method first when more than one is set up. */
     function onPay(bookingId) {
         setError("");
         setFlash("");
+        if (payMethods.length > 1) {
+            setPayError("");
+            setPayFor(bookings.find((b) => b.bookingId === bookingId) ?? null);
+            return;
+        }
+        const only = payMethods[0];
+        if (only && !only.enabled) {
+            setOffInfo({ off: only, alternatives: [], bookingId });
+            return;
+        }
+        pay(bookingId, only?.id ?? "");
+    }
+
+    function pay(bookingId, method) {
         setBusy({ id: bookingId, what: "pay" });
         startTransition(async () => {
-            const res = await payForBooking(bookingId);
+            const res = await payForBooking(bookingId, method);
             if (res.ok) {
                 window.location.assign(res.data.url);
                 return;
             }
             setBusy(null);
-            setError(res.error);
-            if (res.expired) router.refresh();
+            if (res.methodOff) {
+                // The admin switched it off since the page loaded: say which method is on.
+                setPayFor(null);
+                setOffInfo({ off: res.off, alternatives: res.available ?? [], bookingId });
+                return;
+            }
+            if (payFor) setPayError(res.error);
+            else setError(res.error);
+            if (res.expired) {
+                setPayFor(null);
+                setError(res.error);
+                router.refresh();
+            }
         });
     }
 
@@ -110,6 +147,7 @@ export default function MyBookingsClient({
                             {paymentsLive
                                 ? "Pay before the time runs out to confirm the booking."
                                 : "Online payment is being set up. Call the desk to confirm, or cancel if you changed your mind."}
+                            {paymentsLive && enabledMethods.length === 0 && " Online payment is paused right now, so call the desk if the time is running out."}
                         </p>
                     </div>
                 </div>
@@ -173,6 +211,29 @@ export default function MyBookingsClient({
             </div>
 
             <TicketDialog booking={ticket} onClose={closeTicket} playerName={playerName} venue={venue} />
+            {payMethods.length > 1 && (
+                <PayDialog
+                    open={Boolean(payFor)}
+                    onClose={closePay}
+                    methods={payMethods}
+                    amount={payFor?.total ?? 0}
+                    busy={busy?.what === "pay"}
+                    error={payError}
+                    onPay={(method) => payFor && pay(payFor.bookingId, method)}
+                />
+            )}
+            <MethodOffDialog
+                open={Boolean(offInfo)}
+                onClose={() => setOffInfo(null)}
+                off={offInfo?.off ?? null}
+                alternatives={offInfo?.alternatives ?? []}
+                onUse={(method) => {
+                    const id = offInfo?.bookingId;
+                    setOffInfo(null);
+                    if (id) pay(id, method);
+                }}
+                busy={busy?.what === "pay"}
+            />
         </div>
     );
 }

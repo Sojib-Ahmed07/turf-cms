@@ -23,23 +23,34 @@ function greeting() {
 
 export default async function AdminOverview() {
     const user = await requireRole(["admin", "editor"]);
-    const [stats, board, latest, live] = await Promise.all([getDashboardStats(), getTodayBoard(), getLatestBookings(5), getLiveContentSummary()]);
+    // Editors manage website content only: no revenue, bookings or player details for them.
+    const isAdmin = user.role === "admin";
+    const [stats, board, latest, live] = await Promise.all([
+        isAdmin ? getDashboardStats() : null,
+        isAdmin ? getTodayBoard() : null,
+        isAdmin ? getLatestBookings(5) : [],
+        getLiveContentSummary(),
+    ]);
 
     const firstName = user.name?.split(" ")[0] ?? "";
-    const prevMonthName = monthName(stats.today, -1);
+    const prevMonthName = stats ? monthName(stats.today, -1) : "";
 
     return (
         <div className="mx-auto max-w-[1280px]">
             <PageHeader
                 title={`${greeting()}, ${firstName}`}
-                description={`${shortDateLabel(stats.today)}. ${board.freeCount} slot${board.freeCount === 1 ? " is" : "s are"} still free today.`}
+                description={
+                    isAdmin
+                        ? `${shortDateLabel(stats.today)}. ${board.freeCount} slot${board.freeCount === 1 ? " is" : "s are"} still free today.`
+                        : "Here's what is live on the website. Use the menu to edit slides, banners, sections and pages."
+                }
                 actions={
                     <>
                         <Button href="/" variant="outline" target="_blank">
                             <ExternalLink className="h-4 w-4" />
                             View website
                         </Button>
-                        {user.role === "admin" && (
+                        {isAdmin && (
                             <Button href="/admin/bookings?walkin=1" variant="ink">
                                 <CalendarPlus className="h-4 w-4" />
                                 Add walk-in booking
@@ -49,91 +60,98 @@ export default async function AdminOverview() {
                 }
             />
 
-            {/* Numbers */}
-            <div className="grid grid-cols-2 overflow-hidden rounded-card bg-line ring-1 ring-line [gap:1px] lg:grid-cols-4">
-                <Stat label="Bookings today" value={stats.todayBookings} />
-                <Stat label="Revenue today" value={taka(stats.todayRevenue)} note={<span className="text-ink-3">Confirmed bookings</span>} />
-                <Stat
-                    label="Revenue this month"
-                    value={taka(stats.monthRevenue)}
-                    note={
-                        stats.monthChange === null ? (
-                            <span className="text-ink-3">No bookings last month to compare</span>
-                        ) : (
-                            <span className={`inline-flex items-center gap-1 ${stats.monthChange >= 0 ? "text-brand-deep" : "text-danger"}`}>
-                                {stats.monthChange >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                                {Math.abs(stats.monthChange)}% vs same days in {prevMonthName}
-                            </span>
-                        )
-                    }
-                />
-                <Stat
-                    label="Waiting for payment"
-                    value={stats.pendingHolds}
-                    note={<span className="text-flare-deep">Released after 15 min</span>}
-                    accent={stats.pendingHolds > 0}
-                />
-            </div>
-
-            {/* Today */}
-            <Panel
-                className="mt-6"
-                title="Today"
-                description={`${board.occupancy}% of today's slots are booked or on hold across all grounds`}
-                actions={
-                    <div className="hidden items-center gap-4 text-[12px] text-ink-3 sm:flex">
-                        <Key className="bg-pitch">Booked</Key>
-                        <Key className="bg-flare">Waiting</Key>
-                        <Key className="border-2 border-dashed border-line">Free</Key>
+            {isAdmin && (
+                <>
+                    {/* Numbers */}
+                    <div className="grid grid-cols-2 overflow-hidden rounded-card bg-line ring-1 ring-line [gap:1px] lg:grid-cols-4">
+                        <Stat label="Bookings today" value={stats.todayBookings} />
+                        <Stat label="Revenue today" value={taka(stats.todayRevenue)} note={<span className="text-ink-3">Confirmed bookings</span>} />
+                        <Stat
+                            label="Revenue this month"
+                            value={taka(stats.monthRevenue)}
+                            note={
+                                stats.monthChange === null ? (
+                                    <span className="text-ink-3">No bookings last month to compare</span>
+                                ) : (
+                                    <span className={`inline-flex items-center gap-1 ${stats.monthChange >= 0 ? "text-brand-deep" : "text-danger"}`}>
+                                        {stats.monthChange >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                                        {Math.abs(stats.monthChange)}% vs same days in {prevMonthName}
+                                    </span>
+                                )
+                            }
+                        />
+                        <Stat
+                            label="Waiting for payment"
+                            value={stats.pendingHolds}
+                            note={<span className="text-flare-deep">Released after 15 min</span>}
+                            accent={stats.pendingHolds > 0}
+                        />
                     </div>
-                }
-            >
-                <TonightBoard rows={board.rows} from={board.from} to={board.to} now={board.now} />
-            </Panel>
+
+                    {/* Today */}
+                    <Panel
+                        className="mt-6"
+                        title="Today"
+                        description={`${board.occupancy}% of today's slots are booked or on hold across all grounds`}
+                        actions={
+                            <div className="hidden items-center gap-4 text-[12px] text-ink-3 sm:flex">
+                                <Key className="bg-pitch">Booked</Key>
+                                <Key className="bg-flare">Waiting</Key>
+                                <Key className="border-2 border-dashed border-line">Free</Key>
+                            </div>
+                        }
+                    >
+                        <TonightBoard rows={board.rows} from={board.from} to={board.to} now={board.now} />
+                    </Panel>
+
+                </>
+            )}
 
             <div className="mt-6 grid gap-6 xl:grid-cols-12">
                 {/* Latest bookings */}
-                <Panel
-                    className="xl:col-span-8"
-                    title="Latest bookings"
-                    bodyClassName="p-0"
-                    actions={
-                        <Link href="/admin/bookings" className="inline-flex items-center gap-1 text-[13px] font-semibold text-ink-2 hover:text-ink">
-                            All bookings <ArrowUpRight className="h-3.5 w-3.5" />
-                        </Link>
-                    }
-                >
-                    {latest.length === 0 ? (
-                        <p className="px-6 py-10 text-center text-[14px] text-ink-3">No bookings yet. They&apos;ll appear here as players book.</p>
-                    ) : (
-                        <ul className="divide-y divide-line">
-                            {latest.map((b) => (
-                                <li key={b.bookingId} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-4">
-                                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-grass text-[14px] font-bold text-pitch">
-                                        {b.customer[0]?.toUpperCase()}
-                                    </span>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-[14px] font-semibold text-ink">{b.customer}</p>
-                                        <p className="truncate text-[13px] text-ink-3">
-                                            {b.pitch}, {b.date}, {b.time}
-                                        </p>
-                                        <div className="mt-1.5 sm:hidden">
+                {isAdmin && (
+                    <Panel
+                        className="xl:col-span-8"
+                        title="Latest bookings"
+                        bodyClassName="p-0"
+                        actions={
+                            <Link href="/admin/bookings" className="inline-flex items-center gap-1 text-[13px] font-semibold text-ink-2 hover:text-ink">
+                                All bookings <ArrowUpRight className="h-3.5 w-3.5" />
+                            </Link>
+                        }
+                    >
+                        {latest.length === 0 ? (
+                            <p className="px-6 py-10 text-center text-[14px] text-ink-3">No bookings yet. They&apos;ll appear here as players book.</p>
+                        ) : (
+                            <ul className="divide-y divide-line">
+                                {latest.map((b) => (
+                                    <li key={b.bookingId} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-4">
+                                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-grass text-[14px] font-bold text-pitch">
+                                            {b.customer[0]?.toUpperCase()}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="truncate text-[14px] font-semibold text-ink">{b.customer}</p>
+                                            <p className="truncate text-[13px] text-ink-3">
+                                                {b.pitch}, {b.date}, {b.time}
+                                            </p>
+                                            <div className="mt-1.5 sm:hidden">
+                                                <StatusBadge status={b.status} />
+                                            </div>
+                                        </div>
+                                        <div className="hidden sm:block">
                                             <StatusBadge status={b.status} />
                                         </div>
-                                    </div>
-                                    <div className="hidden sm:block">
-                                        <StatusBadge status={b.status} />
-                                    </div>
-                                    <p className="w-20 text-right text-[14px] font-bold text-ink tnum">{taka(b.amount)}</p>
-                                    <p className="hidden w-20 text-right text-[12px] text-ink-4 md:block">{b.created}</p>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </Panel>
+                                        <p className="w-20 text-right text-[14px] font-bold text-ink tnum">{taka(b.amount)}</p>
+                                        <p className="hidden w-20 text-right text-[12px] text-ink-4 md:block">{b.created}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </Panel>
+                )}
 
                 {/* Live on site */}
-                <Panel className="xl:col-span-4" title="Live on the website">
+                <Panel className={isAdmin ? "xl:col-span-4" : "xl:col-span-12"} title="Live on the website">
                     <div>
                         <div className="flex items-center justify-between">
                             <p className="text-[13px] font-semibold text-ink-2">Hero slides</p>
@@ -157,9 +175,11 @@ export default async function AdminOverview() {
                     <div className="mt-6 border-t border-line pt-5">
                         <div className="flex items-center justify-between">
                             <p className="text-[13px] font-semibold text-ink-2">Promo codes</p>
-                            <Link href="/admin/coupons" className="text-[13px] font-semibold text-brand-deep hover:underline">
-                                Edit
-                            </Link>
+                            {isAdmin && (
+                                <Link href="/admin/coupons" className="text-[13px] font-semibold text-brand-deep hover:underline">
+                                    Edit
+                                </Link>
+                            )}
                         </div>
                         {live.coupons.length === 0 ? (
                             <p className="mt-3 rounded-ctl bg-chalk px-4 py-3 text-[13px] text-ink-3">No promo codes yet.</p>

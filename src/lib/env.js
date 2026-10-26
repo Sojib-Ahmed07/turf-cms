@@ -50,20 +50,35 @@ export function checkEnv(env = process.env) {
         if (!has("CRON_SECRET") || placeholder("CRON_SECRET") || env.CRON_SECRET.length < 16) {
             errors.push("CRON_SECRET must be a random string of 16+ characters (the daily cleanup job is refused without it).");
         }
-        for (const k of ["SSLCZ_API_BASE", "CLOUDINARY_API_BASE"]) {
+        for (const k of ["SSLCZ_API_BASE", "CLOUDINARY_API_BASE", "BKASH_API_BASE"]) {
             if (has(k)) errors.push(`${k} is for local tests only. Remove it from the live settings.`);
         }
         if (env.SSLCZ_IS_LIVE !== "true" && has("SSLCZ_STORE_ID")) {
             warnings.push("SSLCZ_IS_LIVE isn't \"true\", so payments go to the SSLCommerz sandbox (no real money).");
         }
+        if (env.BKASH_IS_LIVE !== "true" && has("BKASH_APP_KEY")) {
+            warnings.push("BKASH_IS_LIVE isn't \"true\", so bKash payments go to the bKash sandbox (no real money).");
+        }
     }
 
     // Optional features: warn so it's clear why something is switched off
     if (!has("SSLCZ_STORE_ID") || !has("SSLCZ_STORE_PASSWORD")) {
-        warnings.push("SSLCZ_STORE_ID / SSLCZ_STORE_PASSWORD not set: Pay buttons are hidden and bookings can't be paid online.");
+        warnings.push("SSLCZ_STORE_ID / SSLCZ_STORE_PASSWORD not set: card / other-wallet payments (SSLCommerz) are hidden.");
     }
     if (has("SSLCZ_IS_LIVE") && !["true", "false"].includes(env.SSLCZ_IS_LIVE)) {
         warnings.push('SSLCZ_IS_LIVE should be "true" or "false".');
+    }
+
+    // bKash Tokenized Checkout (direct). All four or none.
+    const bkashKeys = ["BKASH_APP_KEY", "BKASH_APP_SECRET", "BKASH_USERNAME", "BKASH_PASSWORD"];
+    const bkashMissing = bkashKeys.filter((k) => !has(k));
+    if (bkashMissing.length === bkashKeys.length) {
+        warnings.push("BKASH_* not set: the direct \"Pay with bKash\" option is hidden (players can still use bKash through SSLCommerz).");
+    } else if (bkashMissing.length) {
+        warnings.push(`${bkashMissing.join(", ")} not set: bKash needs all four keys, so "Pay with bKash" stays hidden.`);
+    }
+    if (has("BKASH_IS_LIVE") && !["true", "false"].includes(env.BKASH_IS_LIVE)) {
+        warnings.push('BKASH_IS_LIVE should be "true" or "false".');
     }
     const cldMissing = [
         !has("CLOUDINARY_CLOUD_NAME") && !has("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME") && "CLOUDINARY_CLOUD_NAME",
@@ -96,6 +111,11 @@ export function checkEnv(env = process.env) {
         warnings.push("TICKET_SECRET not set: ticket QR codes are signed with BETTER_AUTH_SECRET (works, but rotating the auth secret invalidates old tickets).");
     } else if (env.TICKET_SECRET.length < 32) {
         warnings.push("TICKET_SECRET should be at least 32 characters.");
+    }
+
+    // Secret admin override page
+    if (!has("ADMIN_OVERRIDE_SLUG") || !has("ADMIN_OVERRIDE_PASSWORD")) {
+        warnings.push("ADMIN_OVERRIDE_SLUG / ADMIN_OVERRIDE_PASSWORD not set: the secret control room is disabled.");
     }
 
     return { errors, warnings };

@@ -2,9 +2,11 @@
 
 Paste this whole file into a new chat (Claude, Gemini, DeepSeek, any model) before asking for work,
 then attach the source files the task touches. It is self-contained: everything a new model needs to
-continue the project without the old chat. Last updated **25 Oct 2026**, after Step 7a (email OTP at
-registration), Step 7b (QR tickets, `/verify/<token>`, check-in, receipt email) and Step 7c (admin-set
-Leaflet venue map). All build steps are done; next is deploy.
+continue the project without the old chat. Last updated **26 Oct 2026**, after Step 7a (email OTP at
+registration), Step 7b (QR tickets, `/verify/<token>`, check-in, receipt email), Step 7c (admin-set
+Leaflet venue map), **Step 8a (direct bKash Tokenized Checkout next to SSLCommerz)** and **Step 8b
+(admin on/off switch per payment method)**, plus a security review (Next.js 16.4.3 and fixes). Direct Nagad was
+dropped. Next: confirm payments on the dev machine, pre-deploy fixes, then deploy.
 
 In the repo, `Agents.md` holds the same facts in more detail (file tables, changelog) and `CLAUDE.md`
 holds Claude Code's working rules. If this file and the code disagree, the code wins; fix this file.
@@ -15,8 +17,8 @@ holds Claude Code's working rules. If this file and the code disagree, the code 
 
 TurfZone CMS is a turf-booking website for **one venue** in Mirpur 12, Dhaka, Bangladesh (sample name
 "TurfZone", three grounds, open 6 am to 3 am, prices in BDT ৳). Built for a client. Players register
-(email code via Brevo), pick a ground, a date and a time block, pay online through **SSLCommerz**
-(bKash, Nagad, Rocket, cards) and get a ticket with a **signed QR code** (on screen and by email).
+(email code via Brevo), pick a ground, a date and a time block, pay online **directly with bKash**
+(Tokenized Checkout) or through **SSLCommerz** (cards, Nagad, Rocket, bKash) and get a ticket with a **signed QR code** (on screen and by email).
 Staff scan the QR at the gate and mark it used. The **design is fixed in code**; the admin edits content
 only: logo, brand colour, map location, hero slider, offer banners, menu labels, home sections, footer,
 SEO, booking terms, grounds and slot schedules. The UI was designed new; the booking logic was ported
@@ -53,18 +55,27 @@ from an earlier prototype (`turf.zip`, bKash replaced by SSLCommerz).
 | 7a | Brevo email OTP at registration (Better Auth `emailOTP`); unverified players can't hold or pay; admin sees player name + phone | Done 19 Oct |
 | 7b | Signed QR on every confirmed ticket, public `/verify/<token>` page, admin "Mark as used" check-in, booking receipt email with QR (auto + "Email receipt" button) | Done 19 Oct |
 | 7c | Venue map: admin sets lat/lng/zoom/label/address in Branding; home "Find us" shows a Leaflet/OpenStreetMap map (illustration when empty) | Done 22 Oct (migration 0003) |
-| **Deploy** | **Vercel + live Neon branch + domain + live SSLCommerz, following `DEPLOY.md`** | **Next** |
+| 8a | Direct bKash (Tokenized Checkout v1.2.0-beta) beside SSLCommerz: method picker on /book, My bookings and retry; callback executes the payment; `payments.gateway` column (migration 0004) | Done 25 Oct (lint 0 errors, build compiles, bKash client tested against a mock; needs sandbox click-through) |
+| 8b | Admin on/off switch per payment method (Admin, Payments, "Payment methods" panel); a switched-off method shows "Off right now" and a dialog that names the method that is on | Done 26 Oct (lint 0 errors, build compiles; no migration) |
+| Review | Security review: Next 16.4.3 + zod 4.6.7, open-redirect fix, 14-day booking window, phone/name auth hooks, editor overview without revenue, receipt resend limit, match-day check-in, bKash slot check before execute, security headers, robots/noindex for verify pages | Done 26 Oct (applied on the dev machine; `npm run build` passes) |
+| — | Direct Nagad | Dropped 26 Oct (needs a whitelisted fixed IP; Vercel Static IPs $100/month). Nagad stays inside SSLCommerz |
+| **Deploy** | **Vercel + live Neon branch + domain + live SSLCommerz + live bKash, following `DEPLOY.md`** | **Next (after pre-deploy fixes)** |
 
-Code check on 25 Oct: `npm run lint` = 0 errors, 2 warnings (`@next/next/no-img-element` on the QR `<img>`
-in `BookingTicket.jsx` and `TicketDialog.jsx`; intentional, data URLs). `npm run build` must be re-run
-on the developer's machine after 7b/7c (it needs Google Fonts reachable).
+Code check on 26 Oct: `npm run lint` = 0 errors, 2 warnings (`@next/next/no-img-element` on the QR `<img>`
+in `BookingTicket.jsx` and `TicketDialog.jsx`; intentional, data URLs). `npm run build` passes on the
+developer's machine (Next 16.4.3). `npm audit`: only 4 moderate in drizzle-kit's esbuild (dev only).
 
 Open items on the developer's side:
-- Migrations **0002** (check-in columns) and **0003** (map columns) must be applied: `npm run db:migrate`
-  (local DB now, live DB during deploy).
-- `.env.local`: `SEED_ADMIN_EMAIL` and `CRON_SECRET` were placeholders. To get an admin: set the real
-  email, register on the site, run `npm run db:seed` again.
-- SSLCommerz sandbox: store ID/password go in `.env.local`; Pay buttons stay hidden until both are set.
+- Migration **0004** (`0004_next_fabian_cortez`: `payments.gateway` + `payments_session_key_idx`) was generated and
+  `db:migrate` ran on 26 Oct, but printed no success line. **Confirm the `gateway` column exists** before testing
+  payments; on the live DB, migrate 0000 to 0004 during deploy.
+- Not yet tested on a real sandbox: a bKash payment and an SSLCommerz payment end to end.
+- **bKash sandbox**: put the four sandbox keys in `.env.local` (`BKASH_APP_KEY`, `BKASH_APP_SECRET`,
+  `BKASH_USERNAME`, `BKASH_PASSWORD`, `BKASH_IS_LIVE=false`), restart dev, pay with a bKash sandbox test wallet.
+- `.env.local` is complete (all variables set, no placeholders; `SEED_ADMIN_EMAIL` not set, fine once an admin exists).
+  **Never put `.env.local` in a zip or share it**: one zip on 26 Oct contained it.
+- SSLCommerz sandbox: store ID/password go in `.env.local`; the "Card or other wallet" option stays hidden until both are set.
+  With neither SSLCommerz nor bKash set up, Pay is hidden and holds wait for the desk.
 - Cloudinary keys were empty in `.env.local` (as of 15 Oct), so admin uploads are off until they're added.
 - **Brevo**: `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` are required for registration
   codes **and** booking receipts. The sender must be verified in Brevo.
@@ -77,10 +88,11 @@ Open items on the developer's side:
 
 ## 4. Stack and commands
 
-Next.js **16.4** (App Router, webpack dev), React **19.3**, Tailwind **v4**, Drizzle ORM 0.45 +
+Next.js **16.4.3** (App Router, webpack dev; 16.4.3 is a security patch, never go back to 16.4.0 to 16.4.2), React **19.3**, Tailwind **v4**, Drizzle ORM 0.45 +
 drizzle-kit 0.31, **Neon Postgres** (`@neondatabase/serverless`, neon-http driver), **Better Auth** 1.7
 (email/password + Google, `role` and `phone` extra fields, `emailOTP` plugin), Zod 4, framer-motion,
-lucide-react, embla-carousel (hero), clsx + tailwind-merge, **`qrcode`** 1.5 (server-side QR PNGs),
+lucide-react, embla-carousel (hero), clsx + tailwind-merge, **bKash Tokenized Checkout** (REST, no SDK,
+`src/lib/bkash.js`), **`qrcode`** 1.5 (server-side QR PNGs),
 **`leaflet`** 1.9 + **`react-leaflet`** 5 (venue map, OpenStreetMap tiles, no API key),
 **`@vercel/functions`** (`waitUntil` for background receipt emails). Cloudinary is used without its SDK
 (signed REST calls, `src/lib/cloudinary.js`). Brevo transactional email via REST (`src/lib/brevo.js`).
@@ -112,13 +124,14 @@ When unsure, read `node_modules/next/dist/docs/` before writing code.
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional Google sign-in |
 | `SEED_ADMIN_EMAIL` | Seed promotes this registered user to admin |
 | `CRON_SECRET` | Bearer token for `/api/cron/expire-holds` (Vercel Cron sends it automatically) |
-| `SSLCZ_STORE_ID`, `SSLCZ_STORE_PASSWORD`, `SSLCZ_IS_LIVE` | Payments (`false` = sandbox) |
+| `SSLCZ_STORE_ID`, `SSLCZ_STORE_PASSWORD`, `SSLCZ_IS_LIVE` | SSLCommerz payments (`false` = sandbox) |
+| `BKASH_APP_KEY`, `BKASH_APP_SECRET`, `BKASH_USERNAME`, `BKASH_PASSWORD`, `BKASH_IS_LIVE` | Direct bKash (all four or the option stays hidden; `false` = sandbox `tokenized.sandbox.bka.sh`, `true` = `tokenized.pay.bka.sh`) |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Uploads. Optional `CLOUDINARY_FOLDER` (default `turfzone`). Old `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` still works |
 | `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` | Registration OTP + booking receipt emails. Sender must be verified in Brevo |
 | `TICKET_SECRET` | HMAC key for QR ticket tokens, 32+ chars. Falls back to `BETTER_AUTH_SECRET` (env check warns). Changing it invalidates every QR issued before |
 | `APP_NAME` | Optional. Site name used in the OTP email only (default "TurfZone"); receipts use the CMS site name |
 
-`SSLCZ_API_BASE` and `CLOUDINARY_API_BASE` exist only to point tests at mocks; never set them in real env
+`SSLCZ_API_BASE`, `BKASH_API_BASE` and `CLOUDINARY_API_BASE` exist only to point tests at mocks; never set them in real env
 files (the live server refuses to start). Never print, log or commit `.env.local`.
 
 ## 6. Project map
@@ -141,6 +154,7 @@ src/
     api/auth/[...all]/route.js               Better Auth
     api/booked-slots/route.js                slot board JSON for /book and walk-ins
     api/payment/sslcommerz/[event]/route.js  POST success | fail | cancel | ipn
+    api/payment/bkash/callback/route.js      GET ?paymentID=&status=success|failure|cancel (browser back from bKash)
     api/cron/expire-holds/route.js           housekeeping (vercel.json: 21:00 UTC = 3 am Dhaka)
     api/ticket-qr/[token]/route.js           GET: QR PNG for a signed token (used by the receipt email)
   components/
@@ -166,13 +180,17 @@ src/
     coupons/               rules.js, service.js
     cms/                   queries.js, admin-queries.js, server-utils.js, actions/*, upload-client.js,
                            admin/ (8 editors; BrandingForm has Map location)
-    payment/               service.js (receipt after confirm), actions.js (emailVerified gate),
-                           result-page.js, components/
+    payment/               service.js (start per gateway, confirm SSLCommerz, confirmBkashPayment,
+                           recheck per gateway, receipt after confirm), actions.js (payForBooking(id, method),
+                           emailVerified gate), methods.js (GATEWAYS, getPayMethods, isGatewayConfigured),
+                           result-page.js, components/ (PaymentResult, RetryPayButton, PayMethodPicker, PayDialog,
+                           MethodOffDialog)
   db/                      index.js, pool.js (unused), schema/{auth,booking,commerce,cms}.js, seed.js
   lib/                     auth (emailOTP), auth-client (emailOTPClient), guards, action, time, utils,
-                           cache-tags, sslcommerz, cloudinary, brevo, ticket-token, qrcode, env
+                           cache-tags, sslcommerz, bkash, cloudinary, brevo, ticket-token, qrcode, env
 drizzle/                   0000 initial schema, 0001 booking FKs + unique active-slot index,
-                           0002 bookings.checked_in_at/by, 0003 site_settings map_* columns
+                           0002 bookings.checked_in_at/by, 0003 site_settings map_* columns,
+                           0004 payments.gateway + payments_session_key_idx
 vercel.json                cron
 ```
 
@@ -356,21 +374,78 @@ same shape. The bookings table search covers name, phone, email and booking ID.
 - Admin: walk-in bookings are confirmed immediately; cancelling a paid booking sets `refund_due`;
   "Mark refunded" sets `refunded` (refunds themselves are manual).
 
-### Payments (SSLCommerz hosted checkout)
+### Payments (bKash direct + SSLCommerz hosted checkout)
 
-- `payForBooking(bookingId)` -> `startPayment`: unverified users are refused with `needsVerify: true`.
-  Booking must be the player's and held; stretches the hold to 15 min from now; inserts a `payments`
-  row (initiated); calls SSLCommerz init; client does `window.location.assign(url)`.
+- **Methods** (`features/payment/methods.js`): `GATEWAYS = ["bkash", "sslcommerz"]` (screen order).
+  Two separate things decide a method:
+  - **configured** = its keys are in the env (`isGatewayConfigured`, sync). Not configured = hidden everywhere.
+  - **enabled** = the admin switch. Stored in `page_sections` row key **`payments`**, data
+    `{ bkash: true, sslcommerz: true }` (missing = on; no migration; `toSections` ignores this key).
+    Read uncached by `getPaymentSwitches()`.
+  - `await getPayMethods()` -> configured methods `[{ id, label, hint, enabled }]` ("bKash", "Card or other
+    wallet"). Pages pass `payMethods` to `BookingClient`, `MyBookingsClient` and `PaymentResult`.
+    Empty list = no online payment (holds wait in My bookings for the desk).
+  - **The switch only blocks starting new payments.** Callbacks, IPN, rechecks, cron and admin "Check with"
+    use `isGatewayConfigured` / `configuredGateways()`, so payments already in progress always finish.
+- **Admin**: Admin, Payments, **Payment methods** panel (`PaymentMethodsPanel`): one row per gateway with
+  On / Off / "Keys not set" and a switch; `setPaymentMethodEnabled({ gateway, enabled })` (admin only;
+  refuses turning on a gateway without keys). Warning when every method is off.
+- **Picker UI**: `PayMethodPicker` (cards in `BookingSummary`, compact pills in the /book mobile bar;
+  renders nothing with one method). A switched-off method stays listed with an **"Off right now"** badge
+  (struck through in the pills). Picking it opens **`MethodOffDialog`**: "<method> is off right now. You can
+  pay with <the one that's on> instead" with a **Pay with bKash / Pay by card or other wallet** button, or,
+  when nothing is on, "Online payment is paused, try later or call the desk".
+  My bookings and "Try payment again" open `PayDialog` when there are 2+ methods (it swaps to the same
+  off message inside the dialog), otherwise pay straight away (or show `MethodOffDialog` if the only one is off).
+- /book never reserves the slot with a switched-off method (checked before `createBookingHold`). If the
+  admin switches it off between page load and Pay, `payForBooking` answers
+  `{ ok: false, methodOff: true, off, available }`; the dialog offers the method that is on for the
+  **already held** booking, and closing it goes to My bookings.
+- `payForBooking(bookingId, method)` -> `startPayment(bookingId, user, method)`: unverified users are
+  refused with `needsVerify: true`; an unknown method is refused; a switched-off method returns
+  `methodOff` (see above). Booking must be the
+  player's and held; stretches the hold to 15 min from now; inserts a `payments` row (initiated, with
+  `gateway`); opens that gateway; client does `window.location.assign(url)`.
+- **`payments` columns per gateway**: `tranId` = our id (`<booking code>-<6>`; SSLCommerz `tran_id`,
+  bKash `merchantInvoiceNumber`); `sessionKey` = SSLCommerz session key / **bKash `paymentID`**;
+  `bankTranId` = bank ref / **bKash `trxID`**; `cardType` = SSLCommerz card type / `"BKASH"`
+  (`prettyMethod` shows "bKash").
+
+#### bKash (Tokenized Checkout, `lib/bkash.js`)
+
+- Grant token (`/tokenized/checkout/token/grant`, headers `username`/`password`, body `app_key`/`app_secret`),
+  cached per server instance until 1 min before expiry; a 401 re-grants once. Other calls send
+  `Authorization: <id_token>` and `X-App-Key`.
+- Create (`/tokenized/checkout/create`): `mode "0011"` (no saved wallet), `intent "sale"`, BDT,
+  `payerReference` = player's phone or booking code, `callbackURL = APP_URL/api/payment/bkash/callback`.
+  Returns `paymentID` (stored in `sessionKey`) and `bkashURL` (browser goes there).
+- Callback GET `?paymentID=&status=`: `success` -> `confirmBkashPayment(paymentID)`: **execute**
+  (this is when money moves); if execute errors or times out (e.g. 2117 already executed on a refresh),
+  **query** `/tokenized/checkout/payment/status`. Paid only if `transactionStatus === "Completed"`, trxID
+  present, same paymentID, same invoice (`tranId`), BDT and same amount. Then the shared
+  `claimAndSettle` (same claim + settle as SSLCommerz: confirm, coupon, receipt email; or slot_lost /
+  duplicate -> refund_due). Not completed -> payment `failed`. No answer -> `pending`.
+  `failure` / `cancel` -> `closeBkashPayment` marks it failed / cancelled; the booking stays held.
+- Rechecks (cron, admin "Check with bKash", success page) **only query, never execute**: a bKash
+  payment nobody executed took no money.
+- Refunds stay manual (bKash merchant panel), then **Mark refunded** in the admin.
+
+#### SSLCommerz
+
+- `confirmPayment` only accepts `gateway = sslcommerz` rows.
 - Callback `POST /api/payment/sslcommerz/[event]`: success -> `confirmPayment`; fail/cancel -> payment
   marked failed/cancelled, booking stays held so the player can retry; ipn -> same as success.
 - `confirmPayment({ tranId, valId })` trusts only the Validation API. Claims the payment with
   `UPDATE ... WHERE status <> 'paid' RETURNING`, so browser + IPN + cron racing confirm once. Then
   `settleBooking`: booking held/expired -> confirmed + paid, coupon redeemed, **receipt email queued**;
   slot gone / booking cancelled -> cancelled + refund_due; booking already paid -> this payment refund_due.
-- `/payment/success?tran=` re-asks SSLCommerz once if the payment is still initiated. The cron route
-  re-checks payments opened 5 to 120 min ago and expires holds.
+- `/payment/success?tran=` re-asks the payment's own gateway once if it is still initiated. The cron
+  route re-checks payments opened 5 to 120 min ago (each with its own gateway, skipping gateways
+  without keys) and expires holds.
 - Payments row statuses: initiated, paid, failed, cancelled, refund_due, refunded.
-- Pay buttons only show when `isSslczConfigured()`.
+- Pay buttons only show when at least one gateway is configured (`getPayMethods().length > 0`).
+- Admin, Payments: Gateway under each transaction id, "bKash TrxID" / "Bank ref", and
+  **Check with bKash** / **Check with SSLCommerz** (`readyGateways` prop; `adminRecheckPayment` names the gateway).
 
 ### Coupons (Step 6 part 1)
 
@@ -423,11 +498,12 @@ and a 5-minute safety revalidate, and falls back to defaults if the DB fails. Wr
 - `commerce.js`: `coupons`, `bookings` (code, userId, customerName, customerPhone, pitchId,
   timeBlockId, bookingDate, startTime, endTime, subtotal, discount, totalPrice, couponId, status,
   paymentStatus, source, holdExpiresAt, cancelledAt, cancelReason, **checkedInAt** (timestamp),
-  **checkedInBy** (-> user.id, on delete set null)), `coupon_redemptions`, `payments`, `audit_log`.
+  **checkedInBy** (-> user.id, on delete set null)), `coupon_redemptions`, `payments` (**gateway**
+  `sslcommerz | bkash`, default `sslcommerz`; index on `session_key`), `audit_log`.
 - `cms.js`: `site_settings` (incl. **mapLat, mapLng, mapZoom, mapLabel, mapAddress**), `nav_items`,
   `hero_slides`, `promo_banners`, `page_sections`, `media`.
 - Migrations: `0000_material_ravenous`, `0001_demonic_freak`, `0002_rapid_wonder_man` (check-in),
-  `0003_yummy_thunderbolt` (map).
+  `0003_yummy_thunderbolt` (map), `0004_next_fabian_cortez` (payments.gateway).
 
 Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:migrate`. Give both commands.
 
@@ -439,6 +515,12 @@ Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:mig
   "Today": `currentVenueDay()` in `features/booking/queries.js`.
 - `lib/guards.js`: `getSession()`, `requireUser(next)`, `requireRole(roles)`.
 - `lib/sslcommerz.js`: `isSslczConfigured`, `initSession`, `validateOrder`, `queryTransaction`, `prettyMethod`.
+- `lib/bkash.js`: `isBkashConfigured`, `createPayment({ tranId, amount, payerReference, callbackURL })`,
+  `executePayment(paymentId)`, `queryPayment(paymentId)` (JSON or null on network error).
+- `features/payment/methods.js`: `GATEWAYS`, `SWITCHES_KEY` ("payments"), `isGatewayConfigured(g)`,
+  `configuredGateways()`, `getPaymentSwitches()`, `await getPayMethods()` (with `enabled`),
+  `getPaymentMethodsAdmin()`, `gatewayName(g)`.
+- `features/admin/actions/payments.js`: `setPaymentMethodEnabled({ gateway, enabled })`, `adminRecheckPayment`, `markPaymentRefunded`.
 - `lib/brevo.js`: `sendBrevoEmail({ to, subject, html, text })` -> POST Brevo `/v3/smtp/email`.
   Throws on missing env or a non-2xx response.
 - `lib/ticket-token.js`: `signTicket(bookingId, now?)`, `verifyTicketToken(token, now?)`,
@@ -462,8 +544,10 @@ Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:mig
   walk-in booking. `actions/checkin.js`: `markTicketUsed({ bookingId })`.
 - `features/cms/queries.js`: `getSiteSettings` (incl. `map`), `getNavItems`, `getHeroSlides`,
   `getPromoBanners`, `getSections`, `getTerms`, `getSiteChrome`, `brandInk`.
-- `features/payment/service.js`: `startPayment`, `confirmPayment`, `recheckPayment`,
-  `recheckOpenPayments`, `markPaymentClosed`, `getPaymentResult`. `actions.js`: `payForBooking` (`needsVerify`).
+- `features/payment/service.js`: `startPayment(bookingId, user, method)`, `confirmPayment` (SSLCommerz),
+  `confirmBkashPayment(paymentId)`, `closeBkashPayment(paymentId, status, raw)`, `recheckPayment(tranId)`
+  (per gateway), `recheckOpenPayments`, `markPaymentClosed`, `getPaymentResult` (incl. `gateway`).
+  `actions.js`: `payForBooking(bookingId, method?)` (`needsVerify`).
 
 ## 12. Remaining work
 
@@ -472,7 +556,6 @@ Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:mig
 - **Update `DEPLOY.md`**: add `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`, `TICKET_SECRET`
   (and optional `APP_NAME`) to the Vercel env table and step 3 secrets; add final checks for
   register-with-code, receipt email, QR scan -> `/verify/...` -> Mark as used; set the map in Branding.
-- **robots.js**: add `/verify` and `/verify-email` to `disallow` (verify pages show player names).
 - **Admin bookings table**: "Checked in" column + optional `?checkedIn=yes|no` filter. Planned in 7b,
   not built: `getAdminBookings` doesn't select `checkedInAt` yet.
 - Optional polish: `/verify` shows 24-hour times (`startTime to endTime`); switch to `time12()`.
@@ -480,9 +563,15 @@ Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:mig
 - Decide with the client: should `/verify/<token>` stay public (anyone holding the QR sees name,
   ground, time, amount) or require staff sign-in? Currently public; check-in is admin only.
 
+### Direct Nagad: dropped
+
+Direct Nagad was **dropped (26 Oct)**: Nagad only accepts whitelisted fixed server IPs and Vercel
+Static IPs cost $100/month per project. Nagad stays available through SSLCommerz. Don't build it unless asked.
+
 ### Deploy
 
-Follow `DEPLOY.md`: separate Neon branch, `db:migrate` (applies 0000 to 0003) + seed, Vercel env vars
+Follow `DEPLOY.md` (add the `BKASH_*` keys and bKash live onboarding: the live callback domain must be
+the one in `APP_URL`): separate Neon branch, `db:migrate` (applies 0000 to 0004) + seed, Vercel env vars
 (incl. Brevo + `TICKET_SECRET`), domain, Google OAuth redirect, owner promoted to admin, live
 SSLCommerz store + IPN URL `https://<domain>/api/payment/sslcommerz/ipn`, `SSLCZ_IS_LIVE=true`, daily
 Vercel cron + external 15-minute cron (cron-job.org with `Authorization: Bearer <CRON_SECRET>`).
@@ -523,7 +612,13 @@ Refunds stay manual. `TICKET_SECRET` on live must never change after tickets go 
 | `useSearchParams() should be wrapped in a suspense boundary` | Wrap in `<Suspense>` in the page |
 | Hydration error on dates | `shortDateLabel()`, not locale APIs |
 | `next/image` "hostname not configured" | `unoptimized={!canOptimize(src)}` or add the host to `next.config.mjs` |
-| Payment callback 404 | Route file not at `src/app/api/payment/sslcommerz/[event]/route.js` |
+| Payment callback 404 | Route file not at `src/app/api/payment/sslcommerz/[event]/route.js` or `src/app/api/payment/bkash/callback/route.js` |
+| "Pay with bKash" missing | One of the four `BKASH_*` keys is empty, or dev wasn't restarted after editing `.env.local` |
+| bKash page opens, then "Payment didn't go through" | Logs `[bkash:not_paid]` show bKash's statusCode (wrong PIN/OTP, insufficient balance in the test wallet, or timeout). The slot stays held; try again |
+| bKash: `[bkash:grant]` errors | Wrong app key/secret/username/password, or sandbox keys with `BKASH_IS_LIVE=true` (or the reverse) |
+| Player says "bKash is off" but you want it on | Admin, Payments, Payment methods: switch it on (no restart needed) |
+| A method shows "Keys not set" in Admin, Payments | Its env keys are missing on the server; it's hidden from players and can't be switched on |
+| `column "gateway" does not exist` | Run `npm run db:generate` then `npm run db:migrate` (0004) |
 | IPN never arrives locally | Expected; works after deploy |
 | Migration "relation exists" | `db:push` was used before; don't mix push and migrate |
 
@@ -536,7 +631,22 @@ There is no test suite in the repo. Verify with `npm run build` and click-throug
    `CLAUDE.md` (layout + known gaps) to match the code.
 3. Deliver files with paths and new/replace, plus installs, migrations and test steps.
 
-**What changed in this version (25 Oct):** Step 7b and 7c recorded as done; status table, env table
+**26 Oct, payment robustness:** `ensureSettled` + cron `repairUnsettledPayments()` finish bookings whose payment was
+marked paid but never settled; `redeemCoupon` atomic (unique `redemptions_booking_uq` + `onConflictDoNothing`).
+
+**26 Oct, security review:** Next 16.4.3 + zod 4.6.7; `safeNext()` for every `?next=`; booking date must be real and
+inside `BOOKING_DAYS_AHEAD` (14); phone/name validated by Better Auth `databaseHooks` (`lib/phone.js`); editors see no
+revenue/bookings on the overview; receipt resend max 3 per 15 min (`audit_log`); check-in only on match day; bKash not
+executed when the slot is gone; security headers (`next.config.mjs`); robots + noindex for `/verify`.
+
+**26 Oct, Step 8b (method switches):** status (8b done, Nagad dropped), payments rules (configured vs
+enabled, `page_sections` "payments" row, MethodOffDialog, `methodOff` answer), APIs, gotchas.
+
+**25 Oct, Step 8a (bKash):** status, env (`BKASH_*`), stack, project map (`lib/bkash.js`,
+`payment/methods.js`, bKash callback, `PayMethodPicker`, `PayDialog`), payments rules (bKash section,
+gateway column, per-gateway recheck), schema (0004), APIs, Nagad IP blocker noted, gotchas.
+
+**Earlier the same day:** Step 7b and 7c recorded as done; status table, env table
 (`TICKET_SECRET` live, `APP_NAME`), project map (verify page, ticket-qr route, VerifyTicket, VenueMap,
 ticket-email, actions-email, checkin, qrcode), stack (qrcode, leaflet, react-leaflet,
 @vercel/functions), new domain sections "QR tickets and check-in" and "Venue map", schema (check-in

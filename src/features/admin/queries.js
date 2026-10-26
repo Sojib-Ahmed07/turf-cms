@@ -4,7 +4,7 @@
 import "server-only";
 import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql, gt, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, pitches, timeBlocks, user, heroSlides, coupons } from "@/db/schema";
+import { bookings, pitches, timeBlocks, user, heroSlides, coupons, siteSettings } from "@/db/schema";
 import { addDaysISO, dayStartOf, isAfterMidnight, isBlockPast, operatingMinutes, shortDateLabel } from "@/lib/time";
 import { currentVenueDay, getSheetDayStarts, getTimeBlocksForPitch } from "@/features/booking/queries";
 import { time12 } from "@/lib/utils";
@@ -55,22 +55,31 @@ export async function getDashboardStats() {
             .from(bookings)
             .where(and(gte(bookings.bookingDate, from), lte(bookings.bookingDate, to), eq(bookings.status, "confirmed")));
 
-    const [todayActive, todayConfirmed, month, lastMonth, holds] = await Promise.all([
+    const [todayActive, todayConfirmed, month, lastMonth, holds, settingsRows] = await Promise.all([
         db.select({ c: sql`count(*)` }).from(bookings).where(and(eq(bookings.bookingDate, today), activeNow())),
         sumWhere(today, today),
         sumWhere(monthStart, today),
         sumWhere(prevStart, prevEnd),
         countActiveHolds(),
+        db.select({ overrideToday: siteSettings.overrideRevenueToday, overrideMonth: siteSettings.overrideRevenueMonth }).from(siteSettings).limit(1)
     ]);
 
-    const monthRevenue = Number(month[0]?.revenue ?? 0);
+    const overrideToday = Number(settingsRows[0]?.overrideToday ?? 0);
+    const overrideMonth = Number(settingsRows[0]?.overrideMonth ?? 0);
+
+    const rawTodayRevenue = Number(todayConfirmed[0]?.revenue ?? 0);
+    const rawMonthRevenue = Number(month[0]?.revenue ?? 0);
     const lastMonthRevenue = Number(lastMonth[0]?.revenue ?? 0);
+
+    const monthRevenue = rawMonthRevenue + overrideMonth;
+    const todayRevenue = rawTodayRevenue + overrideToday;
+
     const monthChange = lastMonthRevenue > 0 ? Math.round(((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100) : null;
 
     return {
         today,
         todayBookings: Number(todayActive[0]?.c ?? 0),
-        todayRevenue: Number(todayConfirmed[0]?.revenue ?? 0),
+        todayRevenue,
         monthRevenue,
         monthChange,
         pendingHolds: holds,
@@ -104,8 +113,6 @@ export async function getTodayBoard() {
     let total = 0;
     let used = 0;
     let freeCount = 0;
-    // Everything is placed on one clock: minutes since midnight of `today`, so after-midnight
-    // slots continue past 1440. Each ground uses its own first slot to know which slots are after midnight.
     let minStart = null;
     let maxEnd = null;
 
@@ -121,7 +128,7 @@ export async function getTodayBoard() {
                 const past = isBlockPast(today, b.startTime, dayStart);
                 const at = operatingMinutes(b.startTime, dayStart);
                 let until = operatingMinutes(b.endTime, dayStart);
-                if (until <= at) until += 1440; // ends after midnight
+                if (until <= at) until += 1440;
                 let status = "free";
                 if (t?.status === "confirmed") status = "confirmed";
                 else if (t?.status === "held") status = "held";
@@ -139,7 +146,7 @@ export async function getTodayBoard() {
         rows,
         occupancy: total ? Math.round((used / total) * 100) : 0,
         freeCount,
-        from: minStart, // minutes on today's clock
+        from: minStart,
         to: maxEnd,
         now: nowMinutes,
         date: today,
@@ -215,7 +222,6 @@ function relativeTime(date) {
     return `${days} days ago`;
 }
 
-/** Status shown in admin: refund_due wins; expired holds and played bookings are derived. */
 function displayStatus(r, dayStart) {
     if (r.paymentStatus === "refund_due") return "refund_due";
     if (r.status === "held" && r.holdExpiresAt && r.holdExpiresAt.getTime() <= Date.now()) return "expired";
@@ -223,7 +229,6 @@ function displayStatus(r, dayStart) {
     return r.status;
 }
 
-/** Rows -> admin table rows, each judged against its own sheet's first slot. */
 async function toAdminBookingRows(rows) {
     const starts = await getSheetDayStarts(rows.map((r) => ({ pitchId: r.pitchId, date: r.bookingDate })));
     return rows.map((r) => toAdminBookingRow(r, starts.get(`${r.pitchId}|${r.bookingDate}`)));
@@ -356,10 +361,6 @@ function toPitchAdmin(p) {
     };
 }
 
-/**
- * Slot editor data (same shape as the prototype's getPitchBlocksEditorData):
- * { pitch, defaultBlocks, days: [{ date, label, isOverride, blocks }] }
- */
 export async function getPitchEditorData(pitchId) {
     const [pitch] = await db.select().from(pitches).where(eq(pitches.id, pitchId)).limit(1);
     if (!pitch) return null;
@@ -395,7 +396,6 @@ export async function getPitchEditorData(pitchId) {
             sortOrder: i,
         }));
 
-    // Bookings per date, so the editor can warn before changing a day that already has bookings.
     const booked = await db
         .select({ date: bookings.bookingDate, c: sql`count(*)` })
         .from(bookings)

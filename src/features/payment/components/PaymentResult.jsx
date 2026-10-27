@@ -36,7 +36,7 @@ const COPY = {
         icon: RotateCcw,
         ring: "bg-flare text-ink",
         title: "Paid, but the slot was gone",
-        body: "Your payment arrived after the slot was released, so we couldn't confirm it. The full amount will be refunded to you. The desk will contact you.",
+        body: "Your payment arrived after the slot was given to someone else (or after its time), so we couldn't confirm it. The full amount will be refunded to you. The desk will contact you.",
     },
     missing: {
         icon: Minus,
@@ -49,7 +49,7 @@ const COPY = {
 /**
  * status: "success" | "pending" | "failed" | "cancelled" | "refund" | "missing"
  * booking: from getPaymentResult().booking (null for "missing")
- * canRetry: the slot is still held, show "Try payment again"
+ * canRetry: unpaid and not started yet, show "Try payment again" (locks the slot again if it's still free)
  * deskPhone: venue phone from site settings
  * payMethods: [{ id, label, hint }] for "Try payment again"
  */
@@ -98,7 +98,7 @@ export default function PaymentResult({ status = "success", booking = null, canR
                             {canRetry && (status === "failed" || status === "cancelled") && (
                                 <p className="mt-6 flex items-center gap-2 rounded-ctl bg-flare-soft px-4 py-3 text-[14px] font-medium text-flare-deep">
                                     <Hourglass className="h-4 w-4 shrink-0" />
-                                    We&apos;re still holding this slot for {booking.holdMinutesLeft} {booking.holdMinutesLeft === 1 ? "minute" : "minutes"}.
+                                    The slot is free for everyone again. Try again now to book it before someone else does.
                                 </p>
                             )}
 

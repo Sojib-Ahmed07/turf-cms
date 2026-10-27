@@ -42,7 +42,7 @@ const DEFAULT_SETTINGS = {
 const DEFAULT_NAV = [
     { label: "Home", href: "/" },
     { label: "Book a slot", href: "/book" },
-    { label: "Grounds", href: "/#grounds" },
+    { label: "Grounds", href: "/grounds" },
     { label: "Contact", href: "/#visit" },
 ];
 
@@ -57,7 +57,7 @@ const DEFAULT_SECTIONS = {
         heading: "Book in three steps",
         steps: [
             { title: "Pick a slot", body: "Choose the ground, the date and a free time. Prices are shown up front." },
-            { title: "Pay online", body: "Card, bKash, Nagad or Rocket. Your slot is held for 15 minutes while you pay." },
+            { title: "Pay online", body: "bKash, card, Nagad or Rocket. Press Pay and go straight to the payment page; the slot is yours once it goes through." },
             { title: "Show up and play", body: "Your ticket lands in My bookings. Show it at the gate." },
         ],
     },
@@ -357,7 +357,7 @@ export const DEFAULT_TERMS = {
     items: [
         {
             title: "Booking and payment",
-            body: "A booking is confirmed only when your online payment goes through. When you press Pay, the slot is held for you for 15 minutes. If the payment isn't finished in that time, the slot is released for other players.",
+            body: "A booking is confirmed only when your online payment goes through. Slots aren't reserved: while you are on the payment page nobody else can pay for the same slot (up to 5 minutes with bKash, 10 with card or other wallet). If you cancel, the payment fails or the time runs out, the slot is free for other players again.",
         },
         {
             title: "Prices",
@@ -369,7 +369,7 @@ export const DEFAULT_TERMS = {
         },
         {
             title: "Cancelling or moving a booking",
-            body: "You can cancel a booking that is still waiting for payment from My bookings. To cancel or move a paid booking, call us at least 24 hours before your slot.",
+            body: "You can release a slot whose payment you left open from My bookings. To cancel or move a paid booking, call us at least 24 hours before your slot.",
         },
         {
             title: "Refunds",

@@ -7,7 +7,7 @@ import { cn, taka, time12 } from "@/lib/utils";
 
 const STATUS = {
     confirmed: { tone: "brand", label: "Confirmed" },
-    held: { tone: "flare", label: "Awaiting payment" },
+    held: { tone: "flare", label: "Payment open" },
     completed: { tone: "neutral", label: "Played" },
     cancelled: { tone: "danger", label: "Cancelled" },
     expired: { tone: "neutral", label: "Expired" },
@@ -71,7 +71,7 @@ export default function BookingTicket({ booking, onCancel, onPay, onShow, onEmai
                     {booking.status === "held" && (
                         <p className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-flare-deep">
                             <Hourglass className="h-3.5 w-3.5" />
-                            {booking.holdMinutesLeft} min left to pay before the slot is released
+                            Payment page open. The slot is kept for you for {booking.holdMinutesLeft} more min at most
                         </p>
                     )}
                 </div>
@@ -132,7 +132,7 @@ export default function BookingTicket({ booking, onCancel, onPay, onShow, onEmai
                         <div className="flex gap-2">
                             {onCancel && (
                                 <Button variant="ghost" size="sm" disabled={Boolean(busy)} onClick={() => onCancel(booking.bookingId)}>
-                                    {busy === "cancel" || busy === true ? "Cancelling…" : "Cancel"}
+                                    {busy === "cancel" || busy === true ? "Releasing…" : "Release slot"}
                                 </Button>
                             )}
                             {onPay && (

@@ -4,14 +4,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarPlus, Search, X } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Search, X } from "lucide-react";
 import { PageHeader, Table, Th, Td, Toolbar, Label } from "@/components/admin/Kit";
 import StatusBadge from "@/components/admin/StatusBadge";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { TextInput, Select } from "@/components/ui/Inputs";
 import WalkInDialog from "./WalkInDialog";
-import { adminCancelBooking, markRefunded } from "@/features/admin/actions/bookings";
+import { adminCancelBooking, markPaidAtDesk, markRefunded } from "@/features/admin/actions/bookings";
 import { cn, taka } from "@/lib/utils";
 
 const RANGES = [
@@ -24,10 +24,10 @@ const RANGES = [
 const STATUSES = [
     { value: "", label: "Any status" },
     { value: "confirmed", label: "Confirmed" },
-    { value: "held", label: "Awaiting payment" },
+    { value: "held", label: "Payment open" },
     { value: "refund_due", label: "Refund due" },
     { value: "cancelled", label: "Cancelled" },
-    { value: "expired", label: "Expired" },
+    { value: "expired", label: "Not paid (released)" },
 ];
 
 export default function BookingsTable({ data, pitches = [], filters, startDate, initialWalkIn = false }) {
@@ -93,13 +93,23 @@ export default function BookingsTable({ data, pitches = [], filters, startDate, 
         });
     }
 
+    function paidAtDesk(row) {
+        setError("");
+        startTransition(async () => {
+            const res = await markPaidAtDesk(row.bookingId);
+            if (!res.ok) setError(res.error);
+            else setFlash(`${row.id} marked as paid at the desk.`);
+            router.refresh();
+        });
+    }
+
     const hasFilters = filters.q || filters.pitchId || filters.status;
 
     return (
         <div className="mx-auto max-w-[1280px]">
             <PageHeader
                 title="Bookings"
-                description="Every booking across all grounds. Bookings waiting for payment are released automatically after 15 minutes."
+                description="Every booking across all grounds. Payment open = the player is on the payment page right now; the slot is released the moment they cancel or fail, or after 5 to 10 minutes."
                 actions={
                     <Button variant="ink" onClick={() => setWalkInOpen(true)}>
                         <CalendarPlus className="h-4 w-4" />
@@ -170,7 +180,7 @@ export default function BookingsTable({ data, pitches = [], filters, startDate, 
                     <div className="px-6 py-16 text-center">
                         <p className="display text-[24px] text-ink">No bookings here</p>
                         <p className="mt-2 text-[14px] text-ink-3">
-                            {hasFilters ? "Nothing matches these filters. Try clearing them." : "Bookings will show up here as players reserve slots."}
+                            {hasFilters ? "Nothing matches these filters. Try clearing them." : "Bookings will show up here as players book slots."}
                         </p>
                     </div>
                 ) : (
@@ -207,8 +217,19 @@ export default function BookingsTable({ data, pitches = [], filters, startDate, 
                                     <Td>{b.method ?? <span className="text-ink-4">Not paid</span>}</Td>
                                     <Td>
                                         <StatusBadge status={b.status} />
+                                        {b.checkedIn && (
+                                            <p className="mt-1 inline-flex items-center gap-1 text-[12px] font-semibold text-brand-deep">
+                                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                                Checked in
+                                            </p>
+                                        )}
                                     </Td>
                                     <Td className="text-right">
+                                        {b.source === "walk_in" && !b.paid && ["confirmed", "completed"].includes(b.status) && (
+                                            <Button variant="outline" size="sm" onClick={() => paidAtDesk(b)}>
+                                                Mark paid
+                                            </Button>
+                                        )}
                                         {(b.status === "confirmed" || b.status === "held") && (
                                             <Button variant="ghost" size="sm" onClick={() => setCancelTarget(b)}>
                                                 Cancel

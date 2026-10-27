@@ -6,6 +6,6 @@ import { requireRole } from "@/lib/guards";
 export const metadata = { title: "Footer & SEO" };
 
 export default async function Page() {
-    await requireRole(["admin", "editor"]);
+    await requireRole(["admin"]);
     return <FooterSeoForm initial={await getFooterSeoAdmin()} />;
 }

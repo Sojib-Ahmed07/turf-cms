@@ -154,7 +154,7 @@ export async function saveMenu(input) {
 }
 
 /* -------------------------------------------------------------- */
-/* Footer & SEO (admin or editor)                                  */
+/* Footer & SEO (admin)                                           */
 /* -------------------------------------------------------------- */
 
 const PLATFORMS = ["facebook", "instagram", "youtube", "tiktok", "whatsapp", "x", "linkedin"];
@@ -222,7 +222,7 @@ export async function saveFooterSeo(input) {
 }
 
 /* -------------------------------------------------------------- */
-/* Slider timing (admin or editor, on the Hero slides page)        */
+/* Slider timing (admin, on the Hero slides page)                  */
 /* -------------------------------------------------------------- */
 
 const sliderSchema = z.object({

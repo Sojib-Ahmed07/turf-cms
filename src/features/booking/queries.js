@@ -4,12 +4,20 @@ import { and, asc, desc, eq, gt, inArray, lte, ne, or, isNull } from "drizzle-or
 import { db } from "@/db";
 import { bookings, pitches, timeBlocks } from "@/db/schema";
 import { partsOf } from "./parts";
-import { addDaysISO, currentOperatingDay, dayStartOf, dhakaDate, intervalsOverlap, isAfterMidnight, isBlockPast, minutesToHHMM, nightEndOf, operatingMinutes, slotInterval } from "@/lib/time";
+import { addDaysISO, currentOperatingDay, dayStartOf, dhakaDate, hhmmToMinutes, intervalsOverlap, isAfterMidnight, isBlockPast, minutesToHHMM, nightEndOf, operatingMinutes, slotInterval } from "@/lib/time";
 import { time12 } from "@/lib/utils";
 import { ticketVerifyUrl } from "@/lib/ticket-token";
 import { qrDataUrlForUrl } from "@/lib/qrcode";
 
-export const HOLD_MINUTES = 15;
+// No reservations. A slot is only locked while its player is on the payment page: starting a payment
+// locks it for this long, and a cancelled or failed payment releases it at once. The cap only matters when
+// the player walks away from the payment page without pressing Cancel (no callback ever comes).
+// bKash takes the money only when we execute it (after re-checking the slot), so its lock can be short.
+// Card/wallet payments (SSLCommerz) can be completed later; one finished after the lock ran out still
+// confirms if the slot is free, otherwise it becomes a refund.
+export const PAYMENT_LOCK_MINUTES = { bkash: 5, sslcommerz: 10 };
+// Between pressing Pay and the gateway page opening (a second or two); replaced by the gateway's lock.
+export const PRE_PAYMENT_LOCK_MINUTES = 2;
 
 /* -------------------------------------------------------------- */
 /* Pitches                                                         */
@@ -25,6 +33,17 @@ export async function getPitches() {
     return rows.map(toPitchView);
 }
 
+/** Active ground by its URL slug (/grounds/<slug>), or null. */
+export async function getPitchBySlug(slug) {
+    if (typeof slug !== "string" || !/^[a-z0-9-]{1,80}$/.test(slug)) return null;
+    const [row] = await db
+        .select()
+        .from(pitches)
+        .where(and(eq(pitches.slug, slug), eq(pitches.isActive, true)))
+        .limit(1);
+    return row ?? null;
+}
+
 export async function getPitchById(pitchId) {
     const [row] = await db
         .select()
@@ -32,6 +51,25 @@ export async function getPitchById(pitchId) {
         .where(and(eq(pitches.id, pitchId), eq(pitches.isActive, true)))
         .limit(1);
     return row ?? null;
+}
+
+/**
+ * Cheapest per-hour price on the ground's default schedule, for "from ৳X/hr". The admin can change block
+ * prices without touching the ground's hourly rate, so the rate alone can be wrong. Falls back to it.
+ */
+function fromHourlyOf(p) {
+    const rates = (Array.isArray(p.defaultBlocks) ? p.defaultBlocks : [])
+        .map((b) => {
+            const length = (hhmmToMinutes(String(b.endTime)) - hhmmToMinutes(String(b.startTime)) + 1440) % 1440 || 1440;
+            return (Number(b.price) * 60) / length;
+        })
+        .filter((r) => Number.isFinite(r) && r > 0);
+    return rates.length ? Math.round(Math.min(...rates)) : Number(p.hourlyRate);
+}
+
+function hoursOf(p) {
+    const sheet = defaultSheet(p);
+    return sheet.length ? { opensAt: sheet[0].startTime, closesAt: sheet[sheet.length - 1].endTime } : { opensAt: null, closesAt: null };
 }
 
 export function toPitchView(p) {
@@ -45,6 +83,9 @@ export function toPitchView(p) {
         size: p.size ?? "",
         surface: p.surface ?? "",
         hourlyRate: Number(p.hourlyRate),
+        fromHourly: fromHourlyOf(p),
+        // Default schedule's first start and last end ("06:00", "03:00"), for "Hours" on the grounds pages.
+        ...hoursOf(p),
         openHour: p.openHour,
         closeHour: p.closeHour,
         imageUrl: p.imageUrl ?? null,
@@ -290,11 +331,37 @@ export async function getGroundsToday() {
             const sheet = defaultSheet(p);
             const sheetStart = dayStartOf(sheet);
             const parts = partsOf(sheet.map((b) => ({ start: b.startTime, late: isAfterMidnight(b.startTime, sheetStart) })));
-            return { ...toPitchView(p), freeToday, parts };
+            return { ...toPitchView(p), freeToday, slotsToday: blocks.length, parts };
         })
     );
 
     return { date, pitches: list, freeCount: list.reduce((n, p) => n + p.freeToday.length, 0) };
+}
+
+/**
+ * One ground's next `days` venue days for its page: [{ date, slots, free, times: ["19:30", ...] }].
+ * Same rules as the booking board (overlaps, past slots). `times` are the free start times.
+ */
+export async function getGroundDays(pitch, days = 7) {
+    const { date: today } = await currentVenueDay();
+    const dates = Array.from({ length: days }, (_, i) => addDaysISO(today, i));
+    const [sheets, active] = await Promise.all([
+        Promise.all(dates.map((d) => getTimeBlocksForPitch(pitch, d))),
+        getActiveIntervals(pitch.id, dates),
+    ]);
+    return dates.map((date, i) => {
+        const blocks = sheets[i];
+        const dayStart = dayStartOf(blocks);
+        const times = blocks
+            .filter(
+                (b) =>
+                    b.price > 0 &&
+                    !isBlockPast(date, b.startTime, dayStart) &&
+                    !blockingBooking(active, slotInterval(date, b.startTime, b.endTime, dayStart))
+            )
+            .map((b) => b.startTime);
+        return { date, slots: blocks.length, free: times.length, times };
+    });
 }
 
 export async function expireStaleHolds({ pitchId, date } = {}) {
@@ -336,14 +403,22 @@ export async function getMyBookings(userId) {
         })
         .from(bookings)
         .innerJoin(pitches, eq(bookings.pitchId, pitches.id))
-        .where(eq(bookings.userId, userId))
+        .where(
+            and(
+                eq(bookings.userId, userId),
+                // Payment attempts that were never paid (released, failed, walked away) aren't bookings.
+                or(inArray(bookings.status, ["held", "confirmed", "completed"]), ne(bookings.paymentStatus, "unpaid"))
+            )
+        )
         .orderBy(desc(bookings.bookingDate), desc(bookings.startTime));
 
     const now = Date.now();
     const dayStarts = await getSheetDayStarts(rows.map((r) => ({ pitchId: r.pitchId, date: r.bookingDate })));
 
+    // A lock that ran out (payment page abandoned) isn't a booking any more either.
+    const live = rows.filter((r) => !(r.status === "held" && r.holdExpiresAt && r.holdExpiresAt.getTime() <= now));
     return Promise.all(
-        rows.map(async (r) => {
+        live.map(async (r) => {
             const dayStart = dayStarts.get(`${r.pitchId}|${r.bookingDate}`);
             let status = r.status;
             if (status === "held" && r.holdExpiresAt && r.holdExpiresAt.getTime() <= now) status = "expired";

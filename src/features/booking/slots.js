@@ -1,4 +1,4 @@
-// src/features/booking/slots.js  (ported unchanged from the prototype: src/lib/slots.js)
+// src/features/booking/slots.js  (ported from the prototype: src/lib/slots.js; validateBlocks updated 27 Oct)
 /* -------------------------------------------------------------- */
 /* Slot / block engine                                             */
 /*                                                               */

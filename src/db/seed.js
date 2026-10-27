@@ -60,9 +60,8 @@ async function main() {
         await db.insert(navItems).values([
             { label: "Home", href: "/", sortOrder: 0, isVisible: true },
             { label: "Book a slot", href: "/book", sortOrder: 1, isVisible: true },
-            { label: "Grounds", href: "/#grounds", sortOrder: 2, isVisible: true },
-            { label: "Offers", href: "/#offers", sortOrder: 3, isVisible: true },
-            { label: "Contact", href: "/#visit", sortOrder: 4, isVisible: true },
+            { label: "Grounds", href: "/grounds", sortOrder: 2, isVisible: true },
+            { label: "Contact", href: "/#visit", sortOrder: 3, isVisible: true },
         ]);
     }
 

@@ -7,13 +7,14 @@ import { CalendarDays, ChevronDown, MapPin, Search } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { PARTS } from "@/features/booking/parts";
 import { addDaysISO } from "@/lib/time";
+import { BOOKING_DAYS_AHEAD } from "@/features/booking/calendar";
 import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 // Value is passed to /book as ?part= and picks the first free slot in that part of the day.
 // Only parts the chosen ground (or any ground) actually has slots in are shown.
 const SHORT_KEY = { morning: "parts.morning", day: "parts.dayShort", evening: "parts.evening", late: "parts.late" };
-const DAYS = 7;
+const DAYS = BOOKING_DAYS_AHEAD; // same one-month window as /book
 
 /**
  * Booking shortcut that overlaps the bottom of the hero.

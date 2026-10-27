@@ -35,7 +35,7 @@ export default function PitchPicker({ pitches = [], value, onChange }) {
                         <span className="min-w-0 flex-1">
                             <span className="display block truncate text-[19px] text-ink">{p.name}</span>
                             <span className="mt-0.5 block truncate text-[13px] text-ink-3">{p.format}</span>
-                            <span className="mt-1 block text-[13px] font-semibold text-ink-2 tnum">{t("pitch.fromPrice", { price: f.taka(p.hourlyRate) })}</span>
+                            <span className="mt-1 block text-[13px] font-semibold text-ink-2 tnum">{t("pitch.fromPrice", { price: f.taka(p.fromHourly ?? p.hourlyRate) })}</span>
                         </span>
                         <span
                             className={cn(

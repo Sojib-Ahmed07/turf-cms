@@ -7,6 +7,6 @@ import { requireRole } from "@/lib/guards";
 export const metadata = { title: "Media" };
 
 export default async function Page() {
-    await requireRole(["admin", "editor"]);
+    await requireRole(["admin"]);
     return <MediaLibrary items={await getMediaAdmin()} uploadsReady={isCloudinaryConfigured()} />;
 }

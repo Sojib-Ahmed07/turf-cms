@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }) {
     // Real check (proxy.js only looks for the cookie). Players are sent to the home page.
-    const user = await requireRole(["admin", "editor"]);
+    const user = await requireRole(["admin"]);
     const [held, settings] = await Promise.all([countActiveHolds(), getSiteSettings()]);
     return (
         <AdminShell user={{ name: user.name, role: user.role }} siteName={settings.siteName} counts={{ held }}>

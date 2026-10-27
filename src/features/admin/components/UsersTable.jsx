@@ -12,8 +12,6 @@ import { cn } from "@/lib/utils";
 
 const ROLES = [
     { value: "admin", label: "Admin" },
-    { value: "editor", label: "Editor" },
-    { value: "staff", label: "Gate staff" },
     { value: "user", label: "Player" },
 ];
 
@@ -41,12 +39,12 @@ export default function UsersTable({ data, q = "", meId }) {
         <div className="mx-auto max-w-[1080px]">
             <PageHeader
                 title="Users"
-                description="Admins can change everything. Editors can change website content but not grounds, prices, payments, coupons or users. Gate staff can only check tickets in at the gate (scan the QR, Mark as used)."
+                description="Admins can change everything in the admin area and check tickets in at the gate. Players can only book."
             />
 
             <p className="mb-6 flex items-start gap-2.5 rounded-card bg-white px-5 py-4 text-[14px] text-ink-2 ring-1 ring-line">
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-3" />
-                To add staff, ask them to create an account on the website, then find them here and change their role. The change applies the next time they open a page.
+                To add an admin, ask them to create an account on the website, then find them here and change their role. The change applies the next time they open a page.
             </p>
 
             <div className="overflow-hidden rounded-card bg-white ring-1 ring-line">

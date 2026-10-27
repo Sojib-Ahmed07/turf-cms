@@ -41,7 +41,7 @@ export default function MyBookingsClient({
     }, []);
     const [offInfo, setOffInfo] = useState(null); // { off, alternatives, bookingId }: "this method is off" dialog
     const [busy, setBusy] = useState(null);
-    const [error, setError] = useState(payFailed ? "We couldn't open the payment page. Your slot is still held, so try Pay again." : "");
+    const [error, setError] = useState(payFailed ? "We couldn't open the payment page. Try again from Book a slot." : "");
     const [flash, setFlash] = useState("");
     const [, startTransition] = useTransition();
     const [ticket, setTicket] = useState(null);
@@ -141,13 +141,11 @@ export default function MyBookingsClient({
                     <Hourglass className="mt-0.5 h-5 w-5 shrink-0 text-flare-deep" />
                     <div>
                         <p className="text-[15px] font-semibold text-ink">
-                            {justHeld.pitch} is reserved for you for {justHeld.holdMinutesLeft} minutes
+                            Your payment for {justHeld.pitch} is still open
                         </p>
                         <p className="mt-1 text-[13px] text-ink-2">
-                            {paymentsLive
-                                ? "Pay before the time runs out to confirm the booking."
-                                : "Online payment is being set up. Call the desk to confirm, or cancel if you changed your mind."}
-                            {paymentsLive && enabledMethods.length === 0 && " Online payment is paused right now, so call the desk if the time is running out."}
+                            Finish it on the payment page, or press Release slot so other players can book it.
+                            {paymentsLive && enabledMethods.length === 0 && " Online payment is paused right now, so call the desk."}
                         </p>
                     </div>
                 </div>

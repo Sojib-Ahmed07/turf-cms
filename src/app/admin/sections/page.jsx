@@ -6,6 +6,6 @@ import { requireRole } from "@/lib/guards";
 export const metadata = { title: "Home sections" };
 
 export default async function Page() {
-    await requireRole(["admin", "editor"]);
+    await requireRole(["admin"]);
     return <SectionsEditor initial={await getSectionsAdmin()} />;
 }

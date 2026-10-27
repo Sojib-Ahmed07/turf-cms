@@ -9,23 +9,23 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { withLockedTx } from "@/db/pool";
-import { bookings, payments } from "@/db/schema";
+import { bookings } from "@/db/schema";
 import { isBlockPast, slotInterval } from "@/lib/time";
-import { HOLD_MINUTES, blockingBooking, currentVenueDay, expireStaleHolds, getActiveIntervals, getPitchById, resolveBlock } from "./queries";
+import { PRE_PAYMENT_LOCK_MINUTES, blockingBooking, currentVenueDay, expireStaleHolds, getActiveIntervals, getPitchById, resolveBlock } from "./queries";
 import { BOOKING_DAYS_AHEAD, isRealDate } from "./calendar";
 import { addDaysISO } from "@/lib/time";
 import { getI18n } from "@/i18n/server";
 import { checkCouponForSlot, redeemCoupon } from "@/features/coupons/service";
 import { normalizeCode } from "@/features/coupons/rules";
 import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
+import { startPayment } from "@/features/payment/service";
+import { GATEWAYS, getPayMethods } from "@/features/payment/methods";
 
-const MAX_ACTIVE_HOLDS = 2;
-// Unpaid holds (released, expired or still waiting) one player may create per hour, so two slots
-// can't be blocked forever by reserving, cancelling and reserving again.
-const MAX_HOLDS_PER_HOUR = 6;
-// A card/wallet (SSLCommerz) payment opened this recently can still be completed, so the hold can't be
-// cancelled under it (the player would be charged for a cancelled booking). bKash checks the slot itself.
-const OPEN_PAYMENT_MINUTES = 20;
+// There are no reservations. A slot is only locked while its player is on the payment page
+// (see PAYMENT_LOCK_MINUTES in queries.js), and is released the moment the payment fails or is cancelled.
+// Payment attempts one player may start per hour without paying, so nobody can keep a slot blocked by
+// opening the payment page and walking away again and again.
+const MAX_UNPAID_ATTEMPTS_PER_HOUR = 5;
 
 const holdSchema = z.object({
     pitchId: z.string().uuid(),
@@ -45,9 +45,9 @@ function sameAsSeen(block, { startTime, price }) {
     return true;
 }
 
-class HoldRefused extends Error {
+class Refused extends Error {
     constructor(result) {
-        super("hold refused");
+        super("refused");
         this.result = result;
     }
 }
@@ -63,7 +63,7 @@ function bookingCode() {
     return "TZ-" + Array.from(bytes, (b) => chars[b % chars.length]).join("");
 }
 
-/** The date must be a real day inside the booking window the /book page offers (today + 13 days). */
+/** The date must be a real day inside the booking window the /book page offers (today + BOOKING_DAYS_AHEAD - 1). */
 async function outsideWindow(date) {
     if (!isRealDate(date)) return true;
     const { date: today } = await currentVenueDay();
@@ -100,23 +100,25 @@ export async function previewCoupon(input) {
     }
 }
 
-export async function createBookingHold(input) {
+/**
+ * Book a slot: one step, straight to the payment page.
+ *   free (100% code)  -> confirmed at once:            { ok: true, data: { free: true, code, bookingId } }
+ *   otherwise         -> slot locked, gateway opened:  { ok: true, data: { url, code, bookingId } }
+ * Refusals: { ok: false, error, needsLogin?, needsVerify?, couponError?, slotChanged?, methodOff?, off?, available? }.
+ * Nothing is locked unless the payment page really opens: if the gateway fails to open, the slot is released.
+ * input: { pitchId, blockId, date, couponCode?, startTime, price, method? }
+ */
+export async function bookAndPay(input) {
     const i18n = await getI18n();
     const { t } = i18n;
     try {
         const user = await currentUser();
         if (!user) return { ok: false, needsLogin: true, error: t("errors.signInToBook") };
-        if (!user.emailVerified) {
-            return {
-                ok: false,
-                needsVerify: true,
-                error: t("errors.verifyToBook"),
-            };
-        }
+        if (!user.emailVerified) return { ok: false, needsVerify: true, error: t("errors.verifyToBook") };
 
-        const parsed = holdSchema.safeParse(input);
+        const parsed = holdSchema.extend({ method: z.string().max(20).optional().default("") }).safeParse(input);
         if (!parsed.success) return { ok: false, error: t("errors.pickAll") };
-        const { pitchId, blockId, date, couponCode } = parsed.data;
+        const { pitchId, blockId, date, couponCode, method } = parsed.data;
         if (await outsideWindow(date)) {
             return { ok: false, error: t("errors.outsideWindow", { days: BOOKING_DAYS_AHEAD }) };
         }
@@ -127,31 +129,46 @@ export async function createBookingHold(input) {
         const block = await resolveBlock(pitch, date, blockId);
         if (!block) return { ok: false, error: t("errors.slotGone") };
         if (!sameAsSeen(block, parsed.data)) return { ok: false, slotChanged: true, error: t("errors.slotChanged") };
+        if (isBlockPast(date, block.startTime, block.dayStart)) return { ok: false, error: t("errors.slotStarted") };
 
-        if (isBlockPast(date, block.startTime, block.dayStart)) {
-            return { ok: false, error: t("errors.slotStarted") };
-        }
+        // Pick the payment method before touching the slot, so a switched-off or missing method never locks it.
+        // (A 100% code needs no method; that is decided inside the lock below, where the price is final.)
+        const methods = await getPayMethods();
+        const available = methods.filter((m) => m.enabled);
+        if (method && !GATEWAYS.includes(method)) return { ok: false, error: t("errors.pickMethod") };
+        const wanted = method ? methods.find((m) => m.id === method) : available[0];
+        const payRefusal = !methods.length
+            ? { ok: false, error: t("errors.paymentNotSetUp") }
+            : !wanted || !wanted.enabled
+                ? {
+                    ok: false,
+                    methodOff: true,
+                    off: wanted ? { id: wanted.id, label: t(`pay.${wanted.id}.label`) } : null,
+                    available,
+                    error: wanted ? t("errors.methodOff", { method: t(`pay.${wanted.id}.label`) }) : t("errors.paymentsOff"),
+                }
+                : null;
 
         await expireStaleHolds({ pitchId, date });
 
         const interval = slotInterval(date, block.startTime, block.endTime, block.dayStart);
         const code = couponCode ? normalizeCode(couponCode) : "";
-        // Locks: the ground (overlap check), the player (hold limits) and the code (usage limits).
-        // Requests that share one of them run one at a time, so none of these checks can be raced.
+        // Locks: the ground (overlap check), the player (attempt limit) and the code (usage limits).
         const lockKeys = [`pitch:${pitchId}`, `user:${user.id}`];
         if (code) lockKeys.push(`coupon:${code}`);
 
-        for (let attempt = 0; attempt < 3; attempt++) {
+        let row = null;
+        for (let attempt = 0; attempt < 3 && !row; attempt++) {
             try {
-                const row = await withLockedTx(lockKeys, async (tx) => {
+                row = await withLockedTx(lockKeys, async (tx) => {
                     const now = new Date();
-                    const [{ n: activeCount }] = await tx
-                        .select({ n: count() })
-                        .from(bookings)
-                        .where(and(eq(bookings.userId, user.id), eq(bookings.status, "held"), gt(bookings.holdExpiresAt, now)));
-                    if (Number(activeCount) >= MAX_ACTIVE_HOLDS) {
-                        throw new HoldRefused({ ok: false, error: t("errors.tooManyHolds", { count: Number(activeCount) }) });
-                    }
+                    // One payment at a time per player: starting a new one releases their previous lock
+                    // (e.g. they pressed Back on the bKash page instead of Cancel).
+                    await tx
+                        .update(bookings)
+                        .set({ status: "expired", holdExpiresAt: null, cancelReason: "Released: player started another payment", updatedAt: now })
+                        .where(and(eq(bookings.userId, user.id), eq(bookings.status, "held")));
+
                     const [{ n: recent }] = await tx
                         .select({ n: count() })
                         .from(bookings)
@@ -164,26 +181,26 @@ export async function createBookingHold(input) {
                                 gt(bookings.createdAt, new Date(now.getTime() - 60 * 60000))
                             )
                         );
-                    if (Number(recent) >= MAX_HOLDS_PER_HOUR) {
-                        throw new HoldRefused({ ok: false, error: t("errors.tooManyRecentHolds") });
+                    if (Number(recent) >= MAX_UNPAID_ATTEMPTS_PER_HOUR) {
+                        throw new Refused({ ok: false, error: t("errors.tooManyRecentHolds") });
                     }
 
-                    // Any active booking whose real time overlaps this slot (also from yesterday's or
-                    // tomorrow's sheet) blocks it, not only one with the same start time.
+                    // Any active booking (paid, or someone else on the payment page right now) whose real time
+                    // overlaps this slot blocks it, including yesterday's/tomorrow's after-midnight slots.
                     const active = await getActiveIntervals(pitchId, [date], { exec: tx });
-                    if (blockingBooking(active, interval)) throw new HoldRefused({ ok: false, error: t("errors.slotTaken") });
+                    if (blockingBooking(active, interval)) throw new Refused({ ok: false, error: t("errors.slotTaken") });
 
                     let couponId = null;
                     let discount = 0;
                     if (code) {
                         const c = await checkCouponForSlot({ code, pitchId, block, date, userId: user.id, i18n, exec: tx });
-                        if (!c.ok) throw new HoldRefused({ ok: false, couponError: true, error: c.error });
+                        if (!c.ok) throw new Refused({ ok: false, couponError: true, error: c.error });
                         couponId = c.coupon.id;
                         discount = c.discount;
                     }
                     const total = Math.max(0, Number(block.price) - discount);
                     const free = total === 0;
-                    const holdExpiresAt = new Date(now.getTime() + HOLD_MINUTES * 60 * 1000);
+                    if (!free && payRefusal) throw new Refused(payRefusal);
 
                     const [inserted] = await tx
                         .insert(bookings)
@@ -204,43 +221,55 @@ export async function createBookingHold(input) {
                             status: free ? "confirmed" : "held",
                             paymentStatus: free ? "paid" : "unpaid",
                             source: "online",
-                            holdExpiresAt: free ? null : holdExpiresAt,
+                            // Just long enough to reach the gateway; startPayment replaces it with the gateway's lock.
+                            holdExpiresAt: free ? null : new Date(now.getTime() + PRE_PAYMENT_LOCK_MINUTES * 60000),
                         })
                         .returning({ id: bookings.id, code: bookings.code });
 
-                    // Free booking: the code is used now, inside the same lock as the limit check.
                     if (free) await redeemCoupon(inserted.id, tx);
-                    return { ...inserted, free, holdExpiresAt: free ? null : holdExpiresAt };
+                    return { ...inserted, free };
                 });
-
-                if (row.free) {
-                    waitUntil(
-                        sendBookingReceiptByBookingId(row.id).catch((err) =>
-                            console.error("[ticket-email:free]", err)
-                        )
-                    );
-                }
-                revalidatePath("/bookings");
-                return {
-                    ok: true,
-                    data: { bookingId: row.id, code: row.code, free: row.free, holdExpiresAt: row.holdExpiresAt ? row.holdExpiresAt.toISOString() : null },
-                };
             } catch (err) {
-                if (err instanceof HoldRefused) return err.result;
+                if (err instanceof Refused) return err.result;
                 if (!isUniqueViolation(err)) throw err;
                 const msg = String(err?.message ?? "") + String(err?.cause?.message ?? "") + String(err?.cause?.constraint ?? "");
-                if (!msg.includes("bookings_code_unique")) {
-                    return { ok: false, error: t("errors.slotTaken") };
-                }
+                if (!msg.includes("bookings_code_unique")) return { ok: false, error: t("errors.slotTaken") };
             }
         }
-        return { ok: false, error: t("errors.reserveFailed") };
+        if (!row) return { ok: false, error: t("errors.reserveFailed") };
+
+        revalidatePath("/bookings");
+        if (row.free) {
+            waitUntil(sendBookingReceiptByBookingId(row.id).catch((err) => console.error("[ticket-email:free]", err)));
+            return { ok: true, data: { free: true, code: row.code, bookingId: row.id } };
+        }
+
+        const pay = await startPayment(row.id, user, wanted.id, i18n);
+        if (!pay.ok) {
+            // The payment page didn't open: don't keep the slot from anyone.
+            await releaseLock(row.id, "Released: the payment page didn't open");
+            return { ok: false, error: pay.error };
+        }
+        return { ok: true, data: { url: pay.data.url, code: row.code, bookingId: row.id } };
     } catch (err) {
-        console.error("[createBookingHold]", err);
+        console.error("[bookAndPay]", err);
         return { ok: false, error: t("errors.reserveFailed") };
     }
 }
 
+/** Free a locked slot (status expired = released unpaid; a late payment can still revive it if nobody took it). */
+async function releaseLock(bookingId, reason) {
+    await db
+        .update(bookings)
+        .set({ status: "expired", holdExpiresAt: null, cancelReason: reason, updatedAt: new Date() })
+        .where(and(eq(bookings.id, bookingId), eq(bookings.status, "held")));
+}
+
+/**
+ * The player leaves a payment they didn't finish ("Release slot" in My bookings): the slot is free for
+ * everyone at once. If the gateway still completes that payment later, the booking is revived when the
+ * slot is still free, otherwise it becomes a refund (bKash never takes the money in that case).
+ */
 export async function cancelHeldBooking(bookingId) {
     const { t } = await getI18n();
     try {
@@ -248,36 +277,13 @@ export async function cancelHeldBooking(bookingId) {
         if (!user) return { ok: false, needsLogin: true, error: t("errors.signInFirst") };
         if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: t("errors.bookingNotFound") };
 
-        // A card/wallet payment still open on SSLCommerz could be completed after the cancel: refuse until
-        // it's closed (the cancel callback closes it) or old enough that it can't be paid any more.
-        const [open] = await db
-            .select({ createdAt: payments.createdAt })
-            .from(payments)
-            .innerJoin(bookings, eq(payments.bookingId, bookings.id))
-            .where(
-                and(
-                    eq(payments.bookingId, bookingId),
-                    eq(bookings.userId, user.id),
-                    eq(payments.gateway, "sslcommerz"),
-                    eq(payments.status, "initiated"),
-                    gt(payments.createdAt, new Date(Date.now() - OPEN_PAYMENT_MINUTES * 60000))
-                )
-            )
-            .limit(1);
-        if (open) {
-            const minutes = Math.max(1, Math.ceil((open.createdAt.getTime() + OPEN_PAYMENT_MINUTES * 60000 - Date.now()) / 60000));
-            return { ok: false, error: t("errors.paymentInProgress", { minutes }) };
-        }
-
         const rows = await db
             .update(bookings)
-            .set({ status: "cancelled", cancelledAt: new Date(), cancelReason: "Cancelled by player before payment", updatedAt: new Date() })
-            .where(and(eq(bookings.id, bookingId), eq(bookings.userId, user.id), inArray(bookings.status, ["held"])))
+            .set({ status: "expired", holdExpiresAt: null, cancelReason: "Released by the player before paying", updatedAt: new Date() })
+            .where(and(eq(bookings.id, bookingId), eq(bookings.userId, user.id), eq(bookings.status, "held")))
             .returning({ id: bookings.id });
 
-        if (rows.length === 0) {
-            return { ok: false, error: t("errors.cancelOnlyHeld") };
-        }
+        if (rows.length === 0) return { ok: false, error: t("errors.cancelOnlyHeld") };
         revalidatePath("/bookings");
         return { ok: true };
     } catch (err) {

@@ -1,3 +1,4 @@
+<!-- CLAUDE.md (project root) -->
 # CLAUDE.md — TurfZone CMS
 
 Turf-booking site + CMS for one venue in Dhaka (Next.js 16.4.3 App Router, React 19.3, Tailwind v4,
@@ -158,23 +159,24 @@ same-site paths. **Phones:** use `src/lib/phone.js` (`normalizeBdPhone`, `cleanB
 `databaseHooks` in `lib/auth.js` validate phone/name on sign-up and update-user; keep them when adding user fields.
 **Booking dates:** server-side window `BOOKING_DAYS_AHEAD` + `isRealDate` (`booking/calendar.js`).
 
-**Booking gate:** `createBookingHold` and `payForBooking` refuse unverified emails with
+**Booking gate:** `bookAndPay` and `payForBooking` refuse unverified emails with
 `{ ok: false, needsVerify: true }`. Keep that check in any new booking or payment entry point.
 
 ## Roles
 
-`user.role`: `user` (player), `editor` (CMS content only), `admin` (everything). Editor is still live in
-the code (an older `ai-context.md` wrongly said 7a removed it). Branding, navigation, grounds, bookings,
-payments, coupons, users and ticket check-in are admin only (`adminOnly` in `AdminShell`, `ADMIN_ONLY` in
-actions). Check the role inside every admin action, not only in the layout. Admin-only pages also call
-`requireRole(["admin"])` themselves. `/verify/[token]` is public; only `markTicketUsed` needs admin.
+`user.role`: `user` (player) or `admin` (everything, incl. ticket check-in). The editor and staff roles were
+removed on 27 Oct (migration 0007 makes any such account a player); don't add roles back unless asked.
+`CONTENT_ROLES` in `cms/server-utils.js` is now `["admin"]`. Check the role inside every admin action, not only in
+the layout. `/verify/[token]` is public; only `markTicketUsed` needs admin.
 
 ## Known gaps (as of 26 Oct 2026)
 
 - `BLUEPRINT.md` is not in the repo. `ai-context.md` section 12 has the remaining plan; ask before
   assuming anything beyond it.
+- 27 Oct (b): no holds any more (payment-only lock, Agents.md section 5), one-month window, `/grounds` pages,
+  roles admin + player only. Run `npm run db:migrate` for **0007** too.
 - 27 Oct audit fixes: run `npm run db:migrate` for **0006** (coupon redemption index; coupons break without it), and set
-  the external cron to every 10 minutes (DEPLOY.md section 9). Roles now include `staff` (gate check-in only).
+  the external cron to every 10 minutes (DEPLOY.md section 9).
 - Steps 0 to 8b are done (7a email OTP, 7b QR tickets + check-in + receipt email, 7c venue map,
   8a direct bKash, 8b admin payment-method switches). Migrations 0002 to 0004 must be applied on every database.
 - Direct Nagad was dropped (needs a whitelisted fixed IP; Vercel Static IPs cost $100/month). Don't build it

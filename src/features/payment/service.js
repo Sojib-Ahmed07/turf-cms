@@ -1,25 +1,27 @@
 // src/features/payment/service.js
 import "server-only";
 import { waitUntil } from "@vercel/functions";
-import { and, asc, eq, inArray, lt, lte, gt, ne } from "drizzle-orm";
+import { and, asc, count, eq, inArray, lt, lte, gt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { withLockedTx } from "@/db/pool";
 import { bookings, payments, pitches } from "@/db/schema";
 import { initSession, queryTransaction, validateOrder } from "@/lib/sslcommerz";
 import { createPayment as bkashCreate, executePayment as bkashExecute, queryPayment as bkashQuery } from "@/lib/bkash";
 import { GATEWAYS, isGatewayConfigured } from "./methods";
-import { HOLD_MINUTES, blockingBooking, getActiveIntervals, getSheetDayStarts } from "@/features/booking/queries";
+import { PAYMENT_LOCK_MINUTES, blockingBooking, getActiveIntervals, getSheetDayStarts } from "@/features/booking/queries";
 import { redeemCoupon } from "@/features/coupons/service";
 import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
 import { isBlockEnded, isBlockPast, shortDateLabel, slotInterval } from "@/lib/time";
 import { time12 } from "@/lib/utils";
 
-// Opening a payment stretches the hold so the gateway page can be finished before the slot is released:
-// SSLCommerz pages stay payable for a long time (and take the money as soon as the player pays), so the hold
-// covers them longer. bKash only takes money when we execute it, after re-checking the slot, so 15 min is enough.
-const PAYMENT_HOLD_MINUTES = { sslcommerz: 30, bkash: HOLD_MINUTES };
-// ...but never past this long after the slot was first reserved.
-const MAX_HOLD_MINUTES = 60;
+// Unfinished payment attempts (failed, cancelled, abandoned) one player may start per hour. Each one
+// locks a slot for a few minutes, so this stops anyone keeping a slot blocked by retrying over and over.
+const MAX_UNPAID_PAYMENTS_PER_HOUR = 8;
+
+/** A held booking whose payment lock has run out (player walked away): treated like a released one. */
+function lockLapsed(b, now = Date.now()) {
+    return b.status === "held" && (!b.holdExpiresAt || new Date(b.holdExpiresAt).getTime() <= now);
+}
 
 function appUrl() {
     return (process.env.APP_URL || process.env.BETTER_AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -43,7 +45,10 @@ const sameAmount = (a, b) => Math.abs(Number(a) - Number(b)) < 0.01;
 /* -------------------------------------------------------------- */
 
 /**
- * Open a payment for a held booking. method: "bkash" | "sslcommerz" (see methods.js).
+ * Open a payment for a booking and lock its slot while the player is on the payment page
+ * (PAYMENT_LOCK_MINUTES per gateway). Works for a booking just made by bookAndPay, and for a retry after a
+ * failed/cancelled payment: the slot is locked again only if nobody else has taken it meanwhile.
+ * method: "bkash" | "sslcommerz" (see methods.js).
  * Returns { ok: true, data: { url } } (the browser goes there) or { ok: false, error, expired? }.
  * i18n (optional): { t } from getI18n(), for messages in the player's language (English without it).
  */
@@ -75,12 +80,9 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
 
     if (!b) return { ok: false, error: msg("bookingNotFound", "Booking not found.") };
     if (b.status === "confirmed") return { ok: false, error: msg("alreadyPaid", "This booking is already paid.") };
-    if (b.status !== "held") return { ok: false, error: msg("cantPay", "This booking can't be paid any more. Pick the slot again.") };
-
-    const now = Date.now();
-    const expires = b.holdExpiresAt ? new Date(b.holdExpiresAt).getTime() : 0;
-    if (expires <= now) {
-        return { ok: false, expired: true, error: msg("holdExpired", "Your reservation ran out. Pick the slot again.") };
+    // held = locked for a payment now; expired = released unpaid (a retry may lock it again). Cancelled = no.
+    if (b.status !== "held" && !(b.status === "expired" && b.paymentStatus === "unpaid")) {
+        return { ok: false, error: msg("cantPay", "This booking can't be paid any more. Pick the slot again.") };
     }
     if (!(Number(b.totalPrice) > 0)) return { ok: false, error: msg("nothingToPay", "This booking has nothing to pay.") };
 
@@ -89,13 +91,41 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
         return { ok: false, error: msg("slotStarted", "That slot has already started. Pick a later time.") };
     }
 
-    const cap = new Date(b.createdAt).getTime() + MAX_HOLD_MINUTES * 60000;
-    const stretched = Math.min(cap, now + (PAYMENT_HOLD_MINUTES[gateway] ?? HOLD_MINUTES) * 60000);
-    if (stretched > expires) {
-        await db
-            .update(bookings)
-            .set({ holdExpiresAt: new Date(stretched), updatedAt: new Date() })
-            .where(and(eq(bookings.id, b.id), eq(bookings.status, "held")));
+    const [{ n: tries }] = await db
+        .select({ n: count() })
+        .from(payments)
+        .innerJoin(bookings, eq(payments.bookingId, bookings.id))
+        .where(
+            and(
+                eq(bookings.userId, user.id),
+                ne(payments.status, "paid"),
+                gt(payments.createdAt, new Date(Date.now() - 60 * 60000))
+            )
+        );
+    if (Number(tries) >= MAX_UNPAID_PAYMENTS_PER_HOUR) {
+        return { ok: false, error: msg("tooManyRecentHolds", "You've started too many payments in the last hour without finishing one. Try again later.") };
+    }
+
+    // Lock the slot for this payment. Under the ground's lock: if the booking was released (or its lock ran
+    // out) and someone else has the slot now, refuse instead of taking money for a slot that's gone.
+    const lockUntil = new Date(Date.now() + (PAYMENT_LOCK_MINUTES[gateway] ?? 5) * 60000);
+    let locked;
+    try {
+        locked = await withLockedTx([`pitch:${b.pitchId}`], async (tx) => {
+            const active = await getActiveIntervals(b.pitchId, [b.bookingDate], { exec: tx, excludeId: b.id });
+            if (blockingBooking(active, slotInterval(b.bookingDate, b.startTime, b.endTime, dayStart))) return [];
+            return tx
+                .update(bookings)
+                .set({ status: "held", holdExpiresAt: lockUntil, updatedAt: new Date() })
+                .where(and(eq(bookings.id, b.id), inArray(bookings.status, ["held", "expired"]), eq(bookings.paymentStatus, "unpaid")))
+                .returning({ id: bookings.id });
+        });
+    } catch (err) {
+        if (!isUniqueViolation(err)) throw err;
+        locked = [];
+    }
+    if (!locked.length) {
+        return { ok: false, expired: true, error: msg("slotTaken", "Someone just booked this slot. Pick another time.") };
     }
 
     const tranId = newTranId(b.code);
@@ -116,6 +146,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
                 .update(payments)
                 .set({ status: "failed", raw: { error: created.error }, updatedAt: new Date() })
                 .where(eq(payments.tranId, tranId));
+            await releaseLockIfIdle(b.id, "Released: the payment page didn't open");
             return { ok: false, error: i18n ? i18n.t("errors.gatewayInit") : created.error };
         }
         await db
@@ -144,6 +175,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
             .update(payments)
             .set({ status: "failed", raw: { error: session.error }, updatedAt: new Date() })
             .where(eq(payments.tranId, tranId));
+        await releaseLockIfIdle(b.id, "Released: the payment page didn't open");
         return { ok: false, error: i18n ? i18n.t("errors.gatewayInit") : session.error };
     }
 
@@ -249,6 +281,7 @@ export async function confirmBkashPayment(paymentId) {
             .update(payments)
             .set({ status: "failed", raw: { reason: "slot no longer available; payment not executed" }, updatedAt: new Date() })
             .where(and(eq(payments.id, p.id), eq(payments.status, "initiated")));
+        await releaseLockIfIdle(p.bookingId, "Released: bKash payment not completed");
         return { ok: false, outcome: "not_paid", bookingId: p.bookingId, tranId: p.tranId };
     }
 
@@ -271,6 +304,7 @@ export async function confirmBkashPayment(paymentId) {
         .update(payments)
         .set({ status: "failed", raw: r ?? null, updatedAt: new Date() })
         .where(and(eq(payments.id, p.id), eq(payments.status, "initiated")));
+    await releaseLockIfIdle(p.bookingId, "Released: bKash payment not completed");
     return { ok: false, outcome: "not_paid", bookingId: p.bookingId, tranId: p.tranId };
 }
 
@@ -282,6 +316,7 @@ async function bookingStillPayable(bookingId) {
     const [b] = await db
         .select({
             status: bookings.status,
+            holdExpiresAt: bookings.holdExpiresAt,
             pitchId: bookings.pitchId,
             date: bookings.bookingDate,
             start: bookings.startTime,
@@ -292,13 +327,14 @@ async function bookingStillPayable(bookingId) {
         .limit(1);
     if (!b || (b.status !== "held" && b.status !== "expired")) return false;
     const dayStart = (await getSheetDayStarts([{ pitchId: b.pitchId, date: b.date }])).get(`${b.pitchId}|${b.date}`);
-    if (b.status === "held") return !isBlockEnded(b.date, b.start, b.end, dayStart);
+    // Still locked for this player: theirs until the slot ends. A lapsed lock is checked like a released one.
+    if (b.status === "held" && !lockLapsed(b)) return !isBlockEnded(b.date, b.start, b.end, dayStart);
     if (isBlockPast(b.date, b.start, dayStart)) return false;
     const active = await getActiveIntervals(b.pitchId, [b.date], { excludeId: bookingId });
     return !blockingBooking(active, slotInterval(b.date, b.start, b.end, dayStart));
 }
 
-/** Player cancelled or bKash failed it on their side: close the attempt (the slot stays held for a retry). */
+/** Player cancelled or bKash failed it on their side: close the attempt and release the slot at once. */
 export async function closeBkashPayment(paymentId, status, raw) {
     if (!paymentId || paymentId.length > 80) return null;
     const [p] = await db
@@ -389,6 +425,7 @@ async function settleBooking(paymentId, bookingId) {
         .select({
             status: bookings.status,
             paymentStatus: bookings.paymentStatus,
+            holdExpiresAt: bookings.holdExpiresAt,
             pitchId: bookings.pitchId,
             date: bookings.bookingDate,
             start: bookings.startTime,
@@ -407,16 +444,17 @@ async function settleBooking(paymentId, bookingId) {
     let tooLate = false;
     if (b && (b.status === "held" || b.status === "expired")) {
         // A payment can be found long after the player paid (lost callback, picked up by the job).
-        // Never confirm a slot that can't be played any more: a held one until it ends, an expired
-        // (released) one only before it starts. Those become refund due instead.
+        // Never confirm a slot that can't be played any more: a locked one until it ends; a released one
+        // (or one whose lock ran out) only before it starts and only if nobody took its time meanwhile.
+        // Those become refund due instead.
+        const released = b.status === "expired" || lockLapsed(b);
         const dayStart = (await getSheetDayStarts([{ pitchId: b.pitchId, date: b.date }])).get(`${b.pitchId}|${b.date}`);
-        tooLate =
-            b.status === "held" ? isBlockEnded(b.date, b.start, b.end, dayStart) : isBlockPast(b.date, b.start, dayStart);
+        tooLate = released ? isBlockPast(b.date, b.start, dayStart) : isBlockEnded(b.date, b.start, b.end, dayStart);
 
         if (!tooLate) {
             try {
                 const rows = await withLockedTx([`pitch:${b.pitchId}`], async (tx) => {
-                    if (b.status === "expired") {
+                    if (released) {
                         // Reviving a released slot: nobody else may hold or have booked any part of its time.
                         const active = await getActiveIntervals(b.pitchId, [b.date], { exec: tx, excludeId: bookingId });
                         if (blockingBooking(active, slotInterval(b.date, b.start, b.end, dayStart))) return [];
@@ -556,12 +594,34 @@ export async function recheckOpenPayments(limit = 30) {
 /* Fail / cancel                                                   */
 /* -------------------------------------------------------------- */
 
+/** The gateway says this attempt failed or was cancelled: close it and release the slot straight away. */
 export async function markPaymentClosed(tranId, status, raw) {
     if (!tranId) return;
-    await db
+    const closed = await db
         .update(payments)
         .set({ status, raw: raw ?? null, updatedAt: new Date() })
-        .where(and(eq(payments.tranId, tranId), eq(payments.status, "initiated")));
+        .where(and(eq(payments.tranId, tranId), eq(payments.status, "initiated")))
+        .returning({ bookingId: payments.bookingId });
+    if (closed.length) {
+        await releaseLockIfIdle(closed[0].bookingId, status === "cancelled" ? "Released: payment cancelled" : "Released: payment failed");
+    }
+}
+
+/**
+ * Release a booking's slot lock unless another payment attempt for it is still open (two tabs).
+ * status expired = released unpaid: a payment that still completes later revives it if the slot is free.
+ */
+async function releaseLockIfIdle(bookingId, reason) {
+    const [open] = await db
+        .select({ id: payments.id })
+        .from(payments)
+        .where(and(eq(payments.bookingId, bookingId), eq(payments.status, "initiated")))
+        .limit(1);
+    if (open) return;
+    await db
+        .update(bookings)
+        .set({ status: "expired", holdExpiresAt: null, cancelReason: reason, updatedAt: new Date() })
+        .where(and(eq(bookings.id, bookingId), eq(bookings.status, "held")));
 }
 
 /* -------------------------------------------------------------- */
@@ -607,7 +667,8 @@ export async function getPaymentResult(tranId) {
         paymentStatus: r.paymentStatus,
         bookingStatus: r.status,
         refundDue: r.bookingPayment === "refund_due" || r.paymentStatus === "refund_due",
-        canRetry: r.status === "held" && holdLeft > 0,
+        // Unpaid and not yet started: "Try again" locks the slot again if nobody else has taken it meanwhile.
+        canRetry: ["held", "expired"].includes(r.status) && r.bookingPayment === "unpaid" && !isBlockPast(r.date, r.start, dayStart),
         booking: {
             id: r.code,
             bookingId: r.bookingId,

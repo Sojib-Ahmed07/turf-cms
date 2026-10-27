@@ -230,7 +230,7 @@ export async function getUsersAdmin({ q = "" } = {}) {
             .select({ id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role, image: user.image, createdAt: user.createdAt })
             .from(user)
             .where(where)
-            .orderBy(sql`case ${user.role} when 'admin' then 0 when 'editor' then 1 when 'staff' then 2 else 3 end`, desc(user.createdAt))
+            .orderBy(sql`case ${user.role} when 'admin' then 0 else 1 end`, desc(user.createdAt))
             .limit(300),
         db
             .select({ userId: bookings.userId, n: count() })

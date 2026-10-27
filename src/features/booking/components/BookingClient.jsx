@@ -10,8 +10,7 @@ import SlotBoard from "./SlotBoard";
 import BookingSummary from "./BookingSummary";
 import PromoBanner from "@/components/site/PromoBanner";
 import Button from "@/components/ui/Button";
-import { createBookingHold, previewCoupon } from "@/features/booking/actions";
-import { payForBooking } from "@/features/payment/actions";
+import { bookAndPay, previewCoupon } from "@/features/booking/actions";
 import PayMethodPicker from "@/features/payment/components/PayMethodPicker";
 import MethodOffDialog from "@/features/payment/components/MethodOffDialog";
 import { addDaysISO } from "@/lib/time";
@@ -203,41 +202,20 @@ export default function BookingClient({
         setPayMethod(id);
     }
 
-    /** Pay for a booking that is already held (after the admin switched a method off mid-checkout). */
-    function payHeld(bookingId, code, method) {
-        startTransition(async () => {
-            const pay = await payForBooking(bookingId, method);
-            if (pay.ok) {
-                setLeaving(true);
-                window.location.assign(pay.data.url);
-                return;
-            }
-            if (pay.methodOff) {
-                setOffDialog({ off: pay.off, alternatives: pay.available, bookingId, code });
-                return;
-            }
-            router.push(`/bookings?held=${code}&pay=failed`);
-        });
-    }
-
     function onUseMethod(id) {
-        const d = offDialog;
         setPayMethod(id);
-        if (d?.bookingId) {
-            payHeld(d.bookingId, d.code, id);
-            return;
-        }
         setOffDialog(null);
         handlePay(id);
     }
 
     function closeOffDialog() {
-        const d = offDialog;
         setOffDialog(null);
-        // The slot is already held: show it in My bookings so the player can pay later or cancel.
-        if (d?.bookingId) router.push(`/bookings?held=${d.code}`);
     }
 
+    /**
+     * Pay: one step. The server checks the slot, locks it only while the payment page is open and sends the
+     * player straight to bKash / SSLCommerz (a 100% code books it at once). Nothing is reserved before that.
+     */
     function handlePay(methodOverride) {
         if (!block || !pitch) return;
         setPayError("");
@@ -252,7 +230,7 @@ export default function BookingClient({
             router.push(verifyHref);
             return;
         }
-        // Don't reserve the slot with a method the admin switched off: say which one is on instead.
+        // A method the admin switched off: say which one is on instead (nothing is locked).
         if (paymentsLive && total > 0) {
             const m = payMethods.find((x) => x.id === method);
             if (!m || !m.enabled) {
@@ -262,7 +240,7 @@ export default function BookingClient({
         }
 
         startTransition(async () => {
-            const res = await createBookingHold({
+            const res = await bookAndPay({
                 pitchId: pitch.id,
                 blockId: block.id,
                 date,
@@ -270,53 +248,38 @@ export default function BookingClient({
                 // what the player saw: the server refuses if the venue changed this slot meanwhile
                 startTime: block.start,
                 price: block.price,
+                method: total > 0 ? method : "",
             });
-            if (!res.ok) {
-                if (res.needsVerify) {
-                    router.push(verifyHref);
-                    return;
-                }
-                if (res.couponError) {
-                    removeCoupon();
-                    setPayError(t("book.codeRemovedRecheck", { reason: res.error }));
-                    return;
-                }
-                if (res.needsLogin) {
-                    router.push(`/login?next=${encodeURIComponent(`/book?pitch=${pitch.id}&date=${date}`)}`);
-                    return;
-                }
-                setPayError(res.error);
-                reload(); // slot may have been taken, refresh the board
+            if (res.ok && res.data.url) {
+                setLeaving(true);
+                window.location.assign(res.data.url);
                 return;
             }
-            if (res.data.free) {
+            if (res.ok && res.data.free) {
                 // The code covered the whole price: already confirmed, nothing to pay.
                 router.push(`/bookings?held=${res.data.code}`);
                 return;
             }
-            if (!paymentsLive) {
-                // Gateway not configured yet: the held booking waits in My bookings.
-                router.push(`/bookings?held=${res.data.code}`);
-                return;
-            }
-            // Slot is held; open the chosen gateway (bKash or SSLCommerz).
-            const pay = await payForBooking(res.data.bookingId, method);
-            if (pay.ok) {
-                setLeaving(true);
-                window.location.assign(pay.data.url);
-                return;
-            }
-            if (pay.methodOff) {
-                // Switched off between page load and Pay: the slot is held, offer the method that is on.
-                setOffDialog({ off: pay.off, alternatives: pay.available, bookingId: res.data.bookingId, code: res.data.code });
-                return;
-            }
-            if (pay.needsVerify) {
+            if (res.needsVerify) {
                 router.push(verifyHref);
                 return;
             }
-            // Couldn't open the gateway: the hold is still there, so send them to pay from My bookings.
-            router.push(`/bookings?held=${res.data.code}&pay=failed`);
+            if (res.needsLogin) {
+                router.push(`/login?next=${encodeURIComponent(`/book?pitch=${pitch.id}&date=${date}`)}`);
+                return;
+            }
+            if (res.methodOff) {
+                // Switched off between page load and Pay: offer the method that is on.
+                setOffDialog({ off: res.off, alternatives: res.available ?? [] });
+                return;
+            }
+            if (res.couponError) {
+                removeCoupon();
+                setPayError(t("book.codeRemovedRecheck", { reason: res.error }));
+                return;
+            }
+            setPayError(res.error);
+            reload(); // the slot may have been taken or changed: refresh the board
         });
     }
 

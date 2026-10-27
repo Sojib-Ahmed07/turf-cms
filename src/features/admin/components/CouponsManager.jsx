@@ -159,7 +159,7 @@ export default function CouponsManager({ initial }) {
             />
 
             <div className="grid gap-6 xl:grid-cols-12">
-                <Panel className="xl:col-span-7" title="All codes" description="A code counts as used once its booking is paid. Codes in a waiting booking are reserved for 15 minutes." bodyClassName="p-0">
+                <Panel className="xl:col-span-7" title="All codes" description="A code counts as used once its booking is paid. While a player is on the payment page with a code, that use is set aside for them." bodyClassName="p-0">
                     {coupons.length === 0 ? (
                         <p className="px-6 py-12 text-center text-[14px] text-ink-3">No codes yet. Create your first one on the right.</p>
                     ) : (

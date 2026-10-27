@@ -4,7 +4,7 @@
 import { addDaysISO, DEFAULT_DAY_START, hhmmToMinutes, isAfterMidnight as afterMidnight } from "@/lib/time";
 
 /** How many venue days players can book ahead, today included (the /book date strip and the server check). */
-export const BOOKING_DAYS_AHEAD = 14;
+export const BOOKING_DAYS_AHEAD = 30; // one month: today + 29 days
 
 /** A real calendar day "YYYY-MM-DD" (rejects 2026-02-31). */
 export const isRealDate = (iso) => typeof iso === "string" && /^\d{4}-\d{2}-\d{2}$/.test(iso) && addDaysISO(iso, 0) === iso;

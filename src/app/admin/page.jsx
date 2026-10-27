@@ -22,8 +22,8 @@ function greeting() {
 }
 
 export default async function AdminOverview() {
-    const user = await requireRole(["admin", "editor"]);
-    // Editors manage website content only: no revenue, bookings or player details for them.
+    const user = await requireRole(["admin"]);
+    // Only admins reach /admin (layout and this page check the role).
     const isAdmin = user.role === "admin";
     const [stats, board, latest, live] = await Promise.all([
         isAdmin ? getDashboardStats() : null,
@@ -81,9 +81,9 @@ export default async function AdminOverview() {
                             }
                         />
                         <Stat
-                            label="Waiting for payment"
+                            label="Paying right now"
                             value={stats.pendingHolds}
-                            note={<span className="text-flare-deep">Released after 15 min</span>}
+                            note={<span className="text-flare-deep">On the payment page (5 to 10 min max)</span>}
                             accent={stats.pendingHolds > 0}
                         />
                     </div>
@@ -92,7 +92,7 @@ export default async function AdminOverview() {
                     <Panel
                         className="mt-6"
                         title="Today"
-                        description={`${board.occupancy}% of today's slots are booked or on hold across all grounds`}
+                        description={`${board.occupancy}% of today's slots are booked or being paid for across all grounds`}
                         actions={
                             <div className="hidden items-center gap-4 text-[12px] text-ink-3 sm:flex">
                                 <Key className="bg-pitch">Booked</Key>

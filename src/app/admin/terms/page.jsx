@@ -6,6 +6,6 @@ import { requireRole } from "@/lib/guards";
 export const metadata = { title: "Booking terms" };
 
 export default async function Page() {
-    await requireRole(["admin", "editor"]);
+    await requireRole(["admin"]);
     return <TermsEditor initial={await getTermsAdmin()} />;
 }

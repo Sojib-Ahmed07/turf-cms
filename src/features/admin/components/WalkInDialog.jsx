@@ -9,6 +9,7 @@ import { Label } from "@/components/admin/Kit";
 import { Select, TextInput } from "@/components/ui/Inputs";
 import { createWalkInBooking } from "@/features/admin/actions/bookings";
 import { addDaysISO, shortDateLabel } from "@/lib/time";
+import { BOOKING_DAYS_AHEAD } from "@/features/booking/calendar";
 import { cn, taka, time12 } from "@/lib/utils";
 
 /** Book a slot for a player at the desk or on the phone. Uses the same live slots as /book. */
@@ -23,7 +24,7 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
     const [error, setError] = useState("");
     const [isPending, startTransition] = useTransition();
 
-    const dates = Array.from({ length: 14 }, (_, i) => addDaysISO(startDate, i));
+    const dates = Array.from({ length: BOOKING_DAYS_AHEAD }, (_, i) => addDaysISO(startDate, i));
 
     // Reload the board every time the dialog opens (a walk-in may have just taken a slot).
     const [opened, setOpened] = useState(0);

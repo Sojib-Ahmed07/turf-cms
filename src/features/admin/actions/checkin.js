@@ -10,21 +10,20 @@ import { db } from "@/db";
 import { bookings } from "@/db/schema";
 import { currentVenueDay } from "@/features/booking/queries";
 import { shortDateLabel } from "@/lib/time";
-import { CHECKIN_ROLES } from "./checkin-roles";
 
-async function requireGateStaff() {
+async function requireAdmin() {
     const session = await auth.api.getSession({ headers: await headers() });
     const u = session?.user;
-    if (!u || !CHECKIN_ROLES.includes(u.role)) return null;
+    if (!u || u.role !== "admin") return null;
     return u;
 }
 
-const DENIED = { ok: false, error: "Only gate staff and admins can mark a ticket as used." };
+const DENIED = { ok: false, error: "Only admins can mark a ticket as used." };
 const schema = z.object({ bookingId: z.string().uuid() });
 
 export async function markTicketUsed(input) {
     try {
-        const admin = await requireGateStaff();
+        const admin = await requireAdmin();
         if (!admin) return DENIED;
         const parsed = schema.safeParse(input);
         if (!parsed.success) return { ok: false, error: "Booking not found." };

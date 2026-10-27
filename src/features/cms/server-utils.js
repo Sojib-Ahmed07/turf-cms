@@ -14,7 +14,8 @@ export async function requireRoles(roles) {
 }
 
 export const ADMIN_ONLY = ["admin"];
-export const CONTENT_ROLES = ["admin", "editor"];
+// Website content is admin only too (the editor role was removed); kept as a name so callers stay readable.
+export const CONTENT_ROLES = ["admin"];
 export const DENIED = { ok: false, error: "You don't have access to change this." };
 
 /** First Zod issue as a sentence for the form. */
@@ -33,7 +34,7 @@ export const text = (max, label = "This field") =>
 export const requiredText = (max, label) =>
     z.string().trim().min(1, `${label} can't be empty.`).max(max, `${label} can be at most ${max} characters.`);
 
-/** A link on the site ("/book", "/#offers") or an https address. Empty allowed. */
+/** A link on the site ("/book", "/#visit") or an https address. Empty allowed. */
 export const link = (label = "Link") =>
     z
         .string()

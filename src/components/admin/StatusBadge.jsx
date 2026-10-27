@@ -3,7 +3,7 @@ import Badge from "@/components/ui/Badge";
 
 const MAP = {
     confirmed: ["brand", "Confirmed"],
-    held: ["flare", "Awaiting payment"],
+    held: ["flare", "Payment open"],
     completed: ["neutral", "Played"],
     cancelled: ["danger", "Cancelled"],
     expired: ["neutral", "Expired"],

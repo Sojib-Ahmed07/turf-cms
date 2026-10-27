@@ -99,7 +99,7 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                     {counts.risky > 0 && (
                         <Alert
                             title={`${counts.risky} risky ${counts.risky === 1 ? "payment" : "payments"}`}
-                            body="SSLCommerz flagged these as high risk. The bookings are confirmed, but the gate check warns staff until you check each one in the merchant panel and press Mark checked."
+                            body="SSLCommerz flagged these as high risk. The bookings are confirmed, but the gate check warns admins until you check each one in the merchant panel and press Mark checked."
                             href={href({ status: "risky" })}
                             cta="Show risky"
                         />

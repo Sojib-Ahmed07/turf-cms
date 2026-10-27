@@ -1,10 +1,9 @@
 // src/components/site/LiveGrounds.jsx
-import Image from "next/image";
 import Link from "next/link";
 import { Ruler, Layers } from "lucide-react";
 import Button from "@/components/ui/Button";
-import PitchLines from "./PitchLines";
-import { canOptimize, cn } from "@/lib/utils";
+import GroundPhoto from "./GroundPhoto";
+import { cn } from "@/lib/utils";
 import { getI18n } from "@/i18n/server";
 
 /**
@@ -25,7 +24,7 @@ export default async function LiveGrounds({ content, pitches = [], date }) {
                         <p className="mt-4 max-w-[52ch] text-[16px] leading-relaxed text-ink-3">{content.body}</p>
                     )}
                 </div>
-                <Button href="/book" variant="outline" size="lg">
+                <Button href="/grounds" variant="outline" size="lg">
                     {t("grounds.seeSchedule")}
                 </Button>
             </div>
@@ -52,8 +51,8 @@ export default async function LiveGrounds({ content, pitches = [], date }) {
                                     <h3 className="display mt-1 text-[clamp(36px,4.6vw,56px)] text-white">{featured.name}</h3>
                                 </div>
                                 <p className="shrink-0 rounded-full bg-white px-4 py-2 text-[15px] font-bold text-ink tnum">
-                                    {f.taka(featured.hourlyRate)}
-                                    <span className="font-medium text-ink-3"> {t("common.perHour")}</span>
+                                    {f.taka(featured.fromHourly)}
+                                    <span className="font-medium text-ink-3">{t("common.perHour")}</span>
                                 </p>
                             </div>
                         </div>
@@ -79,7 +78,7 @@ export default async function LiveGrounds({ content, pitches = [], date }) {
                                             </p>
                                         </div>
                                         <p className="shrink-0 text-[15px] font-bold text-ink tnum">
-                                            {f.taka(p.hourlyRate)}
+                                            {f.taka(p.fromHourly)}
                                             <span className="font-medium text-ink-3">{t("common.perHour")}</span>
                                         </p>
                                     </div>
@@ -116,27 +115,6 @@ function Specs({ pitch, i18n: { t } }) {
     );
 }
 
-/** Ground photo, or chalk pitch lines when the admin hasn't added one. */
-function GroundPhoto({ pitch, sizes, className }) {
-    if (!pitch.imageUrl) {
-        return (
-            <div className="absolute inset-0 grid place-items-center bg-pitch">
-                <PitchLines className={cn("h-full w-full text-white/20", className)} />
-            </div>
-        );
-    }
-    return (
-        <Image
-            src={pitch.imageUrl}
-            alt={pitch.name}
-            fill
-            sizes={sizes}
-            unoptimized={!canOptimize(pitch.imageUrl)}
-            className={cn("object-cover", className)}
-        />
-    );
-}
-
 function FreeTimes({ pitch, date, compact = false, i18n: { t, f } }) {
     const times = pitch.freeToday ?? [];
     if (!times.length) {
@@ -164,8 +142,10 @@ function FreeTimes({ pitch, date, compact = false, i18n: { t, f } }) {
                         </Link>
                     </li>
                 ))}
-                {compact && times.length > 3 && (
-                    <li className="px-2 py-1.5 text-[13px] font-medium text-ink-3">{t("grounds.more", { count: times.length - 3 })}</li>
+                {times.length > (compact ? 3 : 4) && (
+                    <li className="px-2 py-1.5 text-[13px] font-medium text-ink-3">
+                        {t("grounds.more", { count: times.length - (compact ? 3 : 4) })}
+                    </li>
                 )}
             </ul>
         </div>

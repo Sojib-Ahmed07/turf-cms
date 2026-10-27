@@ -1,3 +1,4 @@
+<!-- Agents.md (project root) -->
 # AGENTS.md — TurfZone CMS, current progress
 
 Read this file first in every new chat. It records what exists in the codebase right now, how it is
@@ -121,8 +122,14 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
   = 22:00+ or after midnight. Used by the slot board, the `?part=` preselect and the home search (which only offers parts
   a ground really has).
 - **Slot states:** `booked` (confirmed booking), `held` (held booking whose `holdExpiresAt` is in the future), `past`, `free`.
-- **Holds:** "Pay" creates a booking with `status = held`, `holdExpiresAt = now + 15 min`, price from the server.
-  Expired holds are marked `expired` lazily (`expireStaleHolds`) before a new hold, and daily by `/api/cron/expire-holds`.
+- **Holds: none.** There are no reservations. `bookAndPay` (booking/actions.js) checks the slot and opens the gateway
+  in one step; the slot is locked only while the player is on the payment page: `PAYMENT_LOCK_MINUTES`
+  (`{ bkash: 5, sslcommerz: 10 }`, booking queries), released **at once** when the payment is cancelled or fails
+  (`markPaymentClosed` → `releaseLockIfIdle`, status `expired`), when the player presses **Release slot**, or when
+  they start another payment. "Try payment again" (`payForBooking` → `startPayment`) locks it again only if it's
+  still free. Late payments: a released slot is revived if still free and not started, otherwise refund due
+  (bKash is never executed in that case). Limits: 5 unpaid attempts per player per hour (`bookAndPay`),
+  8 unpaid payments per hour (`startPayment`).
 - **No double booking:** a slot is taken when any active booking overlaps its **real time** (`slotInterval` in
   `lib/time.js`, `getActiveIntervals` / `blockingBooking` in booking queries), including the neighbouring days' sheets
   (after-midnight slots). Holds and walk-ins check this inside `withLockedTx(["pitch:<id>", ...])` (`db/pool.js`).
@@ -133,9 +140,8 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
   A sheet must fit in 24 hours from its first slot (`validateBlocks`).
 - **Slot identity:** the booking page sends the slot's `startTime` + `price` with `blockId`; holds/coupon preview refuse
   with `slotChanged` if the venue changed it meanwhile (default block ids are positional).
-- **Limits:** max 2 active holds per player, max 6 unpaid holds created per hour (reserve/cancel loop), checked under the
-  player's lock; coupon limits under the code's lock. Only held bookings can be cancelled by the player, and not while an
-  SSLCommerz payment opened in the last 20 min is still `initiated`.
+- **Booking window:** `BOOKING_DAYS_AHEAD = 30` (one month) on /book, the home quick search, walk-ins and the server check.
+- My bookings and Admin, Bookings ("Any status") hide unpaid attempts that never became bookings.
 - **Statuses:** `held`, `confirmed`, `cancelled`, `expired`, `completed` (shown when a confirmed booking's time has passed).
   `paymentStatus`: `unpaid`, `paid`, `refund_due`, `refunded`.
 
@@ -250,15 +256,15 @@ Payment rules:
 - Claim = `UPDATE payments SET status='paid' WHERE status <> 'paid' RETURNING`; only the winner touches the booking.
 - Booking held or expired → confirmed (the unique slot index decides if an expired one can be revived).
   Slot gone / booking cancelled → booking cancelled + `refund_due`. Booking already paid → this payment `refund_due`.
-- Starting a payment stretches the hold (SSLCommerz 30 min, bKash 15 min from now), never past 60 min after the hold
-  was created. A slot that already started can't be paid.
+- Starting a payment locks the slot for `PAYMENT_LOCK_MINUTES` (bKash 5, SSLCommerz 10) and re-checks it is free (a retry
+  after a failed/cancelled payment). A slot that already started can't be paid.
 - Settling never confirms a slot that can't be played: held → refund due once the slot has ended; expired → revived only
   before it starts and only if nothing overlaps it, else refund due.
 - Job (`/api/cron/expire-holds`, **every 10 min** via external cron): rechecks payments 5 min–2 h old every run and
   `initiated` ones up to 48 h about hourly (`updatedAt` backoff), repairs, then expires holds.
 - Risky SSLCommerz payments (`risk_level 1`) still confirm; the verify page warns gate staff until an admin presses
   **Mark checked** in Admin, Payments (`markRiskChecked`).
-- Fail/cancel keep the booking held so the player can retry. Admin refunds are still manual (`markRefunded`); the SSLCommerz refund API needs the server IP whitelisted (Step 6).
+- Fail/cancel release the slot at once (booking `expired`); "Try payment again" re-locks it if it is still free. Admin refunds are still manual (`markRefunded`); the SSLCommerz refund API needs the server IP whitelisted (Step 6).
 
 ### CMS feature (`src/features/cms/`)
 | File | What it does |
@@ -441,11 +447,17 @@ Still open:
 | Map shows the illustration | Latitude/longitude empty in Admin, Branding, Map location |
 | Lint warns `no-img-element` on QR images | Intentional (data URLs); 0 errors is the bar |
 | "Pay with bKash" missing | All four `BKASH_*` keys needed; restart dev after editing `.env.local` |
-| bKash payment ends on "didn't go through" | Logs `[bkash:not_paid]` show bKash's code (PIN/OTP, test wallet balance, timeout); slot stays held |
+| bKash payment ends on "didn't go through" | Logs `[bkash:not_paid]` show bKash's code (PIN/OTP, test wallet balance, timeout); the slot is released, Try again re-locks it if still free |
 | `[bkash:grant]` in logs | Wrong bKash keys, or sandbox keys with `BKASH_IS_LIVE=true` |
 | `column "gateway" does not exist` | `npm run db:generate` then `npm run db:migrate` (0004) |
 
 ## 10. Changelog
+- 2026-10-27 (b): Roles are only `admin` and `user` (editor and staff removed; migration **0007** turns them into
+  players and fixes the menu). 15-minute holds replaced by a payment-only lock (see section 5). One-month booking window;
+  date strip arrows work and follow the selected month. New `/grounds` and `/grounds/[slug]` pages (Grounds menu link;
+  Offers removed). Small fixes: "from" prices use real slot prices (`fromHourly`), today board uses the overlap rule,
+  dashboard revenue counts paid bookings only + **Mark paid** for walk-ins, Checked in shown in Admin, Bookings,
+  `/verify` 12-hour times + site name, "+N more" on the home grounds. 34 integration tests pass; lint 0 errors; build passes.
 - 2026-10-27: Audit fixes (bookings/payments). Overlap-based availability incl. cross-day sheets, schedule-edit guard,
   24 h sheet cap, slot identity check, locked hold/walk-in transactions (`withLockedTx`), hourly hold cap, coupon limits
   under lock, SSLCommerz hold 30 min (cap 60), no confirm of started/finished slots, no cancel during open SSLCommerz

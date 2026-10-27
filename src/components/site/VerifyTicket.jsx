@@ -8,16 +8,16 @@ import Button from "@/components/ui/Button";
 import { markTicketUsed } from "@/features/admin/actions/checkin";
 import { cn, taka } from "@/lib/utils";
 
-const TONE = {
-    valid: { bg: "bg-brand-soft", ring: "ring-brand/50", icon: CheckCircle2, iconClass: "text-brand-deep", title: "This ticket is valid", subtitle: "TurfZone confirms this is a real, paid booking." },
+const toneFor = (site) => ({
+    valid: { bg: "bg-brand-soft", ring: "ring-brand/50", icon: CheckCircle2, iconClass: "text-brand-deep", title: "This ticket is valid", subtitle: `${site} confirms this is a real, paid booking.` },
     cancelled: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "Cancelled", subtitle: "This booking was cancelled, so it's not a valid ticket." },
     expired: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "Expired", subtitle: "The slot was released before the booking was confirmed." },
     unpaid: { bg: "bg-flare-soft", ring: "ring-flare/50", icon: AlertTriangle, iconClass: "text-flare-deep", title: "Not paid", subtitle: "The slot is reserved, but the payment isn't done yet." },
     refunded: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "Refunded", subtitle: "This booking was refunded, so it's not valid any more." },
     played: { bg: "bg-chalk", ring: "ring-line", icon: Clock, iconClass: "text-ink-3", title: "Played", subtitle: "This ticket is real, but the match time has already passed." },
-    invalid: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "Not a TurfZone ticket", subtitle: "This QR wasn't issued by TurfZone, or it was tampered with." },
+    invalid: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: `Not a ${site} ticket`, subtitle: `This QR wasn't issued by ${site}, or it was tampered with.` },
     not_found: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "Booking not found", subtitle: "The ticket is signed but the booking no longer exists." },
-};
+});
 
 function formatTime(iso) {
     if (!iso) return "";
@@ -25,11 +25,12 @@ function formatTime(iso) {
 }
 
 /**
- * wrongDay: staff view of a valid ticket for another day (no "Mark as used", explain why).
- * riskNote: staff view of a ticket paid with a payment SSLCommerz flagged as risky and nobody has checked yet.
+ * wrongDay: admin view of a valid ticket for another day (no "Mark as used", explain why).
+ * riskNote: admin view of a ticket paid with a payment SSLCommerz flagged as risky and nobody has checked yet.
  */
-export default function VerifyTicket({ state, booking, canCheckIn = false, wrongDay = false, riskNote = null }) {
+export default function VerifyTicket({ state, booking, canCheckIn = false, wrongDay = false, riskNote = null, siteName = "TurfZone" }) {
     const router = useRouter();
+    const TONE = toneFor(siteName);
     const tone = TONE[state] ?? TONE.invalid;
     const Icon = tone.icon;
     const [busy, setBusy] = useState(false);

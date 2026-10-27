@@ -2,11 +2,11 @@
 // Server-side reads for the admin area (dashboard, bookings, grounds, slot editor).
 // Ported from the prototype's src/app/actions/admin.js and adapted to the new schema.
 import "server-only";
-import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql, gt, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, or, sql, gt, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, pitches, timeBlocks, user, heroSlides, coupons, siteSettings } from "@/db/schema";
-import { addDaysISO, dayStartOf, isAfterMidnight, isBlockPast, operatingMinutes, shortDateLabel } from "@/lib/time";
-import { currentVenueDay, getSheetDayStarts, getTimeBlocksForPitch } from "@/features/booking/queries";
+import { addDaysISO, dayStartOf, isAfterMidnight, isBlockPast, operatingMinutes, shortDateLabel, slotInterval } from "@/lib/time";
+import { blockingBooking, currentVenueDay, getActiveIntervals, getSheetDayStarts, getTimeBlocksForPitch } from "@/features/booking/queries";
 import { time12 } from "@/lib/utils";
 
 export const EDITOR_DAYS = 30; // slot editor shows today + next 29 days
@@ -53,7 +53,15 @@ export async function getDashboardStats() {
                 revenue: sql`coalesce(sum(${bookings.totalPrice}), 0)`,
             })
             .from(bookings)
-            .where(and(gte(bookings.bookingDate, from), lte(bookings.bookingDate, to), eq(bookings.status, "confirmed")));
+            // Real money only: confirmed AND paid (a walk-in "pay at venue" counts once marked paid at the desk).
+            .where(
+                and(
+                    gte(bookings.bookingDate, from),
+                    lte(bookings.bookingDate, to),
+                    eq(bookings.status, "confirmed"),
+                    eq(bookings.paymentStatus, "paid")
+                )
+            );
 
     const [todayActive, todayConfirmed, month, lastMonth, holds, settingsRows] = await Promise.all([
         db.select({ c: sql`count(*)` }).from(bookings).where(and(eq(bookings.bookingDate, today), activeNow())),
@@ -96,20 +104,6 @@ export async function getTodayBoard() {
     const active = await db.select().from(pitches).where(eq(pitches.isActive, true)).orderBy(asc(pitches.sortOrder), asc(pitches.name));
     if (active.length === 0) return { rows: [], occupancy: 0, freeCount: 0, from: null, to: null, now: nowMinutes, date: today };
 
-    const taken = await db
-        .select({
-            pitchId: bookings.pitchId,
-            startTime: bookings.startTime,
-            status: bookings.status,
-            customerName: bookings.customerName,
-            userName: user.name,
-        })
-        .from(bookings)
-        .leftJoin(user, eq(bookings.userId, user.id))
-        .where(and(eq(bookings.bookingDate, today), inArray(bookings.pitchId, active.map((p) => p.id)), activeNow()));
-
-    const takenMap = new Map(taken.map((t) => [`${t.pitchId}|${t.startTime}`, t]));
-
     let total = 0;
     let used = 0;
     let freeCount = 0;
@@ -118,13 +112,14 @@ export async function getTodayBoard() {
 
     const rows = [];
     for (const p of active) {
-        const blocks = await getTimeBlocksForPitch(p, today);
+        const [blocks, activeIv] = await Promise.all([getTimeBlocksForPitch(p, today), getActiveIntervals(p.id, [today])]);
         const dayStart = dayStartOf(blocks);
         rows.push({
             pitch: p.name,
             blocks: blocks.map((b) => {
                 total += 1;
-                const t = takenMap.get(`${p.id}|${b.startTime}`);
+                // same overlap rule as the booking page (also catches last night's after-midnight bookings)
+                const t = blockingBooking(activeIv, slotInterval(today, b.startTime, b.endTime, dayStart));
                 const past = isBlockPast(today, b.startTime, dayStart);
                 const at = operatingMinutes(b.startTime, dayStart);
                 let until = operatingMinutes(b.endTime, dayStart);
@@ -137,7 +132,7 @@ export async function getTodayBoard() {
                 if (status === "free") freeCount += 1;
                 if (minStart === null || at < minStart) minStart = at;
                 if (maxEnd === null || until > maxEnd) maxEnd = until;
-                return { start: b.startTime, end: b.endTime, at, until, status, who: t ? t.customerName || t.userName || "Walk-in" : null };
+                return { start: b.startTime, end: b.endTime, at, until, status, who: t ? t.customerName || "Player" : null };
             }),
         });
     }
@@ -194,6 +189,7 @@ function baseBookingQuery() {
             paymentStatus: bookings.paymentStatus,
             source: bookings.source,
             holdExpiresAt: bookings.holdExpiresAt,
+            checkedInAt: bookings.checkedInAt,
             customerName: bookings.customerName,
             customerPhone: bookings.customerPhone,
             createdAt: bookings.createdAt,
@@ -257,6 +253,8 @@ function toAdminBookingRow(r, dayStart) {
                     ? "Online"
                     : null,
         source: r.source,
+        paid: r.paymentStatus === "paid",
+        checkedIn: Boolean(r.checkedInAt),
         created: relativeTime(r.createdAt),
     };
 }
@@ -280,6 +278,17 @@ export async function getAdminBookings({ q = "", pitchId = "", status = "", rang
     else if (status === "expired")
         where.push(or(eq(bookings.status, "expired"), and(eq(bookings.status, "held"), lte(bookings.holdExpiresAt, new Date()))));
     else if (status) where.push(eq(bookings.status, status));
+    else {
+        // "Any status" leaves out unpaid payment attempts that never became bookings (released, failed,
+        // abandoned); the "Not paid (released)" filter shows them.
+        where.push(
+            or(
+                inArray(bookings.status, ["confirmed", "cancelled"]),
+                ne(bookings.paymentStatus, "unpaid"),
+                and(eq(bookings.status, "held"), gt(bookings.holdExpiresAt, new Date()))
+            )
+        );
+    }
 
     const term = q.trim();
     if (term) {

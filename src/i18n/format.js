@@ -104,5 +104,6 @@ export function makeFormat(locale = "en") {
         monthYear,
         dayShort: (dow) => L.daysShort[dow] ?? "",
         monthName: (m) => L.months[m - 1] ?? "",
+        monthShort: (m) => L.monthsShort[m - 1] ?? "",
     };
 }

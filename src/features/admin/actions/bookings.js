@@ -116,6 +116,32 @@ export async function markRefunded(bookingId) {
     }
 }
 
+/** A walk-in booked as "pay at venue" was paid at the desk: count it as paid (and in revenue). */
+export async function markPaidAtDesk(bookingId) {
+    try {
+        if (!(await requireAdmin())) return DENIED;
+        if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: "Booking not found." };
+        const rows = await db
+            .update(bookings)
+            .set({ paymentStatus: "paid", updatedAt: new Date() })
+            .where(
+                and(
+                    eq(bookings.id, bookingId),
+                    eq(bookings.source, "walk_in"),
+                    eq(bookings.status, "confirmed"),
+                    eq(bookings.paymentStatus, "unpaid")
+                )
+            )
+            .returning({ id: bookings.id });
+        if (rows.length === 0) return { ok: false, error: "Only unpaid walk-in bookings can be marked as paid here." };
+        revalidateAll();
+        return { ok: true };
+    } catch (err) {
+        console.error("[markPaidAtDesk]", err);
+        return { ok: false, error: "Couldn't update the booking. Try again." };
+    }
+}
+
 /* -------------------------------------------------------------- */
 /* Walk-in / phone booking                                         */
 /* -------------------------------------------------------------- */

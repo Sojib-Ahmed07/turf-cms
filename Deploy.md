@@ -1,3 +1,4 @@
+<!-- Deploy.md (project root) -->
 # DEPLOY.md: putting TurfZone CMS live on Vercel
 
 Follow the steps in order. Each step says where to click and what to paste. Total time is about an hour,

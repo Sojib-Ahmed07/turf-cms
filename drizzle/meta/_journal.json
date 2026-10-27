@@ -50,6 +50,13 @@
       "when": 1793090306585,
       "tag": "0006_outstanding_preak",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793096036676,
+      "tag": "0007_roles_and_nav_cleanup",
+      "breakpoints": true
     }
   ]
 }

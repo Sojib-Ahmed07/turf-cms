@@ -6,8 +6,8 @@
 const DEFAULTS = {
     "/": { en: "Home", key: "nav.home" },
     "/book": { en: "Book a slot", key: "nav.book" },
-    "/#grounds": { en: "Grounds", key: "nav.grounds" },
-    "/#offers": { en: "Offers", key: "nav.offers" },
+    "/grounds": { en: "Grounds", key: "nav.grounds" },
+    "/#grounds": { en: "Grounds", key: "nav.grounds" }, // old link, kept until migration 0007 rewrites it
     "/#visit": { en: "Contact", key: "nav.contact" },
     "/bookings": { en: "My bookings", key: "common.myBookings" },
 };

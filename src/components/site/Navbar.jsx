@@ -219,17 +219,16 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                                         {t("common.myBookings")}
                                                     </Link>
                                                 )}
-                                                {(user.role === "admin" ||
-                                                    user.role === "editor") && (
-                                                        <Link
-                                                            href="/admin"
-                                                            role="menuitem"
-                                                            className="flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm text-ink hover:bg-grass"
-                                                        >
-                                                            <MapPin className="h-4 w-4 text-ink-3" />
-                                                            {t("common.adminPanel")}
-                                                        </Link>
-                                                    )}
+                                                {user.role === "admin" && (
+                                                    <Link
+                                                        href="/admin"
+                                                        role="menuitem"
+                                                        className="flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm text-ink hover:bg-grass"
+                                                    >
+                                                        <MapPin className="h-4 w-4 text-ink-3" />
+                                                        {t("common.adminPanel")}
+                                                    </Link>
+                                                )}
                                             </div>
                                             <div className="border-t border-line p-1.5">
                                                 <button

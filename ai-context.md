@@ -1,3 +1,4 @@
+<!-- ai-context.md (project root) -->
 # AI_CONTEXT.md: TurfZone CMS handoff
 
 Paste this whole file into a new chat (Claude, Gemini, DeepSeek, any model) before asking for work,
@@ -279,8 +280,8 @@ Copy: sentence case; buttons say exactly what happens; errors say what to do nex
 
 ### Roles
 
-`user.role`: `user` (player), `editor` (CMS content only), `staff` (gate check-in only: `/verify/<token>` **Mark as
-used**; no admin area; `CHECKIN_ROLES` in `features/admin/actions/checkin-roles.js`), `admin` (everything). **Editor is still live
+`user.role`: `user` (player) or `admin` (everything, incl. **Mark as used** check-in). Editor and staff were
+**removed on 27 Oct** (migration 0007 turns them into players). The text below about editors is historical. **Editor is still live
 in the code**: the admin layout and the content pages (hero, banners, sections, footer, media, terms)
 call `requireRole(["admin", "editor"])`; `CONTENT_ROLES = ["admin", "editor"]` in
 `cms/server-utils.js`; the Users page role dropdown offers Admin, Editor, Player. Branding, navigation,
@@ -368,8 +369,15 @@ same shape. The bookings table search covers name, phone, email and booking ID.
   ground's sheet for yesterday still has after-midnight slots running.
 - Parts of the day: `features/booking/parts.js`.
 - Slot states: free, held (unexpired hold), booked (confirmed), past.
-- Hold: `status = held`, `holdExpiresAt = now + 15 min`, price from the server. Max 2 active holds, max 6 unpaid
-  holds created per player per hour.
+- **Holds: none.** There are no reservations. `bookAndPay` (booking/actions.js) checks the slot and opens the gateway
+  in one step; the slot is locked only while the player is on the payment page: `PAYMENT_LOCK_MINUTES`
+  (`{ bkash: 5, sslcommerz: 10 }`, booking queries), released **at once** when the payment is cancelled or fails
+  (`markPaymentClosed` → `releaseLockIfIdle`, status `expired`), when the player presses **Release slot**, or when
+  they start another payment. "Try payment again" (`payForBooking` → `startPayment`) locks it again only if it's
+  still free. Late payments: a released slot is revived if still free and not started, otherwise refund due
+  (bKash is never executed in that case). Limits: 5 unpaid attempts per player per hour (`bookAndPay`),
+  8 unpaid payments per hour (`startPayment`).
+- Booking window: `BOOKING_DAYS_AHEAD = 30` (one month).
 - **No double booking:** a slot is taken when any active booking overlaps its **real time**, including the
   neighbouring days' sheets (`slotInterval` / `intervalsOverlap` in `lib/time.js`, `getActiveIntervals` /
   `blockingBooking` in booking queries). Holds, walk-ins and expired-hold revivals check this inside
@@ -382,7 +390,7 @@ same shape. The bookings table search covers name, phone, email and booking ID.
   sheet longer than 24 h from its first slot.
 - **Slot identity:** the booking page and walk-in dialog send `startTime` (+ `price`) with `blockId`; a mismatch
   answers `{ ok: false, slotChanged: true }` (default block ids are positional, so an edit can shift them).
-- Players can't cancel a held booking while an SSLCommerz payment opened in the last 20 min is still `initiated`.
+- **Release slot** (My bookings) frees an open payment's slot at once (status `expired`).
 - Statuses: held, confirmed, cancelled, expired, completed. paymentStatus: unpaid, paid, refund_due,
   refunded. source: online, walk_in.
 - Admin: walk-in bookings are confirmed immediately; cancelling a paid booking sets `refund_due`;
@@ -418,8 +426,8 @@ same shape. The bookings table search covers name, phone, email and booking ID.
 - `payForBooking(bookingId, method)` -> `startPayment(bookingId, user, method)`: unverified users are
   refused with `needsVerify: true`; an unknown method is refused; a switched-off method returns
   `methodOff` (see above). Booking must be the
-  player's and held, and the slot must not have started; stretches the hold (SSLCommerz 30 min, bKash 15 min from
-  now, never past 60 min after the hold was created); inserts a `payments` row (initiated, with
+  player's (held, or released unpaid for a retry) and the slot must not have started; locks the slot for
+  `PAYMENT_LOCK_MINUTES` (bKash 5, SSLCommerz 10) if nobody else has it; inserts a `payments` row (initiated, with
   `gateway`); opens that gateway; client does `window.location.assign(url)`.
 - **Settling** (`settleBooking`): held → confirmed unless the slot has already ended; expired → revived only before
   it starts and if nothing overlaps it; otherwise `cancelled` + `refund_due`. bKash's pre-execute check uses the same
@@ -529,7 +537,8 @@ and a 5-minute safety revalidate, and falls back to defaults if the DB fails. Wr
 - Migrations: `0000_material_ravenous`, `0001_demonic_freak`, `0002_rapid_wonder_man` (check-in),
   `0003_yummy_thunderbolt` (map), `0004_next_fabian_cortez` (payments.gateway), `0005_wealthy_blindfold`
   (`site_settings.override_revenue_*`), `0006_outstanding_preak` (`redemptions_booking_uq`, `IF NOT EXISTS`;
-  `redeemCoupon`'s `ON CONFLICT` errors without it).
+  `redeemCoupon`'s `ON CONFLICT` errors without it), `0007_roles_and_nav_cleanup` (data: editor/staff -> user,
+  Grounds link -> `/grounds`, Offers link removed).
 
 Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:migrate`. Give both commands.
 

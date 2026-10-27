@@ -123,7 +123,7 @@ function Sidebar({ user, siteName, counts = {}, onNavigate, onClose }) {
             <nav className="no-scrollbar flex-1 overflow-y-auto px-3 pb-4">
                 {ADMIN_NAV.map((section) => ({
                     ...section,
-                    // Editors only see website content pages
+                    // adminOnly items: every admin sees them (only admins reach /admin)
                     items: section.items.filter((item) => !item.adminOnly || user?.role === "admin"),
                 }))
                     .filter((section) => section.items.length > 0)
@@ -149,7 +149,7 @@ function Sidebar({ user, siteName, counts = {}, onNavigate, onClose }) {
                                                 {item.label}
                                                 {count ? (
                                                     <span
-                                                        title={`${count} waiting for payment`}
+                                                        title={`${count} paying right now`}
                                                         className={cn("ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold tnum", active ? "bg-flare text-ink" : "bg-flare/90 text-ink")}
                                                     >
                                                         {count}

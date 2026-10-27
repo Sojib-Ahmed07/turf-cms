@@ -6,6 +6,6 @@ import { requireRole } from "@/lib/guards";
 export const metadata = { title: "Hero slides" };
 
 export default async function HeroAdminPage() {
-    await requireRole(["admin", "editor"]);
+    await requireRole(["admin"]);
     return <HeroEditor initial={await getHeroAdmin()} />;
 }

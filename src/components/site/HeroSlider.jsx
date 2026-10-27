@@ -185,7 +185,7 @@ export default function HeroSlider({ slides = [], autoplayMs = 6000, pauseOnHove
                                     </Button>
                                 )}
                                 <BookingGuide />
-                                <Button href="/#grounds" variant="outline-light" size="lg" className="hidden sm:inline-flex">
+                                <Button href="/grounds" variant="outline-light" size="lg" className="hidden sm:inline-flex">
                                     {t("hero.seeGrounds")}
                                 </Button>
                             </motion.div>

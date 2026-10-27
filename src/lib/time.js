@@ -93,6 +93,39 @@ export function isBlockPast(isoDate, startHHMM, dayStart = DEFAULT_DAY_START, no
     return starts <= `${dhakaDate(now)} ${dhakaTime(now)}`;
 }
 
+/** Days since 1970-01-01 for a "YYYY-MM-DD" string. */
+function dayNumber(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return Date.UTC(y, m - 1, d) / 86400000;
+}
+
+/**
+ * A slot's real time span as [start, end) in absolute minutes, so slots on neighbouring sheets
+ * (yesterday's after-midnight slots vs today's first slots) can be compared for overlap.
+ * A slot whose end time is before its start runs past midnight.
+ */
+export function slotInterval(isoDate, startHHMM, endHHMM, dayStart = DEFAULT_DAY_START) {
+    const start = dayNumber(isoDate) * 1440 + operatingMinutes(startHHMM, dayStart);
+    let length = (hhmmToMinutes(endHHMM) - hhmmToMinutes(startHHMM) + 1440) % 1440;
+    if (length === 0) length = 1440;
+    return [start, start + length];
+}
+
+/** True if two [start, end) intervals share any minute. */
+export function intervalsOverlap(a, b) {
+    return a[0] < b[1] && b[0] < a[1];
+}
+
+/** "Now" in the same absolute minutes as slotInterval (Dhaka clock). */
+export function nowMinutesAbs(now = new Date()) {
+    return dayNumber(dhakaDate(now)) * 1440 + hhmmToMinutes(dhakaTime(now));
+}
+
+/** True once a slot has finished (its end is at or before the time in Dhaka). */
+export function isBlockEnded(isoDate, startHHMM, endHHMM, dayStart = DEFAULT_DAY_START, now = new Date()) {
+    return slotInterval(isoDate, startHHMM, endHHMM, dayStart)[1] <= nowMinutesAbs(now);
+}
+
 /**
  * When a sheet's after-midnight part ends (minutes after midnight, 0 if nothing runs past midnight).
  * A 06:00 sheet whose last slot is 01:30-03:00 -> 180.

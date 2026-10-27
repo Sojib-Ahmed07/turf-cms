@@ -1,19 +1,25 @@
 // src/features/payment/service.js
 import "server-only";
 import { waitUntil } from "@vercel/functions";
-import { and, eq, inArray, lt, gt, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, lte, gt, ne } from "drizzle-orm";
 import { db } from "@/db";
+import { withLockedTx } from "@/db/pool";
 import { bookings, payments, pitches } from "@/db/schema";
 import { initSession, queryTransaction, validateOrder } from "@/lib/sslcommerz";
 import { createPayment as bkashCreate, executePayment as bkashExecute, queryPayment as bkashQuery } from "@/lib/bkash";
 import { GATEWAYS, isGatewayConfigured } from "./methods";
-import { HOLD_MINUTES, getSheetDayStarts } from "@/features/booking/queries";
+import { HOLD_MINUTES, blockingBooking, getActiveIntervals, getSheetDayStarts } from "@/features/booking/queries";
 import { redeemCoupon } from "@/features/coupons/service";
 import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
-import { shortDateLabel } from "@/lib/time";
+import { isBlockEnded, isBlockPast, shortDateLabel, slotInterval } from "@/lib/time";
 import { time12 } from "@/lib/utils";
 
-const MAX_HOLD_MINUTES = 30;
+// Opening a payment stretches the hold so the gateway page can be finished before the slot is released:
+// SSLCommerz pages stay payable for a long time (and take the money as soon as the player pays), so the hold
+// covers them longer. bKash only takes money when we execute it, after re-checking the slot, so 15 min is enough.
+const PAYMENT_HOLD_MINUTES = { sslcommerz: 30, bkash: HOLD_MINUTES };
+// ...but never past this long after the slot was first reserved.
+const MAX_HOLD_MINUTES = 60;
 
 function appUrl() {
     return (process.env.APP_URL || process.env.BETTER_AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -59,6 +65,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
             bookingDate: bookings.bookingDate,
             startTime: bookings.startTime,
             endTime: bookings.endTime,
+            pitchId: bookings.pitchId,
             pitchName: pitches.name,
         })
         .from(bookings)
@@ -77,8 +84,13 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
     }
     if (!(Number(b.totalPrice) > 0)) return { ok: false, error: msg("nothingToPay", "This booking has nothing to pay.") };
 
+    const dayStart = (await getSheetDayStarts([{ pitchId: b.pitchId, date: b.bookingDate }])).get(`${b.pitchId}|${b.bookingDate}`);
+    if (isBlockPast(b.bookingDate, b.startTime, dayStart)) {
+        return { ok: false, error: msg("slotStarted", "That slot has already started. Pick a later time.") };
+    }
+
     const cap = new Date(b.createdAt).getTime() + MAX_HOLD_MINUTES * 60000;
-    const stretched = Math.min(cap, now + HOLD_MINUTES * 60000);
+    const stretched = Math.min(cap, now + (PAYMENT_HOLD_MINUTES[gateway] ?? HOLD_MINUTES) * 60000);
     if (stretched > expires) {
         await db
             .update(bookings)
@@ -263,32 +275,27 @@ export async function confirmBkashPayment(paymentId) {
 }
 
 /**
- * Can this booking still be confirmed by a payment? Held, or expired with nobody else holding/booking the slot.
- * (Same rule settleBooking applies afterwards; the unique slot index stays the final word.)
+ * Can this booking still be confirmed by a payment? Same rule settleBooking applies afterwards:
+ * held and not yet finished, or expired, not yet started and nobody else holding/booking any part of its time.
  */
 async function bookingStillPayable(bookingId) {
     const [b] = await db
-        .select({ status: bookings.status, pitchId: bookings.pitchId, date: bookings.bookingDate, start: bookings.startTime })
+        .select({
+            status: bookings.status,
+            pitchId: bookings.pitchId,
+            date: bookings.bookingDate,
+            start: bookings.startTime,
+            end: bookings.endTime,
+        })
         .from(bookings)
         .where(eq(bookings.id, bookingId))
         .limit(1);
-    if (!b) return false;
-    if (b.status === "held") return true;
-    if (b.status !== "expired") return false;
-    const [other] = await db
-        .select({ id: bookings.id })
-        .from(bookings)
-        .where(
-            and(
-                eq(bookings.pitchId, b.pitchId),
-                eq(bookings.bookingDate, b.date),
-                eq(bookings.startTime, b.start),
-                inArray(bookings.status, ["held", "confirmed"]),
-                ne(bookings.id, bookingId)
-            )
-        )
-        .limit(1);
-    return !other;
+    if (!b || (b.status !== "held" && b.status !== "expired")) return false;
+    const dayStart = (await getSheetDayStarts([{ pitchId: b.pitchId, date: b.date }])).get(`${b.pitchId}|${b.date}`);
+    if (b.status === "held") return !isBlockEnded(b.date, b.start, b.end, dayStart);
+    if (isBlockPast(b.date, b.start, dayStart)) return false;
+    const active = await getActiveIntervals(b.pitchId, [b.date], { excludeId: bookingId });
+    return !blockingBooking(active, slotInterval(b.date, b.start, b.end, dayStart));
 }
 
 /** Player cancelled or bKash failed it on their side: close the attempt (the slot stays held for a retry). */
@@ -379,7 +386,14 @@ async function claimAndSettle(p, fields) {
 
 async function settleBooking(paymentId, bookingId) {
     const [b] = await db
-        .select({ status: bookings.status, paymentStatus: bookings.paymentStatus })
+        .select({
+            status: bookings.status,
+            paymentStatus: bookings.paymentStatus,
+            pitchId: bookings.pitchId,
+            date: bookings.bookingDate,
+            start: bookings.startTime,
+            end: bookings.endTime,
+        })
         .from(bookings)
         .where(eq(bookings.id, bookingId))
         .limit(1);
@@ -390,32 +404,49 @@ async function settleBooking(paymentId, bookingId) {
         return { ok: true, outcome: "confirmed", bookingId };
     }
 
+    let tooLate = false;
     if (b && (b.status === "held" || b.status === "expired")) {
-        try {
-            const rows = await db
-                .update(bookings)
-                .set({ status: "confirmed", paymentStatus: "paid", holdExpiresAt: null, updatedAt: new Date() })
-                .where(and(eq(bookings.id, bookingId), inArray(bookings.status, ["held", "expired"])))
-                .returning({ id: bookings.id });
-            if (rows.length) {
-                await redeemCoupon(bookingId);
-                waitUntil(
-                    sendBookingReceiptByBookingId(bookingId).catch((err) =>
-                        console.error("[ticket-email:after-pay]", err)
-                    )
-                );
-                return { ok: true, outcome: "confirmed", bookingId };
+        // A payment can be found long after the player paid (lost callback, picked up by the job).
+        // Never confirm a slot that can't be played any more: a held one until it ends, an expired
+        // (released) one only before it starts. Those become refund due instead.
+        const dayStart = (await getSheetDayStarts([{ pitchId: b.pitchId, date: b.date }])).get(`${b.pitchId}|${b.date}`);
+        tooLate =
+            b.status === "held" ? isBlockEnded(b.date, b.start, b.end, dayStart) : isBlockPast(b.date, b.start, dayStart);
+
+        if (!tooLate) {
+            try {
+                const rows = await withLockedTx([`pitch:${b.pitchId}`], async (tx) => {
+                    if (b.status === "expired") {
+                        // Reviving a released slot: nobody else may hold or have booked any part of its time.
+                        const active = await getActiveIntervals(b.pitchId, [b.date], { exec: tx, excludeId: bookingId });
+                        if (blockingBooking(active, slotInterval(b.date, b.start, b.end, dayStart))) return [];
+                    }
+                    return tx
+                        .update(bookings)
+                        .set({ status: "confirmed", paymentStatus: "paid", holdExpiresAt: null, updatedAt: new Date() })
+                        .where(and(eq(bookings.id, bookingId), inArray(bookings.status, ["held", "expired"])))
+                        .returning({ id: bookings.id });
+                });
+                if (rows.length) {
+                    await redeemCoupon(bookingId);
+                    waitUntil(
+                        sendBookingReceiptByBookingId(bookingId).catch((err) =>
+                            console.error("[ticket-email:after-pay]", err)
+                        )
+                    );
+                    return { ok: true, outcome: "confirmed", bookingId };
+                }
+            } catch (err) {
+                if (!isUniqueViolation(err)) throw err;
             }
-        } catch (err) {
-            if (!isUniqueViolation(err)) throw err;
+            // Lost the update: someone confirmed it in the meantime (a concurrent settle of this or another payment)?
+            const [now] = await db
+                .select({ status: bookings.status, paymentStatus: bookings.paymentStatus })
+                .from(bookings)
+                .where(eq(bookings.id, bookingId))
+                .limit(1);
+            if (now?.status === "confirmed" && now.paymentStatus === "paid") return duplicateOrConfirmed(paymentId, bookingId);
         }
-        // Lost the update: someone confirmed it in the meantime (a concurrent settle of this or another payment)?
-        const [now] = await db
-            .select({ status: bookings.status, paymentStatus: bookings.paymentStatus })
-            .from(bookings)
-            .where(eq(bookings.id, bookingId))
-            .limit(1);
-        if (now?.status === "confirmed" && now.paymentStatus === "paid") return duplicateOrConfirmed(paymentId, bookingId);
     }
 
     await db
@@ -424,11 +455,11 @@ async function settleBooking(paymentId, bookingId) {
             status: "cancelled",
             paymentStatus: "refund_due",
             cancelledAt: new Date(),
-            cancelReason: "Paid after the slot was released; refund due",
+            cancelReason: tooLate ? "Paid after the slot's time; refund due" : "Paid after the slot was released; refund due",
             updatedAt: new Date(),
         })
         .where(and(eq(bookings.id, bookingId), ne(bookings.status, "confirmed")));
-    console.warn("[payment:slot_lost]", bookingId);
+    console.warn(tooLate ? "[payment:too_late]" : "[payment:slot_lost]", bookingId);
     return { ok: true, outcome: "slot_lost", bookingId };
 }
 
@@ -465,27 +496,60 @@ export async function recheckPayment(tranId) {
     return confirmPayment({ tranId, valId: paid.val_id });
 }
 
-export async function recheckOpenPayments(limit = 20) {
+// Job schedule for payments that never got a trustworthy answer (closed tab, lost IPN, bKash timeout):
+//   - started 5 min to 2 h ago, still open or marked failed/cancelled: every run (late answers are common here)
+//   - still open after 2 h, up to 48 h: about once an hour (bumps updatedAt after each check)
+// Run the job every 5 to 10 minutes (see DEPLOY.md); a daily run alone misses most of this.
+const RECHECK_FRESH_MIN = 120;
+const RECHECK_MAX_HOURS = 48;
+const RECHECK_SLOW_EVERY_MIN = 60;
+
+export async function recheckOpenPayments(limit = 30) {
     const now = Date.now();
-    const open = await db
-        .select({ tranId: payments.tranId, gateway: payments.gateway })
-        .from(payments)
-        .where(
-            and(
-                inArray(payments.status, ["initiated", "failed", "cancelled"]),
-                lt(payments.createdAt, new Date(now - 5 * 60000)),
-                gt(payments.createdAt, new Date(now - 120 * 60000))
+    const ago = (min) => new Date(now - min * 60000);
+    const cols = { tranId: payments.tranId, gateway: payments.gateway };
+    const [fresh, slow] = await Promise.all([
+        db
+            .select(cols)
+            .from(payments)
+            .where(
+                and(
+                    inArray(payments.status, ["initiated", "failed", "cancelled"]),
+                    lt(payments.createdAt, ago(5)),
+                    gt(payments.createdAt, ago(RECHECK_FRESH_MIN))
+                )
             )
-        )
-        .limit(limit);
+            .orderBy(asc(payments.createdAt))
+            .limit(limit),
+        db
+            .select(cols)
+            .from(payments)
+            .where(
+                and(
+                    eq(payments.status, "initiated"),
+                    lte(payments.createdAt, ago(RECHECK_FRESH_MIN)),
+                    gt(payments.createdAt, ago(RECHECK_MAX_HOURS * 60)),
+                    lt(payments.updatedAt, ago(RECHECK_SLOW_EVERY_MIN))
+                )
+            )
+            .orderBy(asc(payments.updatedAt))
+            .limit(limit),
+    ]);
 
     let confirmed = 0;
-    for (const p of open) {
+    for (const p of [...fresh, ...slow]) {
         if (!isGatewayConfigured(p.gateway)) continue;
         const r = await recheckPayment(p.tranId);
         if (r.ok && r.outcome === "confirmed") confirmed++;
     }
-    return { checked: open.length, confirmed };
+    // Slow lane: mark as checked so the next hour picks the others first.
+    if (slow.length) {
+        await db
+            .update(payments)
+            .set({ updatedAt: new Date() })
+            .where(and(inArray(payments.tranId, slow.map((p) => p.tranId)), eq(payments.status, "initiated")));
+    }
+    return { checked: fresh.length + slow.length, confirmed };
 }
 
 /* -------------------------------------------------------------- */

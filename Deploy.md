@@ -117,12 +117,14 @@ in the admin. The SSLCommerz refund API needs a fixed server IP, which Vercel do
 `vercel.json` already runs `/api/cron/expire-holds` once a day at 3 am Dhaka. Vercel sends `CRON_SECRET`
 automatically. Check it in Vercel, **Settings**, **Cron Jobs** after the first deploy.
 
-Recommended extra: the job also re-checks payments where the player paid but closed the tab before
-coming back (it looks at payments started 5 to 120 minutes ago). A daily run misses most of those, so add
-a free external cron that calls it every 15 minutes:
+**Required, not optional:** the job is also how a payment gets confirmed when the player paid but the
+answer never reached us (closed tab, lost IPN, bKash timing out). It re-checks payments started 5 to 120
+minutes ago on every run, and ones still open up to 48 hours about once an hour. bKash has no IPN, so
+without a frequent run a paid bKash booking can expire and its slot be sold again. Vercel Hobby only
+allows the daily run, so add a free external cron that calls it every 10 minutes:
 
 1. cron-job.org, create an account, **Create cronjob**.
-2. URL: `https://yourdomain.com/api/cron/expire-holds`, every 15 minutes.
+2. URL: `https://yourdomain.com/api/cron/expire-holds`, every 10 minutes.
 3. **Advanced**, **Headers**: `Authorization` = `Bearer <your CRON_SECRET>`.
 4. Save, then **Test run**: the response should be `{"ok":true,...}`. `Unauthorized` means the header is wrong.
 

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 const ROLES = [
     { value: "admin", label: "Admin" },
     { value: "editor", label: "Editor" },
+    { value: "staff", label: "Gate staff" },
     { value: "user", label: "Player" },
 ];
 
@@ -40,7 +41,7 @@ export default function UsersTable({ data, q = "", meId }) {
         <div className="mx-auto max-w-[1080px]">
             <PageHeader
                 title="Users"
-                description="Admins can change everything. Editors can change website content but not grounds, prices, payments, coupons or users."
+                description="Admins can change everything. Editors can change website content but not grounds, prices, payments, coupons or users. Gate staff can only check tickets in at the gate (scan the QR, Mark as used)."
             />
 
             <p className="mb-6 flex items-start gap-2.5 rounded-card bg-white px-5 py-4 text-[14px] text-ink-2 ring-1 ring-line">

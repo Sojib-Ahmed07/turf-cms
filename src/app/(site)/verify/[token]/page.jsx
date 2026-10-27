@@ -1,7 +1,8 @@
 // src/app/(site)/verify/[token]/page.jsx
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, pitches, user as userTable } from "@/db/schema";
+import { bookings, payments, pitches, user as userTable } from "@/db/schema";
+import { CHECKIN_ROLES } from "@/features/admin/actions/checkin-roles";
 import { verifyTicketToken } from "@/lib/ticket-token";
 import { getSession } from "@/lib/guards";
 import { currentVenueDay, getSheetDayStarts } from "@/features/booking/queries";
@@ -86,15 +87,33 @@ export default async function VerifyTicketPage({ params }) {
     else if (row.status !== "confirmed") state = "invalid";
 
     const session = await getSession();
-    const isAdmin = session?.user?.role === "admin";
+    // Gate staff (role "staff") and admins can check tickets in.
+    const isStaff = CHECKIN_ROLES.includes(session?.user?.role);
     // Check-in only on match day (the venue day this booking's sheet belongs to).
     const { date: today } = await currentVenueDay();
     const wrongDay = state === "valid" && row.bookingDate !== today;
-    const canCheckIn = isAdmin && state === "valid" && !wrongDay && !booking.checkedInAt;
+    const canCheckIn = isStaff && state === "valid" && !wrongDay && !booking.checkedInAt;
+
+    // Staff only: warn when the paying payment was flagged risky by SSLCommerz and nobody checked it yet.
+    let riskNote = null;
+    if (isStaff && state === "valid") {
+        const [risky] = await db
+            .select({ title: payments.riskTitle })
+            .from(payments)
+            .where(and(eq(payments.bookingId, row.id), eq(payments.status, "paid"), eq(payments.riskLevel, "1")))
+            .limit(1);
+        if (risky) riskNote = risky.title || true;
+    }
 
     return (
         <div className="mx-auto max-w-md px-4 pb-16 pt-10">
-            <VerifyTicket state={state} booking={booking} canCheckIn={canCheckIn} wrongDay={isAdmin && wrongDay && !booking.checkedInAt} />
+            <VerifyTicket
+                state={state}
+                booking={booking}
+                canCheckIn={canCheckIn}
+                wrongDay={isStaff && wrongDay && !booking.checkedInAt}
+                riskNote={riskNote}
+            />
         </div>
     );
 }

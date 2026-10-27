@@ -24,8 +24,11 @@ function formatTime(iso) {
     return new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Dhaka" });
 }
 
-/** wrongDay: admin view of a valid ticket for another day (no "Mark as used", explain why). */
-export default function VerifyTicket({ state, booking, canCheckIn = false, wrongDay = false }) {
+/**
+ * wrongDay: staff view of a valid ticket for another day (no "Mark as used", explain why).
+ * riskNote: staff view of a ticket paid with a payment SSLCommerz flagged as risky and nobody has checked yet.
+ */
+export default function VerifyTicket({ state, booking, canCheckIn = false, wrongDay = false, riskNote = null }) {
     const router = useRouter();
     const tone = TONE[state] ?? TONE.invalid;
     const Icon = tone.icon;
@@ -73,6 +76,13 @@ export default function VerifyTicket({ state, booking, canCheckIn = false, wrong
                         <Row label="Amount" value={taka(booking.total) + (booking.discount > 0 ? ` (saved ${taka(booking.discount)})` : "")} />
                         {booking.checkedInAt && <Row label="Checked in" value={formatTime(booking.checkedInAt)} />}
                     </div>
+
+                    {riskNote && (
+                        <p className="mt-5 rounded-ctl bg-flare-soft px-4 py-3 text-[13px] font-medium text-flare-deep">
+                            Check before entry: SSLCommerz flagged this payment as high risk{riskNote !== true ? ` (${riskNote})` : ""}. An admin
+                            should confirm it in the merchant panel (Admin, Payments, Risky) before the ticket is used.
+                        </p>
+                    )}
 
                     {error && <p className="mt-4 rounded-ctl bg-danger-soft px-4 py-3 text-[13px] font-medium text-danger">{error}</p>}
 

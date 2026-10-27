@@ -10,7 +10,7 @@ import { ADMIN_ONLY, DENIED, requireRoles } from "@/features/cms/server-utils";
 
 const roleSchema = z.object({
     userId: z.string().min(1).max(100),
-    role: z.enum(["admin", "editor", "user"]),
+    role: z.enum(["admin", "editor", "staff", "user"]),
 });
 
 /**

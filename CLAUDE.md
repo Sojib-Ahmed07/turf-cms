@@ -173,6 +173,8 @@ actions). Check the role inside every admin action, not only in the layout. Admi
 
 - `BLUEPRINT.md` is not in the repo. `ai-context.md` section 12 has the remaining plan; ask before
   assuming anything beyond it.
+- 27 Oct audit fixes: run `npm run db:migrate` for **0006** (coupon redemption index; coupons break without it), and set
+  the external cron to every 10 minutes (DEPLOY.md section 9). Roles now include `staff` (gate check-in only).
 - Steps 0 to 8b are done (7a email OTP, 7b QR tickets + check-in + receipt email, 7c venue map,
   8a direct bKash, 8b admin payment-method switches). Migrations 0002 to 0004 must be applied on every database.
 - Direct Nagad was dropped (needs a whitelisted fixed IP; Vercel Static IPs cost $100/month). Don't build it

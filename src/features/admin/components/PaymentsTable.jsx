@@ -4,14 +4,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, RotateCcw, Search } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, RotateCcw, Search, ShieldCheck } from "lucide-react";
 import { PageHeader, Table, Th, Td, Toolbar } from "@/components/admin/Kit";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { useToast } from "@/components/admin/Toast";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { TextInput } from "@/components/ui/Inputs";
-import { adminRecheckPayment, markPaymentRefunded } from "@/features/admin/actions/payments";
+import { adminRecheckPayment, markPaymentRefunded, markRiskChecked } from "@/features/admin/actions/payments";
 import PaymentMethodsPanel from "./PaymentMethodsPanel";
 import { cn, taka } from "@/lib/utils";
 
@@ -58,6 +58,17 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
         });
     }
 
+    function clearRisk(p) {
+        setBusyId(p.id);
+        startTransition(async () => {
+            const res = await markRiskChecked(p.id);
+            setBusyId(null);
+            if (!res.ok) return showToast(res.error, "error");
+            showToast(`${p.bookingCode} marked as checked`);
+            router.refresh();
+        });
+    }
+
     function confirmRefund() {
         const p = refund;
         startTransition(async () => {
@@ -88,7 +99,7 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                     {counts.risky > 0 && (
                         <Alert
                             title={`${counts.risky} risky ${counts.risky === 1 ? "payment" : "payments"}`}
-                            body="SSLCommerz flagged these as high risk. The bookings are confirmed; check them in the merchant panel."
+                            body="SSLCommerz flagged these as high risk. The bookings are confirmed, but the gate check warns staff until you check each one in the merchant panel and press Mark checked."
                             href={href({ status: "risky" })}
                             cta="Show risky"
                         />
@@ -173,6 +184,18 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                                     <Td className="text-ink-3">{p.at}</Td>
                                     <Td className="text-right">
                                         <div className="flex justify-end gap-2">
+                                            {p.risky && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={pending}
+                                                    onClick={() => clearRisk(p)}
+                                                    title="You checked this payment in the SSLCommerz merchant panel and it's genuine"
+                                                >
+                                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                                    Mark checked
+                                                </Button>
+                                            )}
                                             {p.status === "refund_due" && (
                                                 <Button variant="outline" size="sm" disabled={pending} onClick={() => setRefund(p)}>
                                                     <RotateCcw className="h-3.5 w-3.5" />

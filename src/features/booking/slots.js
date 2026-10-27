@@ -144,20 +144,32 @@ export function validateBlocks(blocks) {
                 error: `Block ${b.startTime}–${b.endTime} needs a price greater than 0.`,
             };
         }
-        if (i > 0) {
+    }
+
+    // Place every block on the sheet's own clock: the day starts at the first block, and a block that
+    // starts earlier than that is after midnight. Blocks must run forward without overlapping, and the
+    // whole sheet must fit in 24 hours, so its late slots never run into the next day's first slot.
+    const first = hhmmToMinutes(sorted[0].startTime);
+    const dayEnd = first + 1440;
+    let prevEnd = null;
+    for (let i = 0; i < sorted.length; i++) {
+        const b = sorted[i];
+        const start = ((hhmmToMinutes(b.startTime) - first + 1440) % 1440) + first;
+        const end = start + minutesBetween(b.startTime, b.endTime);
+        if (prevEnd !== null && start < prevEnd) {
             const prev = sorted[i - 1];
-            const prevStart = hhmmToMinutes(prev.startTime);
-            const prevEnd = hhmmToMinutes(prev.endTime);
-            const prevEndAbs = prevEnd <= prevStart ? prevEnd + 1440 : prevEnd;
-            const currStart = hhmmToMinutes(b.startTime);
-            const currStartAbs = currStart < prevStart ? currStart + 1440 : currStart;
-            if (currStartAbs < prevEndAbs) {
-                return {
-                    ok: false,
-                    error: `Blocks ${prev.startTime}–${prev.endTime} and ${b.startTime}–${b.endTime} overlap.`,
-                };
-            }
+            return {
+                ok: false,
+                error: `Blocks ${prev.startTime}–${prev.endTime} and ${b.startTime}–${b.endTime} overlap.`,
+            };
         }
+        if (end > dayEnd) {
+            return {
+                ok: false,
+                error: `Block ${b.startTime}–${b.endTime} runs past ${sorted[0].startTime} the next morning, into the next day's first slot. A day's slots must fit in 24 hours.`,
+            };
+        }
+        prevEnd = end;
     }
 
     return { ok: true };

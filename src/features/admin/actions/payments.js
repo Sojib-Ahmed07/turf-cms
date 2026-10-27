@@ -78,6 +78,34 @@ export async function adminRecheckPayment(tranId) {
 }
 
 /**
+ * The admin checked a payment SSLCommerz flagged as risky (merchant panel) and it's genuine.
+ * Clears the flag, so the gate check stops warning about it. The old reason is kept in riskTitle.
+ */
+export async function markRiskChecked(paymentId) {
+    try {
+        const me = await requireRoles(ADMIN_ONLY);
+        if (!me) return DENIED;
+        if (!z.string().uuid().safeParse(paymentId).success) return { ok: false, error: "Payment not found." };
+        const [p] = await db
+            .select({ riskTitle: payments.riskTitle })
+            .from(payments)
+            .where(and(eq(payments.id, paymentId), eq(payments.riskLevel, "1")))
+            .limit(1);
+        if (!p) return { ok: false, error: "This payment isn't flagged as risky." };
+        const note = `Checked by ${me.name}${p.riskTitle ? ` (was: ${p.riskTitle})` : ""}`.slice(0, 200);
+        await db
+            .update(payments)
+            .set({ riskLevel: "0", riskTitle: note, updatedAt: new Date() })
+            .where(and(eq(payments.id, paymentId), eq(payments.riskLevel, "1")));
+        refresh();
+        return { ok: true };
+    } catch (err) {
+        console.error("[markRiskChecked]", err);
+        return { ok: false, error: "Couldn't update the payment. Try again." };
+    }
+}
+
+/**
  * Record that a refund was sent (from the SSLCommerz or bKash merchant panel, or cash).
  * Works for a refund-due payment, and for a paid payment whose booking is refund due.
  */

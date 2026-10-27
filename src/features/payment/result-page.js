@@ -34,6 +34,8 @@ export async function loadPaymentResult(page, searchParams) {
     let status;
     if (r.refundDue) status = "refund";
     else if (r.paymentStatus === "paid" && r.bookingStatus === "confirmed") status = "success";
+    // Paid, but the booking is still being settled (the job finishes it within minutes): not a failure.
+    else if (r.paymentStatus === "paid") status = "pending";
     else if (r.paymentStatus === "initiated") status = page === "cancelled" ? "cancelled" : page === "failed" ? "failed" : "pending";
     else status = r.paymentStatus === "cancelled" ? "cancelled" : "failed";
 

@@ -11,6 +11,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
+import { withLockedTx } from "@/db/pool";
+import { conflictError, conflictsForDate, conflictsForDefault } from "@/features/admin/schedule-guard";
 import { pitches, timeBlocks, SPORTS } from "@/db/schema";
 import { generateDefaultBlocks, validateBlocks, deriveHours, cloneAsTemplate } from "@/features/booking/slots";
 
@@ -33,6 +35,19 @@ function revalidateAll(pitchId) {
     if (pitchId) revalidatePath(`/admin/pitches/${pitchId}`);
     revalidatePath("/book");
     revalidatePath("/");
+}
+
+/**
+ * Run a schedule write only if no active booking would lose its slot. Holds the ground's lock, so a
+ * player can't reserve a slot between the check and the write. Returns a refusal or null (written).
+ */
+async function guardedWrite(pitchId, findConflicts, write) {
+    return withLockedTx([`pitch:${pitchId}`], async () => {
+        const conflicts = await findConflicts();
+        if (conflicts.length) return conflictError(conflicts);
+        await write();
+        return null;
+    });
 }
 
 function fail(err, fallback) {
@@ -165,7 +180,12 @@ export async function upsertPitch(input) {
                 values.defaultBlocks = blocks;
             }
 
-            await db.update(pitches).set(values).where(eq(pitches.id, v.id));
+            const refused = await guardedWrite(
+                v.id,
+                () => (rebuilt ? conflictsForDefault(v.id, values.defaultBlocks) : []),
+                () => db.update(pitches).set(values).where(eq(pitches.id, v.id))
+            );
+            if (refused) return refused;
             revalidateAll(v.id);
             return { ok: true, data: { pitchId: v.id, rebuilt } };
         }
@@ -226,15 +246,34 @@ export async function replaceDefaultBlocks(pitchId, blocks) {
         if (!n.ok) return n;
         const { openHour, closeHour } = deriveHours(n.blocks);
 
-        await db
-            .update(pitches)
-            .set({ defaultBlocks: n.blocks, openHour, closeHour })
-            .where(eq(pitches.id, pitchId));
+        const refused = await guardedWrite(
+            pitchId,
+            () => conflictsForDefault(pitchId, n.blocks),
+            () => db.update(pitches).set({ defaultBlocks: n.blocks, openHour, closeHour }).where(eq(pitches.id, pitchId))
+        );
+        if (refused) return refused;
 
         revalidateAll(pitchId);
         return { ok: true };
     } catch (err) {
         return fail(err, "Couldn't save the default schedule. Try again.");
+    }
+}
+
+async function writeDateBlocks(pitchId, date, blocks) {
+    await db.delete(timeBlocks).where(and(eq(timeBlocks.pitchId, pitchId), eq(timeBlocks.date, date)));
+    if (blocks.length > 0) {
+        await db.insert(timeBlocks).values(
+            blocks.map((b) => ({
+                pitchId,
+                date,
+                startTime: b.startTime,
+                endTime: b.endTime,
+                price: String(b.price),
+                sortOrder: b.sortOrder,
+                isActive: true,
+            }))
+        );
     }
 }
 
@@ -247,20 +286,12 @@ export async function replaceDateBlocks(pitchId, date, blocks) {
         const n = normalizeBlocks(blocks);
         if (!n.ok) return n;
 
-        await db.delete(timeBlocks).where(and(eq(timeBlocks.pitchId, pitchId), eq(timeBlocks.date, date)));
-        if (n.blocks.length > 0) {
-            await db.insert(timeBlocks).values(
-                n.blocks.map((b) => ({
-                    pitchId,
-                    date,
-                    startTime: b.startTime,
-                    endTime: b.endTime,
-                    price: b.price,
-                    sortOrder: b.sortOrder,
-                    isActive: true,
-                }))
-            );
-        }
+        const refused = await guardedWrite(
+            pitchId,
+            () => conflictsForDate(pitchId, date, n.blocks),
+            () => writeDateBlocks(pitchId, date, n.blocks)
+        );
+        if (refused) return refused;
 
         revalidateAll(pitchId);
         return { ok: true };
@@ -275,7 +306,14 @@ export async function resetDateToDefault(pitchId, date) {
         if (!(await requireAdmin())) return DENIED;
         if (!uuid.safeParse(pitchId).success || !isoDate.safeParse(date).success) return { ok: false, error: "Ground or date not found." };
 
-        await db.delete(timeBlocks).where(and(eq(timeBlocks.pitchId, pitchId), eq(timeBlocks.date, date)));
+        const [pitch] = await db.select({ defaultBlocks: pitches.defaultBlocks }).from(pitches).where(eq(pitches.id, pitchId)).limit(1);
+        if (!pitch) return { ok: false, error: "Ground not found." };
+        const refused = await guardedWrite(
+            pitchId,
+            () => conflictsForDate(pitchId, date, pitch.defaultBlocks),
+            () => db.delete(timeBlocks).where(and(eq(timeBlocks.pitchId, pitchId), eq(timeBlocks.date, date)))
+        );
+        if (refused) return refused;
         revalidateAll(pitchId);
         return { ok: true };
     } catch (err) {
@@ -299,7 +337,12 @@ export async function regenerateDefaultBlocks(pitchId) {
             hourlyRate: Number(pitch.hourlyRate),
         }).map((b, i) => ({ startTime: b.startTime, endTime: b.endTime, price: String(b.price), sortOrder: i }));
 
-        await db.update(pitches).set({ defaultBlocks: template }).where(eq(pitches.id, pitchId));
+        const refused = await guardedWrite(
+            pitchId,
+            () => conflictsForDefault(pitchId, template),
+            () => db.update(pitches).set({ defaultBlocks: template }).where(eq(pitches.id, pitchId))
+        );
+        if (refused) return refused;
         revalidateAll(pitchId);
         return { ok: true };
     } catch (err) {
@@ -320,20 +363,12 @@ export async function seedDateFromDefault(pitchId, date) {
             ? cloneAsTemplate(pitch.defaultBlocks.map((b, i) => ({ ...b, sortOrder: b.sortOrder ?? i })))
             : [];
 
-        await db.delete(timeBlocks).where(and(eq(timeBlocks.pitchId, pitchId), eq(timeBlocks.date, date)));
-        if (template.length > 0) {
-            await db.insert(timeBlocks).values(
-                template.map((b) => ({
-                    pitchId,
-                    date,
-                    startTime: b.startTime,
-                    endTime: b.endTime,
-                    price: String(b.price),
-                    sortOrder: b.sortOrder,
-                    isActive: true,
-                }))
-            );
-        }
+        const refused = await guardedWrite(
+            pitchId,
+            () => conflictsForDate(pitchId, date, template),
+            () => writeDateBlocks(pitchId, date, template)
+        );
+        if (refused) return refused;
 
         revalidateAll(pitchId);
         return { ok: true };

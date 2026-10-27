@@ -1,6 +1,7 @@
 // src/components/auth/AuthForms.jsx
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Field, Input } from "@/components/ui/Field";
 import Button from "@/components/ui/Button";
@@ -79,7 +80,18 @@ export function LoginForm() {
                     placeholder="you@example.com"
                 />
             </Field>
-            <Field label="Password" htmlFor="password">
+            <Field
+                label="Password"
+                htmlFor="password"
+                hint={
+                    <Link
+                        href={`/forgot-password?next=${encodeURIComponent(next)}${email ? `&email=${encodeURIComponent(email)}` : ""}`}
+                        className="font-semibold text-ink hover:underline"
+                    >
+                        Forgot your password?
+                    </Link>
+                }
+            >
                 <Input
                     id="password"
                     type="password"

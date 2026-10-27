@@ -10,7 +10,7 @@ import { authClient, signOut, useSession } from "@/lib/auth-client";
 import { updateProfile } from "@/features/profile/actions";
 import { cn } from "@/lib/utils";
 
-const ROLE_LABEL = { admin: "Admin", editor: "Editor" };
+const ROLE_LABEL = { admin: "Admin", editor: "Editor", staff: "Gate staff" };
 
 /**
  * props:

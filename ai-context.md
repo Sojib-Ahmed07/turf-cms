@@ -57,6 +57,7 @@ from an earlier prototype (`turf.zip`, bKash replaced by SSLCommerz).
 | 7c | Venue map: admin sets lat/lng/zoom/label/address in Branding; home "Find us" shows a Leaflet/OpenStreetMap map (illustration when empty) | Done 22 Oct (migration 0003) |
 | 8a | Direct bKash (Tokenized Checkout v1.2.0-beta) beside SSLCommerz: method picker on /book, My bookings and retry; callback executes the payment; `payments.gateway` column (migration 0004) | Done 25 Oct (lint 0 errors, build compiles, bKash client tested against a mock; needs sandbox click-through) |
 | 8b | Admin on/off switch per payment method (Admin, Payments, "Payment methods" panel); a switched-off method shows "Off right now" and a dialog that names the method that is on | Done 26 Oct (lint 0 errors, build compiles; no migration) |
+| Audit | Bookings/payments audit fixes: overlap-based availability (incl. neighbouring days), schedule-edit guard, 24 h sheet cap, slot identity check, locked hold/walk-in transactions, hourly hold cap, coupon limits under lock, SSLCommerz hold 30 min, no confirm of started/finished slots, recheck up to 48 h, risky-payment gate warning, `staff` role, forgot password, **migration 0006** (missing coupon redemption index) | Done 27 Oct (27 integration tests on PGlite with mocked gateways, lint 0 errors, build passes; sandbox payments still to do) |
 | Review | Security review: Next 16.4.3 + zod 4.6.7, open-redirect fix, 14-day booking window, phone/name auth hooks, editor overview without revenue, receipt resend limit, match-day check-in, bKash slot check before execute, security headers, robots/noindex for verify pages | Done 26 Oct (applied on the dev machine; `npm run build` passes) |
 | — | Direct Nagad | Dropped 26 Oct (needs a whitelisted fixed IP; Vercel Static IPs $100/month). Nagad stays inside SSLCommerz |
 | **Deploy** | **Vercel + live Neon branch + domain + live SSLCommerz + live bKash, following `DEPLOY.md`** | **Next (after pre-deploy fixes)** |
@@ -278,7 +279,8 @@ Copy: sentence case; buttons say exactly what happens; errors say what to do nex
 
 ### Roles
 
-`user.role`: `user` (player), `editor` (CMS content only), `admin` (everything). **Editor is still live
+`user.role`: `user` (player), `editor` (CMS content only), `staff` (gate check-in only: `/verify/<token>` **Mark as
+used**; no admin area; `CHECKIN_ROLES` in `features/admin/actions/checkin-roles.js`), `admin` (everything). **Editor is still live
 in the code**: the admin layout and the content pages (hero, banners, sections, footer, media, terms)
 call `requireRole(["admin", "editor"])`; `CONTENT_ROLES = ["admin", "editor"]` in
 `cms/server-utils.js`; the Users page role dropdown offers Admin, Editor, Player. Branding, navigation,
@@ -366,9 +368,21 @@ same shape. The bookings table search covers name, phone, email and booking ID.
   ground's sheet for yesterday still has after-midnight slots running.
 - Parts of the day: `features/booking/parts.js`.
 - Slot states: free, held (unexpired hold), booked (confirmed), past.
-- Hold: `status = held`, `holdExpiresAt = now + 15 min`, price from the server. Max 2 active holds.
-- **No double booking:** partial unique index `bookings_active_slot_uq` on
-  `(pitch_id, booking_date, start_time) WHERE status IN ('held','confirmed')`.
+- Hold: `status = held`, `holdExpiresAt = now + 15 min`, price from the server. Max 2 active holds, max 6 unpaid
+  holds created per player per hour.
+- **No double booking:** a slot is taken when any active booking overlaps its **real time**, including the
+  neighbouring days' sheets (`slotInterval` / `intervalsOverlap` in `lib/time.js`, `getActiveIntervals` /
+  `blockingBooking` in booking queries). Holds, walk-ins and expired-hold revivals check this inside
+  `withLockedTx(["pitch:<id>", "user:<id>", "coupon:<CODE>"], fn)` (`db/pool.js`, Postgres advisory locks over a
+  Neon WebSocket transaction; needs Node 22+). The partial unique index `bookings_active_slot_uq` on
+  `(pitch_id, booking_date, start_time) WHERE status IN ('held','confirmed')` stays as a backstop.
+- **Schedule edits** (`features/admin/schedule-guard.js`): every action that changes a sheet (custom day, reset,
+  copy default, default schedule, ground hours, rebuild) is refused when an active, not-finished booking would no
+  longer match a new block at exactly the same real time; the error lists the bookings. `validateBlocks` refuses a
+  sheet longer than 24 h from its first slot.
+- **Slot identity:** the booking page and walk-in dialog send `startTime` (+ `price`) with `blockId`; a mismatch
+  answers `{ ok: false, slotChanged: true }` (default block ids are positional, so an edit can shift them).
+- Players can't cancel a held booking while an SSLCommerz payment opened in the last 20 min is still `initiated`.
 - Statuses: held, confirmed, cancelled, expired, completed. paymentStatus: unpaid, paid, refund_due,
   refunded. source: online, walk_in.
 - Admin: walk-in bookings are confirmed immediately; cancelling a paid booking sets `refund_due`;
@@ -404,8 +418,18 @@ same shape. The bookings table search covers name, phone, email and booking ID.
 - `payForBooking(bookingId, method)` -> `startPayment(bookingId, user, method)`: unverified users are
   refused with `needsVerify: true`; an unknown method is refused; a switched-off method returns
   `methodOff` (see above). Booking must be the
-  player's and held; stretches the hold to 15 min from now; inserts a `payments` row (initiated, with
+  player's and held, and the slot must not have started; stretches the hold (SSLCommerz 30 min, bKash 15 min from
+  now, never past 60 min after the hold was created); inserts a `payments` row (initiated, with
   `gateway`); opens that gateway; client does `window.location.assign(url)`.
+- **Settling** (`settleBooking`): held → confirmed unless the slot has already ended; expired → revived only before
+  it starts and if nothing overlaps it; otherwise `cancelled` + `refund_due`. bKash's pre-execute check uses the same
+  rule, so bKash never charges for a slot that can't be confirmed.
+- **Job** (`/api/cron/expire-holds`, run **every 10 min** by an external cron): `recheckOpenPayments` checks payments
+  5 min–2 h old every run and `initiated` ones up to 48 h about hourly (`updatedAt` backoff), then
+  `repairUnsettledPayments`, then `expireStaleHolds`.
+- **Risky SSLCommerz payments** (`risk_level 1`) still confirm; `/verify` warns staff until an admin presses
+  **Mark checked** in Admin, Payments (`markRiskChecked`: sets `riskLevel "0"`, keeps the old reason in `riskTitle`).
+- Result page: paid but booking not yet confirmed shows **pending**, not failed.
 - **`payments` columns per gateway**: `tranId` = our id (`<booking code>-<6>`; SSLCommerz `tran_id`,
   bKash `merchantInvoiceNumber`); `sessionKey` = SSLCommerz session key / **bKash `paymentID`**;
   `bankTranId` = bank ref / **bKash `trxID`**; `cardType` = SSLCommerz card type / `"BKASH"`
@@ -503,7 +527,9 @@ and a 5-minute safety revalidate, and falls back to defaults if the DB fails. Wr
 - `cms.js`: `site_settings` (incl. **mapLat, mapLng, mapZoom, mapLabel, mapAddress**), `nav_items`,
   `hero_slides`, `promo_banners`, `page_sections`, `media`.
 - Migrations: `0000_material_ravenous`, `0001_demonic_freak`, `0002_rapid_wonder_man` (check-in),
-  `0003_yummy_thunderbolt` (map), `0004_next_fabian_cortez` (payments.gateway).
+  `0003_yummy_thunderbolt` (map), `0004_next_fabian_cortez` (payments.gateway), `0005_wealthy_blindfold`
+  (`site_settings.override_revenue_*`), `0006_outstanding_preak` (`redemptions_booking_uq`, `IF NOT EXISTS`;
+  `redeemCoupon`'s `ON CONFLICT` errors without it).
 
 Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:migrate`. Give both commands.
 
@@ -511,7 +537,9 @@ Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:mig
 
 - `lib/time.js`: `DEFAULT_DAY_START`, `dhakaDate`, `dhakaTime`, `hhmmToMinutes`, `minutesToHHMM`,
   `addDaysISO`, `dayStartOf`, `isAfterMidnight`, `operatingMinutes`, `playDateOf`,
-  `isBlockPast(date, start, dayStart)`, `nightEndOf`, `currentOperatingDay`, `shortDateLabel`.
+  `isBlockPast(date, start, dayStart)`, `isBlockEnded(date, start, end, dayStart)`,
+  `slotInterval(date, start, end, dayStart)` -> `[start, end)` absolute minutes, `intervalsOverlap`, `nowMinutesAbs`,
+  `nightEndOf`, `currentOperatingDay`, `shortDateLabel`.
   "Today": `currentVenueDay()` in `features/booking/queries.js`.
 - `lib/guards.js`: `getSession()`, `requireUser(next)`, `requireRole(roles)`.
 - `lib/sslcommerz.js`: `isSslczConfigured`, `initSession`, `validateOrder`, `queryTransaction`, `prettyMethod`.
@@ -571,10 +599,10 @@ Static IPs cost $100/month per project. Nagad stays available through SSLCommerz
 ### Deploy
 
 Follow `DEPLOY.md` (add the `BKASH_*` keys and bKash live onboarding: the live callback domain must be
-the one in `APP_URL`): separate Neon branch, `db:migrate` (applies 0000 to 0004) + seed, Vercel env vars
+the one in `APP_URL`): separate Neon branch, `db:migrate` (applies 0000 to 0006) + seed, Vercel env vars
 (incl. Brevo + `TICKET_SECRET`), domain, Google OAuth redirect, owner promoted to admin, live
 SSLCommerz store + IPN URL `https://<domain>/api/payment/sslcommerz/ipn`, `SSLCZ_IS_LIVE=true`, daily
-Vercel cron + external 15-minute cron (cron-job.org with `Authorization: Bearer <CRON_SECRET>`).
+Vercel cron + external **10-minute** cron (required: bKash has no IPN) (cron-job.org with `Authorization: Bearer <CRON_SECRET>`).
 Refunds stay manual. `TICKET_SECRET` on live must never change after tickets go out.
 
 ### Optional later
@@ -588,6 +616,12 @@ Refunds stay manual. `TICKET_SECRET` on live must never change after tickets go 
 
 | Issue | Fix / note |
 |---|---|
+| Coupon booking fails with "no unique or exclusion constraint matching the ON CONFLICT" | Migration 0006 not applied: `npm run db:migrate` |
+| Admin schedule save says "This change would move or remove a booked slot" | Expected (schedule guard): keep those exact times, or cancel/move the listed bookings first |
+| Player sees "The venue just changed this slot's time or price" | Expected: the schedule changed while the page was open; the board reloads |
+| "Reserved and released too many slots in the last hour" | Hold cap (6 unpaid holds per hour per player) |
+| Paid bKash booking expired / slot resold | The external cron isn't running every 10 minutes |
+| `withLockedTx` / WebSocket errors | Node older than 22 (no global WebSocket); use Node 22+ locally and on Vercel |
 | `SEED_ADMIN_EMAIL`, `CRON_SECRET` placeholders in `.env.local` | Set real values (section 3) |
 | `column "map_lat" does not exist` / `"checked_in_at" does not exist` | Migrations 0002/0003 not applied: `npm run db:migrate` |
 | `BREVO_*` missing | OTP and receipt emails fail; unverified users can't book. Set all three |

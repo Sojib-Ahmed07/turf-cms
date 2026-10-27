@@ -123,9 +123,19 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
 - **Slot states:** `booked` (confirmed booking), `held` (held booking whose `holdExpiresAt` is in the future), `past`, `free`.
 - **Holds:** "Pay" creates a booking with `status = held`, `holdExpiresAt = now + 15 min`, price from the server.
   Expired holds are marked `expired` lazily (`expireStaleHolds`) before a new hold, and daily by `/api/cron/expire-holds`.
-- **No double booking:** partial unique index `bookings_active_slot_uq` on `(pitch_id, booking_date, start_time)`
-  where `status in ('held','confirmed')`. A collision returns "Someone just booked this slot."
-- **Limits:** max 2 active holds per player. Only held bookings can be cancelled by the player.
+- **No double booking:** a slot is taken when any active booking overlaps its **real time** (`slotInterval` in
+  `lib/time.js`, `getActiveIntervals` / `blockingBooking` in booking queries), including the neighbouring days' sheets
+  (after-midnight slots). Holds and walk-ins check this inside `withLockedTx(["pitch:<id>", ...])` (`db/pool.js`).
+  The partial unique index `bookings_active_slot_uq` on `(pitch_id, booking_date, start_time)` stays as a backstop.
+  A collision returns "Someone just booked this slot."
+- **Schedule edits** (`admin/schedule-guard.js`): custom day, reset, copy default, default schedule, ground hours and
+  rebuild are refused when an active, not-finished booking would no longer match a block exactly (same real time).
+  A sheet must fit in 24 hours from its first slot (`validateBlocks`).
+- **Slot identity:** the booking page sends the slot's `startTime` + `price` with `blockId`; holds/coupon preview refuse
+  with `slotChanged` if the venue changed it meanwhile (default block ids are positional).
+- **Limits:** max 2 active holds per player, max 6 unpaid holds created per hour (reserve/cancel loop), checked under the
+  player's lock; coupon limits under the code's lock. Only held bookings can be cancelled by the player, and not while an
+  SSLCommerz payment opened in the last 20 min is still `initiated`.
 - **Statuses:** `held`, `confirmed`, `cancelled`, `expired`, `completed` (shown when a confirmed booking's time has passed).
   `paymentStatus`: `unpaid`, `paid`, `refund_due`, `refunded`.
 
@@ -240,7 +250,14 @@ Payment rules:
 - Claim = `UPDATE payments SET status='paid' WHERE status <> 'paid' RETURNING`; only the winner touches the booking.
 - Booking held or expired → confirmed (the unique slot index decides if an expired one can be revived).
   Slot gone / booking cancelled → booking cancelled + `refund_due`. Booking already paid → this payment `refund_due`.
-- Starting a payment stretches the hold to 15 min from now, never past 30 min after the hold was created.
+- Starting a payment stretches the hold (SSLCommerz 30 min, bKash 15 min from now), never past 60 min after the hold
+  was created. A slot that already started can't be paid.
+- Settling never confirms a slot that can't be played: held → refund due once the slot has ended; expired → revived only
+  before it starts and only if nothing overlaps it, else refund due.
+- Job (`/api/cron/expire-holds`, **every 10 min** via external cron): rechecks payments 5 min–2 h old every run and
+  `initiated` ones up to 48 h about hourly (`updatedAt` backoff), repairs, then expires holds.
+- Risky SSLCommerz payments (`risk_level 1`) still confirm; the verify page warns gate staff until an admin presses
+  **Mark checked** in Admin, Payments (`markRiskChecked`).
 - Fail/cancel keep the booking held so the player can retry. Admin refunds are still manual (`markRefunded`); the SSLCommerz refund API needs the server IP whitelisted (Step 6).
 
 ### CMS feature (`src/features/cms/`)
@@ -429,6 +446,14 @@ Still open:
 | `column "gateway" does not exist` | `npm run db:generate` then `npm run db:migrate` (0004) |
 
 ## 10. Changelog
+- 2026-10-27: Audit fixes (bookings/payments). Overlap-based availability incl. cross-day sheets, schedule-edit guard,
+  24 h sheet cap, slot identity check, locked hold/walk-in transactions (`withLockedTx`), hourly hold cap, coupon limits
+  under lock, SSLCommerz hold 30 min (cap 60), no confirm of started/finished slots, no cancel during open SSLCommerz
+  payment, result page "pending" for paid-but-unsettled, recheck window 48 h with backoff (cron must run every 10 min),
+  risky-payment gate warning + Mark checked, `staff` role (gate check-in only), forgot password by email code
+  (`/forgot-password`, sessions revoked on reset), Google linking pinned to verified local accounts. **Migration 0006**:
+  the missing `redemptions_booking_uq` index (without it every coupon booking errors on `ON CONFLICT`). 27 integration
+  tests against PGlite with mocked gateways; lint 0 errors; build passes.
 - 2026-10-11: Blueprint agreed. Phase 0 UI built (73 files). Project set up in `D:\projects\turf-cms`.
 - Before 2026-10-12: schema split into auth/booking/cms/commerce, first migration, seed, Better Auth, auth forms, navbar session, guards, proxy, env, action wrapper.
 - 2026-10-12: Review + Step 1 (booking, player side). Fixed auth route location, bookings FKs + double-booking index, build failure on /login, env file mismatch, admin guard.

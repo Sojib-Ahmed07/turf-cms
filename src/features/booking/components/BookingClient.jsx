@@ -153,14 +153,14 @@ export default function BookingClient({
 
     // A discount depends on the slot (price, time, ground), so a checked coupon only counts for the slot
     // it was checked against (slotKey). When the slot changes, the code is checked again for the new one.
-    const slotKey = block && pitch ? `${pitch.id}|${block.id}|${date}` : "";
+    const slotKey = block && pitch ? `${pitch.id}|${block.id}|${date}|${block.start}|${block.price}` : "";
     const activeCoupon = couponCode && coupon && coupon.key === slotKey ? coupon : null;
 
     useEffect(() => {
         if (!couponCode || !slotKey) return;
         let cancelled = false;
-        const [pId, bId, d] = slotKey.split("|");
-        previewCoupon({ pitchId: pId, blockId: bId, date: d, couponCode }).then((res) => {
+        const [pId, bId, d, start, price] = slotKey.split("|");
+        previewCoupon({ pitchId: pId, blockId: bId, date: d, couponCode, startTime: start, price: Number(price) }).then((res) => {
             if (cancelled) return;
             if (res.ok) setCoupon({ ...res.data, key: slotKey });
             else {
@@ -177,7 +177,8 @@ export default function BookingClient({
     async function applyCoupon(code) {
         if (!block || !pitch) return { ok: false, error: t("book.pickSlotFirst") };
         setPayError("");
-        const res = await previewCoupon({ pitchId: pitch.id, blockId: block.id, date, couponCode: code });
+        const res = await previewCoupon({ pitchId: pitch.id, blockId: block.id, date, couponCode: code, startTime: block.start, price: block.price });
+        if (res.slotChanged) reload();
         if (res.ok) {
             setCoupon({ ...res.data, key: slotKey });
             setCouponCode(res.data.code);
@@ -261,7 +262,15 @@ export default function BookingClient({
         }
 
         startTransition(async () => {
-            const res = await createBookingHold({ pitchId: pitch.id, blockId: block.id, date, couponCode: activeCoupon?.code ?? "" });
+            const res = await createBookingHold({
+                pitchId: pitch.id,
+                blockId: block.id,
+                date,
+                couponCode: activeCoupon?.code ?? "",
+                // what the player saw: the server refuses if the venue changed this slot meanwhile
+                startTime: block.start,
+                price: block.price,
+            });
             if (!res.ok) {
                 if (res.needsVerify) {
                     router.push(verifyHref);

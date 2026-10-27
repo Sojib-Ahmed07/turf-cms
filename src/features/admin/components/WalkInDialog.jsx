@@ -61,7 +61,16 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
     function submit() {
         setError("");
         startTransition(async () => {
-            const res = await createWalkInBooking({ pitchId, blockId, date, customerName: name, customerPhone: phone, paidAtVenue: paid });
+            const picked = blocks.find((x) => x.id === blockId);
+            const res = await createWalkInBooking({
+                pitchId,
+                blockId,
+                date,
+                startTime: picked?.start,
+                customerName: name,
+                customerPhone: phone,
+                paidAtVenue: paid,
+            });
             if (!res.ok) {
                 setError(res.error);
                 return;

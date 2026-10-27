@@ -1,10 +1,10 @@
 // src/features/booking/queries.js
 import "server-only";
-import { and, asc, desc, eq, gt, inArray, lte, or, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lte, ne, or, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, pitches, timeBlocks } from "@/db/schema";
 import { partsOf } from "./parts";
-import { addDaysISO, currentOperatingDay, dayStartOf, dhakaDate, isAfterMidnight, isBlockPast, minutesToHHMM, nightEndOf, operatingMinutes } from "@/lib/time";
+import { addDaysISO, currentOperatingDay, dayStartOf, dhakaDate, intervalsOverlap, isAfterMidnight, isBlockPast, minutesToHHMM, nightEndOf, operatingMinutes, slotInterval } from "@/lib/time";
 import { time12 } from "@/lib/utils";
 import { ticketVerifyUrl } from "@/lib/ticket-token";
 import { qrDataUrlForUrl } from "@/lib/qrcode";
@@ -195,40 +195,62 @@ export async function resolveBlock(pitch, date, blockId) {
 /* Availability                                                    */
 /* -------------------------------------------------------------- */
 
-export async function getTakenSlots(pitchId, date) {
-    const now = new Date();
-    const rows = await db
+/** Bookings that occupy their slot right now: confirmed, or held and the hold hasn't run out. */
+export function activeBookingWhere(now = new Date()) {
+    return or(
+        eq(bookings.status, "confirmed"),
+        and(eq(bookings.status, "held"), or(isNull(bookings.holdExpiresAt), gt(bookings.holdExpiresAt, now)))
+    );
+}
+
+/**
+ * Active bookings of a ground on these sheet dates AND the day before/after (after-midnight slots of one
+ * sheet share real time with the first slots of the next), each with its real time span (`interval`).
+ * opts.exec: a transaction to read through (default: db). opts.excludeId: leave one booking out.
+ */
+export async function getActiveIntervals(pitchId, dates, { exec = db, excludeId = null } = {}) {
+    const around = new Set();
+    for (const d of dates) for (const k of [-1, 0, 1]) around.add(addDaysISO(d, k));
+    const where = [eq(bookings.pitchId, pitchId), inArray(bookings.bookingDate, [...around]), activeBookingWhere()];
+    if (excludeId) where.push(ne(bookings.id, excludeId));
+    const rows = await exec
         .select({
+            id: bookings.id,
+            code: bookings.code,
+            bookingDate: bookings.bookingDate,
             startTime: bookings.startTime,
+            endTime: bookings.endTime,
             status: bookings.status,
             userId: bookings.userId,
+            customerName: bookings.customerName,
         })
         .from(bookings)
-        .where(
-            and(
-                eq(bookings.pitchId, pitchId),
-                eq(bookings.bookingDate, date),
-                or(
-                    eq(bookings.status, "confirmed"),
-                    and(eq(bookings.status, "held"), or(isNull(bookings.holdExpiresAt), gt(bookings.holdExpiresAt, now)))
-                )
-            )
-        );
+        .where(and(...where));
+    if (!rows.length) return [];
+    const starts = await getSheetDayStarts(rows.map((r) => ({ pitchId, date: r.bookingDate })));
+    return rows.map((r) => ({
+        ...r,
+        interval: slotInterval(r.bookingDate, r.startTime, r.endTime, starts.get(`${pitchId}|${r.bookingDate}`)),
+    }));
+}
 
-    const map = new Map();
-    for (const r of rows) map.set(r.startTime, { status: r.status, userId: r.userId });
-    return map;
+/** The active booking that blocks this slot (a confirmed one first), or null. */
+export function blockingBooking(active, interval) {
+    const hits = active.filter((a) => intervalsOverlap(a.interval, interval));
+    return hits.find((h) => h.status === "confirmed") ?? hits[0] ?? null;
 }
 
 export async function getSlotBoard(pitchId, date, viewerId = null) {
     const pitch = await getPitchById(pitchId);
     if (!pitch) return null;
 
-    const [blocks, taken] = await Promise.all([getTimeBlocksForPitch(pitch, date), getTakenSlots(pitchId, date)]);
+    const [blocks, active] = await Promise.all([getTimeBlocksForPitch(pitch, date), getActiveIntervals(pitchId, [date])]);
     const dayStart = dayStartOf(blocks);
 
     return blocks.map((b) => {
-        const t = taken.get(b.startTime);
+        // Taken = any active booking that overlaps this slot's real time (not just the same start time),
+        // including the neighbouring days' sheets.
+        const t = blockingBooking(active, slotInterval(date, b.startTime, b.endTime, dayStart));
         let state = "free";
         if (t?.status === "confirmed") state = "booked";
         else if (t?.status === "held") state = "held";
@@ -255,10 +277,15 @@ export async function getGroundsToday() {
 
     const list = await Promise.all(
         rows.map(async (p) => {
-            const [blocks, taken] = await Promise.all([getTimeBlocksForPitch(p, date), getTakenSlots(p.id, date)]);
+            const [blocks, active] = await Promise.all([getTimeBlocksForPitch(p, date), getActiveIntervals(p.id, [date])]);
             const dayStart = dayStartOf(blocks);
             const freeToday = blocks
-                .filter((b) => b.price > 0 && !taken.has(b.startTime) && !isBlockPast(date, b.startTime, dayStart))
+                .filter(
+                    (b) =>
+                        b.price > 0 &&
+                        !blockingBooking(active, slotInterval(date, b.startTime, b.endTime, dayStart)) &&
+                        !isBlockPast(date, b.startTime, dayStart)
+                )
                 .map((b) => b.startTime);
             const sheet = defaultSheet(p);
             const sheetStart = dayStartOf(sheet);

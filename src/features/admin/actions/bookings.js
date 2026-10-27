@@ -7,9 +7,10 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
+import { withLockedTx } from "@/db/pool";
 import { bookings, payments } from "@/db/schema";
-import { isBlockPast } from "@/lib/time";
-import { expireStaleHolds, getPitchById, resolveBlock } from "@/features/booking/queries";
+import { isBlockPast, slotInterval } from "@/lib/time";
+import { blockingBooking, expireStaleHolds, getActiveIntervals, getPitchById, resolveBlock } from "@/features/booking/queries";
 
 async function requireAdmin() {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -123,6 +124,7 @@ const walkInSchema = z.object({
     pitchId: z.string().uuid(),
     blockId: z.string().min(1).max(64),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     customerName: z.string().trim().min(2, "Enter the player's name.").max(60),
     customerPhone: z
         .string()
@@ -144,33 +146,44 @@ export async function createWalkInBooking(input) {
 
         const block = await resolveBlock(pitch, v.date, v.blockId);
         if (!block) return { ok: false, error: "That time slot no longer exists." };
+        if (v.startTime && v.startTime !== block.startTime) {
+            return { ok: false, error: "This slot's time just changed. Close this window and pick the slot again." };
+        }
         if (isBlockPast(v.date, block.startTime, block.dayStart)) return { ok: false, error: "That slot has already started." };
 
         await expireStaleHolds({ pitchId: v.pitchId, date: v.date });
 
         const price = String(block.price);
+        const interval = slotInterval(v.date, block.startTime, block.endTime, block.dayStart);
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
-                const [row] = await db
-                    .insert(bookings)
-                    .values({
-                        code: bookingCode(),
-                        userId: null,
-                        customerName: v.customerName,
-                        customerPhone: v.customerPhone,
-                        pitchId: v.pitchId,
-                        timeBlockId: block.dbId,
-                        bookingDate: v.date,
-                        startTime: block.startTime,
-                        endTime: block.endTime,
-                        subtotal: price,
-                        discount: "0",
-                        totalPrice: price,
-                        status: "confirmed",
-                        paymentStatus: v.paidAtVenue ? "paid" : "unpaid",
-                        source: "walk_in",
-                    })
-                    .returning({ id: bookings.id, code: bookings.code });
+                const row = await withLockedTx([`pitch:${v.pitchId}`], async (tx) => {
+                    // Same rule as online holds: nothing active may overlap this slot's real time.
+                    const active = await getActiveIntervals(v.pitchId, [v.date], { exec: tx });
+                    if (blockingBooking(active, interval)) return null;
+                    const [inserted] = await tx
+                        .insert(bookings)
+                        .values({
+                            code: bookingCode(),
+                            userId: null,
+                            customerName: v.customerName,
+                            customerPhone: v.customerPhone,
+                            pitchId: v.pitchId,
+                            timeBlockId: block.dbId,
+                            bookingDate: v.date,
+                            startTime: block.startTime,
+                            endTime: block.endTime,
+                            subtotal: price,
+                            discount: "0",
+                            totalPrice: price,
+                            status: "confirmed",
+                            paymentStatus: v.paidAtVenue ? "paid" : "unpaid",
+                            source: "walk_in",
+                        })
+                        .returning({ id: bookings.id, code: bookings.code });
+                    return inserted;
+                });
+                if (!row) return { ok: false, error: "That slot is already booked or on hold." };
                 revalidateAll();
                 return { ok: true, data: row };
             } catch (err) {

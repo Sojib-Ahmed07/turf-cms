@@ -6,7 +6,7 @@ import { emailOTP } from "better-auth/plugins";
 import { APIError } from "better-auth/api";
 import { db } from "@/db";
 import * as schema from "@/db/schema/index.js";
-import { sendOtpEmail } from "@/features/auth/emails";
+import { sendOtpEmail, sendPasswordResetEmail } from "@/features/auth/emails";
 import { BD_PHONE_HINT, cleanBdPhone } from "@/lib/phone";
 
 const NAME_MAX = 60;
@@ -56,6 +56,17 @@ export const auth = betterAuth({
         // Unverified users can sign in (so they can reach /verify-email),
         // but booking actions are blocked until emailVerified is true.
         requireEmailVerification: false,
+        // Forgot password (/forgot-password, email code): signs the account out everywhere, so anyone
+        // else who knew the old password (or registered the address first) loses access.
+        revokeSessionsOnPasswordReset: true,
+    },
+    account: {
+        accountLinking: {
+            // Google sign-in only joins an existing email/password account once that account's email is
+            // verified, so nobody can pre-register someone's address and take over their Google login.
+            // (Better Auth's default; pinned here so an upgrade can't silently change it.)
+            requireLocalEmailVerified: true,
+        },
     },
     socialProviders: googleEnabled
         ? {
@@ -77,13 +88,16 @@ export const auth = betterAuth({
             expiresIn: 300, // 5 minutes
             allowedAttempts: 3,
             sendVerificationOTP: async ({ email, otp, type }) => {
-                // Only the email-verification flow sends mail here.
-                // sign-in / forget-password OTPs are not used in this project.
+                // Registration code and forgot-password code send mail.
                 if (type === "email-verification") {
                     await sendOtpEmail({ email, otp });
                     return;
                 }
-                // Other types: no-op (they are never triggered from the UI).
+                if (type === "forget-password") {
+                    await sendPasswordResetEmail({ email, otp });
+                    return;
+                }
+                // Other types (sign-in by code, email change): not used here, no mail.
             },
         }),
     ],

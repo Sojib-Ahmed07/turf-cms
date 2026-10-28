@@ -453,18 +453,29 @@ async function settleBooking(paymentId, bookingId) {
 
         if (!tooLate) {
             try {
-                const rows = await withLockedTx([`pitch:${b.pitchId}`], async (tx) => {
+                const confirm = async (exec) => {
                     if (released) {
                         // Reviving a released slot: nobody else may hold or have booked any part of its time.
-                        const active = await getActiveIntervals(b.pitchId, [b.date], { exec: tx, excludeId: bookingId });
+                        const active = await getActiveIntervals(b.pitchId, [b.date], { exec, excludeId: bookingId });
                         if (blockingBooking(active, slotInterval(b.date, b.start, b.end, dayStart))) return [];
                     }
-                    return tx
+                    return exec
                         .update(bookings)
                         .set({ status: "confirmed", paymentStatus: "paid", holdExpiresAt: null, updatedAt: new Date() })
                         .where(and(eq(bookings.id, bookingId), inArray(bookings.status, ["held", "expired"])))
                         .returning({ id: bookings.id });
-                });
+                };
+                let rows;
+                try {
+                    rows = await withLockedTx([`pitch:${b.pitchId}`], confirm);
+                } catch (lockErr) {
+                    if (isUniqueViolation(lockErr)) throw lockErr;
+                    // The lock connection (WebSocket pool) failed. Money has already been taken, so never leave the
+                    // booking unconfirmed because of that: do the same check-and-confirm on the normal connection.
+                    // The unique slot index still stops a same-start double booking.
+                    console.error("[payment:lock_unavailable]", bookingId, lockErr?.message ?? lockErr);
+                    rows = await confirm(db);
+                }
                 if (rows.length) {
                     await redeemCoupon(bookingId);
                     waitUntil(

@@ -6,12 +6,12 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 const OPTIONS = [
-    { value: "en", label: "EN", name: "English" },
     { value: "bn", label: "বাংলা", name: "বাংলা" },
+    { value: "en", label: "EN", name: "English" },
 ];
 
 /**
- * English / Bangla switch. Saves the choice in a cookie and refreshes the page in place.
+ * Bangla / English switch (Bangla is the default). Saves the choice in a cookie and refreshes the page in place.
  * tone="light" for the dark mobile menu.
  */
 export default function LangToggle({ tone = "dark", className }) {

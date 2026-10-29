@@ -17,6 +17,10 @@
 /*   - Delete a block: just remove it (leaves a hole in the day).  */
 /* -------------------------------------------------------------- */
 
+import { makeFormat } from "@/i18n/format";
+
+const BN = makeFormat("bn");
+
 export const MIN_SLOT_MINUTES = 15;
 export const MAX_SLOT_MINUTES = 8 * 60; // 8 hours max per block
 
@@ -117,8 +121,9 @@ export function deriveHours(blocks) {
  *   - blocks must not overlap (they may have gaps between them)
  */
 export function validateBlocks(blocks) {
+    const r = (b) => `${BN.time(b.startTime)} থেকে ${BN.time(b.endTime)}`;
     if (!Array.isArray(blocks) || blocks.length === 0) {
-        return { ok: false, error: "At least one time block is required." };
+        return { ok: false, error: "কমপক্ষে একটি স্লট লাগবে।" };
     }
 
     const sorted = [...blocks].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -129,19 +134,19 @@ export function validateBlocks(blocks) {
         if (dur < MIN_SLOT_MINUTES) {
             return {
                 ok: false,
-                error: `Block ${b.startTime}–${b.endTime} is shorter than ${MIN_SLOT_MINUTES} min.`,
+                error: `${r(b)} স্লটটি ${BN.digits(MIN_SLOT_MINUTES)} মিনিটের চেয়ে ছোট।`,
             };
         }
         if (dur > MAX_SLOT_MINUTES) {
             return {
                 ok: false,
-                error: `Block ${b.startTime}–${b.endTime} is longer than ${MAX_SLOT_MINUTES / 60}h.`,
+                error: `${r(b)} স্লটটি ${BN.digits(MAX_SLOT_MINUTES / 60)} ঘণ্টার চেয়ে বড়।`,
             };
         }
         if (Number(b.price) <= 0) {
             return {
                 ok: false,
-                error: `Block ${b.startTime}–${b.endTime} needs a price greater than 0.`,
+                error: `${r(b)} স্লটের দাম ০-এর বেশি হতে হবে।`,
             };
         }
     }
@@ -160,13 +165,13 @@ export function validateBlocks(blocks) {
             const prev = sorted[i - 1];
             return {
                 ok: false,
-                error: `Blocks ${prev.startTime}–${prev.endTime} and ${b.startTime}–${b.endTime} overlap.`,
+                error: `${r(prev)} আর ${r(b)} স্লটের সময় একটির ওপর আরেকটি পড়ছে।`,
             };
         }
         if (end > dayEnd) {
             return {
                 ok: false,
-                error: `Block ${b.startTime}–${b.endTime} runs past ${sorted[0].startTime} the next morning, into the next day's first slot. A day's slots must fit in 24 hours.`,
+                error: `${r(b)} স্লটটি পরের সকালের ${BN.time(sorted[0].startTime)} পার হয়ে পরের দিনের প্রথম স্লটে ঢুকে যাচ্ছে। এক দিনের সব স্লট ২৪ ঘণ্টার মধ্যে থাকতে হবে।`,
             };
         }
         prevEnd = end;
@@ -195,10 +200,10 @@ export function applyResize(blocks, index, deltaMinutes) {
     const newDur = origDur + deltaMinutes;
 
     if (newDur < MIN_SLOT_MINUTES) {
-        return { blocks, note: `Minimum block length is ${MIN_SLOT_MINUTES} min.` };
+        return { blocks, note: `একটি স্লট কমপক্ষে ${BN.digits(MIN_SLOT_MINUTES)} মিনিটের হতে হবে।` };
     }
     if (newDur > MAX_SLOT_MINUTES) {
-        return { blocks, note: `Maximum block length is ${MAX_SLOT_MINUTES / 60}h.` };
+        return { blocks, note: `একটি স্লট সর্বোচ্চ ${BN.digits(MAX_SLOT_MINUTES / 60)} ঘণ্টার হতে পারে।` };
     }
 
     const targetStartMins = hhmmToMinutes(target.startTime);
@@ -213,8 +218,8 @@ export function applyResize(blocks, index, deltaMinutes) {
     working.forEach((b, i) => (b.sortOrder = i));
 
     let note = null;
-    if (deltaMinutes > 0) note = "Following slots shifted later.";
-    else if (deltaMinutes < 0) note = "Following slots shifted earlier.";
+    if (deltaMinutes > 0) note = "পরের স্লটগুলো পিছিয়ে গেছে।";
+    else if (deltaMinutes < 0) note = "পরের স্লটগুলো এগিয়ে এসেছে।";
 
     return { blocks: working, note };
 }
@@ -253,34 +258,28 @@ export function cloneAsTemplate(blocks) {
 /* ---- display formatting ---- */
 
 /**
- * Convert 24h "HH:MM" → "h:MM AM/PM"
- * e.g. "13:00" → "1:00 PM", "00:30" → "12:30 AM"
+ * "HH:MM" → Bangla 12-hour time, e.g. "13:00" → "দুপুর ১টা", "00:30" → "রাত ১২:৩০"
  */
 export function format12h(hhmm) {
     if (!hhmm) return "";
-    const [h, m] = hhmm.split(":").map(Number);
-    const suffix = h >= 12 ? "PM" : "AM";
-    const hour12 = h % 12 === 0 ? 12 : h % 12;
-    return `${hour12}:${String(m).padStart(2, "0")} ${suffix}`;
+    return BN.time(hhmm);
 }
 
 export function format12hRange(startTime, endTime) {
-    return `${format12h(startTime)} – ${format12h(endTime)}`;
+    return `${format12h(startTime)} থেকে ${format12h(endTime)}`;
 }
 
 /**
- * Format an integer hour (0–23) as "6 AM" / "12 PM" / "1 AM".
+ * Format an integer hour (0–23) as Bangla: 6 → "সকাল ৬টা", 13 → "দুপুর ১টা".
  */
 export function formatHour12(hour24) {
     const h = ((Number(hour24) % 24) + 24) % 24;
-    const suffix = h >= 12 ? "PM" : "AM";
-    const hour12 = h % 12 === 0 ? 12 : h % 12;
-    return `${hour12} ${suffix}`;
+    return BN.time(`${String(h).padStart(2, "0")}:00`);
 }
 
 /**
  * Build the list of hour options for the admin dropdown.
- * Returns 24 entries: { value: 0..23, label: "12 AM".."11 PM" }.
+ * Returns 24 entries: { value: 0..23, label: "রাত ১২টা".."রাত ১১টা" }.
  */
 export function hourOptions() {
     return Array.from({ length: 24 }, (_, h) => ({

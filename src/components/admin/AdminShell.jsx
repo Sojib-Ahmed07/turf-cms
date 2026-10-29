@@ -27,32 +27,33 @@ import {
 } from "lucide-react";
 import { Mark } from "@/components/site/Logo";
 import { cn } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 export const ADMIN_NAV = [
-    { group: null, items: [{ label: "Overview", href: "/admin", icon: LayoutGrid, exact: true }] },
+    { group: null, items: [{ label: "ওভারভিউ", href: "/admin", icon: LayoutGrid, exact: true }] },
     {
-        group: "Website",
+        group: "ওয়েবসাইট",
         items: [
-            { adminOnly: true, label: "Branding", href: "/admin/branding", icon: Palette },
-            { adminOnly: true, label: "Navigation", href: "/admin/navigation", icon: Navigation },
-            { label: "Hero slides", href: "/admin/hero", icon: GalleryHorizontal },
-            { label: "Offer banners", href: "/admin/banners", icon: Megaphone },
-            { label: "Home sections", href: "/admin/sections", icon: Rows3 },
-            { label: "Footer & SEO", href: "/admin/footer", icon: PanelBottom },
-            { label: "Booking terms", href: "/admin/terms", icon: ScrollText },
-            { label: "Media", href: "/admin/media", icon: Images },
+            { adminOnly: true, label: "লোগো ও রং", href: "/admin/branding", icon: Palette },
+            { adminOnly: true, label: "মেনু", href: "/admin/navigation", icon: Navigation },
+            { label: "হিরো স্লাইড", href: "/admin/hero", icon: GalleryHorizontal },
+            { label: "অফার ব্যানার", href: "/admin/banners", icon: Megaphone },
+            { label: "হোম পেজের অংশ", href: "/admin/sections", icon: Rows3 },
+            { label: "যোগাযোগ, ফুটার ও SEO", href: "/admin/footer", icon: PanelBottom },
+            { label: "বুকিংয়ের নিয়ম", href: "/admin/terms", icon: ScrollText },
+            { label: "ছবির লাইব্রেরি", href: "/admin/media", icon: Images },
         ],
     },
     {
-        group: "Bookings",
+        group: "বুকিং",
         items: [
-            { adminOnly: true, label: "Grounds & slots", href: "/admin/pitches", icon: LandPlot },
-            { adminOnly: true, label: "Bookings", href: "/admin/bookings", icon: CalendarRange, countKey: "held" },
-            { adminOnly: true, label: "Payments", href: "/admin/payments", icon: Wallet },
-            { adminOnly: true, label: "Coupons", href: "/admin/coupons", icon: TicketPercent },
+            { adminOnly: true, label: "মাঠ ও স্লট", href: "/admin/pitches", icon: LandPlot },
+            { adminOnly: true, label: "বুকিং", href: "/admin/bookings", icon: CalendarRange, countKey: "held" },
+            { adminOnly: true, label: "পেমেন্ট", href: "/admin/payments", icon: Wallet },
+            { adminOnly: true, label: "কুপন", href: "/admin/coupons", icon: TicketPercent },
         ],
     },
-    { group: "Team", items: [{ adminOnly: true, label: "Users", href: "/admin/users", icon: Users }] },
+    { group: "টিম", items: [{ adminOnly: true, label: "ইউজার", href: "/admin/users", icon: Users }] },
 ];
 
 export default function AdminShell({ user, siteName = "TurfZone", counts = {}, children }) {
@@ -70,9 +71,9 @@ export default function AdminShell({ user, siteName = "TurfZone", counts = {}, c
                 <Link href="/admin" className="flex items-center gap-2.5">
                     <Mark className="h-8 w-8" />
                     <span className="display text-[18px] text-ink">{siteName}</span>
-                    <span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-bold text-white">Admin</span>
+                    <span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-bold text-white">অ্যাডমিন</span>
                 </Link>
-                <button type="button" onClick={() => setOpen(true)} aria-label="Open menu" className="grid h-10 w-10 place-items-center rounded-full bg-ink text-white">
+                <button type="button" onClick={() => setOpen(true)} aria-label="মেনু খুলুন" className="grid h-10 w-10 place-items-center rounded-full bg-ink text-white">
                     <Menu className="h-[18px] w-[18px]" />
                 </button>
             </div>
@@ -110,11 +111,11 @@ function Sidebar({ user, siteName, counts = {}, onNavigate, onClose }) {
                     <Mark className="h-9 w-9" />
                     <span>
                         <span className="display block text-[19px] leading-none">{siteName}</span>
-                        <span className="mt-1 block text-[12px] text-white/50">Admin panel</span>
+                        <span className="mt-1 block text-[12px] text-white/50">অ্যাডমিন প্যানেল</span>
                     </span>
                 </Link>
                 {onClose && (
-                    <button type="button" onClick={onClose} aria-label="Close menu" className="grid h-8 w-8 place-items-center rounded-full bg-white/10">
+                    <button type="button" onClick={onClose} aria-label="মেনু বন্ধ করুন" className="grid h-8 w-8 place-items-center rounded-full bg-white/10">
                         <X className="h-4 w-4" />
                     </button>
                 )}
@@ -149,10 +150,10 @@ function Sidebar({ user, siteName, counts = {}, onNavigate, onClose }) {
                                                 {item.label}
                                                 {count ? (
                                                     <span
-                                                        title={`${count} paying right now`}
+                                                        title={`${BN.digits(count)} জন এখন পেমেন্ট করছেন`}
                                                         className={cn("ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold tnum", active ? "bg-flare text-ink" : "bg-flare/90 text-ink")}
                                                     >
-                                                        {count}
+                                                        {BN.digits(count)}
                                                     </span>
                                                 ) : null}
                                             </Link>
@@ -167,15 +168,15 @@ function Sidebar({ user, siteName, counts = {}, onNavigate, onClose }) {
             <div className="space-y-2 border-t border-white/10 p-3">
                 <Link href="/" target="_blank" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium text-white/70 hover:bg-white/8 hover:text-white">
                     <ExternalLink className="h-[18px] w-[18px] text-white/50" />
-                    View website
+                    ওয়েবসাইট দেখুন
                 </Link>
                 <div className="flex items-center gap-3 rounded-xl bg-white/6 p-2.5">
                     <span className="grid h-9 w-9 place-items-center rounded-full bg-flare text-[14px] font-bold text-ink">{user?.name?.[0] ?? "A"}</span>
                     <span className="min-w-0 flex-1">
                         <span className="block truncate text-[14px] font-semibold">{user?.name}</span>
-                        <span className="block text-[12px] capitalize text-white/50">{user?.role}</span>
+                        <span className="block text-[12px] text-white/50">{user?.role === "admin" ? "অ্যাডমিন" : "খেলোয়াড়"}</span>
                     </span>
-                    <button type="button" aria-label="Sign out" className="grid h-8 w-8 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white">
+                    <button type="button" aria-label="লগআউট" className="grid h-8 w-8 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white">
                         <LogOut className="h-4 w-4" />
                     </button>
                 </div>

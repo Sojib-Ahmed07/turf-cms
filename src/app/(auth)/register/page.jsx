@@ -4,11 +4,15 @@ import Link from "next/link";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { RegisterForm } from "@/components/auth/AuthForms";
 import { getHeroSlides, getSiteSettings } from "@/features/cms/queries";
+import { getI18n } from "@/i18n/server";
 
-export const metadata = { title: "Create account" };
+export async function generateMetadata() {
+    const { t } = await getI18n();
+    return { title: t("auth.createAccount") };
+}
 
 export default async function RegisterPage() {
-    const [settings, slides] = await Promise.all([getSiteSettings(), getHeroSlides()]);
+    const [settings, slides, { t }] = await Promise.all([getSiteSettings(), getHeroSlides(), getI18n()]);
     // Side photo: a hero slide image if there is one, otherwise the plain pitch background.
     const withImage = slides.filter((s) => s.imageUrl);
     const imageUrl = withImage[1]?.imageUrl ?? withImage[0]?.imageUrl ?? null;
@@ -17,13 +21,13 @@ export default async function RegisterPage() {
         <AuthLayout
             settings={settings}
             imageUrl={imageUrl}
-            title="Create your account"
-            subtitle="Takes 30 seconds. All your bookings and tickets in one place."
+            title={t("auth.registerTitle")}
+            subtitle={t("auth.registerSub")}
             footer={
                 <>
-                    Already have an account?{" "}
+                    {t("auth.haveAccount")}{" "}
                     <Link href="/login" className="font-semibold text-ink hover:underline">
-                        Sign in
+                        {t("auth.signIn")}
                     </Link>
                 </>
             }

@@ -4,10 +4,10 @@
 // slots played after midnight (late = true) always count as "Late night".
 
 export const PARTS = [
-    { key: "morning", label: "Morning" },
-    { key: "day", label: "Afternoon" },
-    { key: "evening", label: "Evening" },
-    { key: "late", label: "Late night" },
+    { key: "morning", label: "সকাল" },
+    { key: "day", label: "দুপুর" },
+    { key: "evening", label: "সন্ধ্যা" },
+    { key: "late", label: "গভীর রাত" },
 ];
 
 /** "morning" | "day" | "evening" | "late" for a slot starting at "HH:MM". */

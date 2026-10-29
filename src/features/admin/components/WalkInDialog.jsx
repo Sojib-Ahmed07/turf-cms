@@ -88,16 +88,16 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
         <Dialog
             open={open}
             onClose={() => !isPending && onClose?.()}
-            title="Add walk-in booking"
-            description="For players booking at the desk or by phone. The booking is confirmed straight away."
+            title="কাউন্টারে বুকিং যোগ করুন"
+            description="যারা কাউন্টারে এসে বা ফোনে বুক করেন তাদের জন্য। বুকিং সঙ্গে সঙ্গে কনফার্ম হয়ে যাবে।"
             size="lg"
             footer={
                 <>
                     <Button variant="outline" onClick={onClose} disabled={isPending}>
-                        Cancel
+                        বাদ দিন
                     </Button>
                     <Button onClick={submit} disabled={isPending || !block || !name || !phone}>
-                        {isPending ? "Booking…" : block ? `Book ${time12(block.start)} for ${taka(block.price)}` : "Choose a slot"}
+                        {isPending ? "বুক হচ্ছে…" : block ? `${time12(block.start)} বুক করুন, ${taka(block.price)}` : "একটি স্লট সিলেক্ট করুন"}
                     </Button>
                 </>
             }
@@ -105,27 +105,27 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
             <div className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                        <Label>Ground</Label>
+                        <Label>মাঠ</Label>
                         <Select value={pitchId} onChange={(e) => {
                             setPitchId(e.target.value);
                             setBlockId(null);
                         }} options={pitches.map((p) => ({ value: p.id, label: p.name }))} />
                     </div>
                     <div>
-                        <Label>Date</Label>
+                        <Label>তারিখ</Label>
                         <Select value={date} onChange={(e) => {
                             setDate(e.target.value);
                             setBlockId(null);
-                        }} options={dates.map((d, i) => ({ value: d, label: i === 0 ? `Today, ${shortDateLabel(d)}` : shortDateLabel(d) }))} />
+                        }} options={dates.map((d, i) => ({ value: d, label: i === 0 ? `আজ, ${shortDateLabel(d)}` : shortDateLabel(d) }))} />
                     </div>
                 </div>
 
                 <div>
-                    <Label>Time</Label>
+                    <Label>সময়</Label>
                     {loading ? (
-                        <p className="py-6 text-center text-[13px] text-ink-3">Loading slots…</p>
+                        <p className="py-6 text-center text-[13px] text-ink-3">স্লট লোড হচ্ছে…</p>
                     ) : blocks.length === 0 ? (
-                        <p className="rounded-ctl bg-chalk px-4 py-6 text-center text-[13px] text-ink-3">No slots on this day.</p>
+                        <p className="rounded-ctl bg-chalk px-4 py-6 text-center text-[13px] text-ink-3">এই দিনে কোনো স্লট নেই।</p>
                     ) : (
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                             {blocks.map((b) => {
@@ -144,7 +144,7 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
                                     >
                                         <span className="block text-[14px] font-bold tnum">{time12(b.start)}</span>
                                         <span className={cn("block text-[12px] tnum", selected ? "text-white/70" : "text-ink-3")}>
-                                            {free ? taka(b.price) : b.state === "past" ? "Passed" : b.state === "held" ? "On hold" : "Booked"}
+                                            {free ? taka(b.price) : b.state === "past" ? "সময় শেষ" : b.state === "held" ? "পেমেন্ট চলছে" : "বুক হয়ে গেছে"}
                                         </span>
                                     </button>
                                 );
@@ -155,21 +155,21 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                        <Label>Player name</Label>
-                        <TextInput value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="Rafi Ahmed" />
+                        <Label>খেলোয়াড়ের নাম</Label>
+                        <TextInput value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="রাফি আহমেদ" />
                     </div>
                     <div>
-                        <Label>Mobile number</Label>
+                        <Label>মোবাইল নম্বর</Label>
                         <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01712345678" inputMode="tel" />
                     </div>
                 </div>
 
                 <label className="flex items-center justify-between gap-4 rounded-ctl bg-chalk px-4 py-3">
                     <span>
-                        <span className="block text-[14px] font-semibold text-ink">Paid at the venue</span>
-                        <span className="block text-[12px] text-ink-3">Turn on if the player already paid in cash or bKash at the desk.</span>
+                        <span className="block text-[14px] font-semibold text-ink">মাঠে পেমেন্ট হয়ে গেছে</span>
+                        <span className="block text-[12px] text-ink-3">খেলোয়াড় কাউন্টারে নগদ বা বিকাশে টাকা দিয়ে থাকলে চালু করুন।</span>
                     </span>
-                    <Switch checked={paid} onChange={setPaid} label="Paid at the venue" />
+                    <Switch checked={paid} onChange={setPaid} label="মাঠে পেমেন্ট হয়ে গেছে" />
                 </label>
 
                 {error && <p className="rounded-ctl bg-danger-soft px-4 py-3 text-[13px] font-medium text-danger">{error}</p>}

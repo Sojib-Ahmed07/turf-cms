@@ -2,6 +2,7 @@
 // Pure helpers for showing a booking's real calendar date and adding it to Google Calendar.
 // Safe on the server and in the browser (works from the "YYYY-MM-DD" string, no time zone maths).
 import { addDaysISO, DEFAULT_DAY_START, hhmmToMinutes, isAfterMidnight as afterMidnight } from "@/lib/time";
+import { BN } from "@/i18n/format";
 
 /** How many venue days players can book ahead, today included (the /book date strip and the server check). */
 export const BOOKING_DAYS_AHEAD = 30; // one month: today + 29 days
@@ -30,20 +31,15 @@ export function calendarUrl(b) {
     };
     const q = new URLSearchParams({
         action: "TEMPLATE",
-        text: `${b.pitch} booking (${b.id})`,
+        text: `${b.pitch} বুকিং (${b.id})`,
         dates: `${stamp(b.start, false)}/${stamp(b.end, true)}`,
         ctz: "Asia/Dhaka",
-        details: `Booking ${b.id}. Show your ticket at the desk.`,
+        details: `বুকিং ${b.id}। কাউন্টারে আপনার টিকিট দেখান।`,
     });
     return `https://calendar.google.com/calendar/render?${q}`;
 }
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-/** "2026-10-16" -> "Friday 16 October 2026" (no locale APIs, so server and browser agree). */
+/** "2026-10-16" -> "শুক্রবার, ১৬ অক্টোবর ২০২৬" (no locale APIs, so server and browser agree). */
 export function longDateLabel(iso) {
-    const [y, m, d] = iso.split("-").map(Number);
-    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-    return `${DAYS[dow]} ${d} ${MONTHS[m - 1]} ${y}`;
+    return BN.dateLong(iso);
 }

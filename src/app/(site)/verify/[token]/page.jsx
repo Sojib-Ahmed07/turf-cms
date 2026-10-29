@@ -5,7 +5,7 @@ import { bookings, payments, pitches, user as userTable } from "@/db/schema";
 import { verifyTicketToken } from "@/lib/ticket-token";
 import { getSession } from "@/lib/guards";
 import { currentVenueDay, getSheetDayStarts } from "@/features/booking/queries";
-import { isBlockPast } from "@/lib/time";
+import { dhakaDate, dhakaTime, isBlockPast } from "@/lib/time";
 import { longDateLabel, playDate, isAfterMidnight } from "@/features/booking/calendar";
 import { shortDateLabel } from "@/lib/time";
 import VerifyTicket from "@/components/site/VerifyTicket";
@@ -13,7 +13,7 @@ import { getSiteSettings } from "@/features/cms/queries";
 import { time12 } from "@/lib/utils";
 
 // Shows a player's name and booking: never in search results.
-export const metadata = { title: "Verify ticket", robots: { index: false, follow: false } };
+export const metadata = { title: "টিকিট যাচাই", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
 export default async function VerifyTicketPage({ params }) {
@@ -73,11 +73,12 @@ export default async function VerifyTicketPage({ params }) {
         pitch: row.pitchName,
         playDateLabel: longDateLabel(playDate({ date: row.bookingDate, start: row.startTime, dayStart })),
         nightOf: late ? shortDateLabel(row.bookingDate) : null,
-        timeLabel: `${time12(row.startTime)} to ${time12(row.endTime)}`,
-        player: row.customerName || row.userName || "Player",
+        timeLabel: `${time12(row.startTime)} থেকে ${time12(row.endTime)}`,
+        player: row.customerName || row.userName || "খেলোয়াড়",
         total: Number(row.totalPrice),
         discount: Number(row.discount ?? 0),
         checkedInAt: row.checkedInAt ? row.checkedInAt.toISOString() : null,
+        checkedInLabel: row.checkedInAt ? `${shortDateLabel(dhakaDate(row.checkedInAt))}, ${time12(dhakaTime(row.checkedInAt))}` : null,
     };
 
     let state = "valid";

@@ -4,133 +4,126 @@
 import { useState } from "react";
 import { unlockOverride, saveOverride, resetOverride } from "@/features/override/actions";
 import Button from "@/components/ui/Button";
+import { TextInput } from "@/components/ui/Inputs";
+import { taka } from "@/lib/utils";
 
-export default function OverrideClient({ isUnlocked, realToday, realMonth }) {
+/**
+ * realToday / realMonth: paid revenue from the database (no offsets).
+ * shownToday / shownMonth: what /admin shows now (real + saved offsets); the boxes start with these.
+ */
+export default function OverrideClient({ isUnlocked, realToday, realMonth, shownToday, shownMonth }) {
     const [unlocked, setUnlocked] = useState(isUnlocked);
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [confirmReset, setConfirmReset] = useState(false);
+    const [todayInput, setTodayInput] = useState(String(shownToday));
+    const [monthInput, setMonthInput] = useState(String(shownMonth));
 
-    // Display values (real + current offset). We just initialize with the real values + offset.
-    // But to keep it simple, we calculate the display value from the real value + offset inside the form.
-    // Actually, the parent passes real stats, which already have the offset applied!
-    // So we need to pass the *current display* numbers.
-    // Let's pass the display numbers as props to initialize the inputs.
-    const [todayInput, setTodayInput] = useState(realToday.toString());
-    const [monthInput, setMonthInput] = useState(realMonth.toString());
+    async function run(fn) {
+        setLoading(true);
+        setError("");
+        try {
+            const res = await fn();
+            if (!res.ok) setError(res.error);
+            return res;
+        } catch {
+            setError("কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+            return { ok: false };
+        } finally {
+            setLoading(false);
+        }
+    }
 
     async function handleUnlock(e) {
         e.preventDefault();
-        setLoading(true);
-        setError("");
-        const res = await unlockOverride(password);
-        setLoading(false);
+        const res = await run(() => unlockOverride(password));
         if (res.ok) setUnlocked(true);
-        else setError(res.error);
     }
 
     async function handleSave(e) {
         e.preventDefault();
-        setLoading(true);
-        setError("");
-        // We pass the raw input and the current real values (without offset)
-        // so the server can calculate the difference.
-        // We need the base real values.
-        const res = await saveOverride({
-            todayDisplay: Number(todayInput),
-            monthDisplay: Number(monthInput),
-            realToday: realToday, // Wait, realToday has offset applied from getDashboardStats!
-            realMonth: realMonth,
-        });
-        setLoading(false);
-        if (res.ok) {
-            window.location.reload();
-        } else {
-            setError(res.error);
-        }
+        const res = await run(() => saveOverride({ todayDisplay: Number(todayInput), monthDisplay: Number(monthInput) }));
+        if (res.ok) window.location.reload();
     }
 
     async function handleReset() {
-        if (!confirm("Are you sure? This will reset today and month revenue to the real database values.")) return;
-        setLoading(true);
-        const res = await resetOverride();
-        setLoading(false);
-        if (res.ok) {
-            window.location.reload();
-        } else {
-            setError(res.error);
-        }
+        const res = await run(() => resetOverride());
+        if (res.ok) window.location.reload();
     }
 
     if (!unlocked) {
         return (
             <form onSubmit={handleUnlock} className="space-y-4">
                 <div>
-                    <label className="block text-sm font-semibold mb-1">Password</label>
-                    <input
+                    <label htmlFor="ov-pass" className="mb-1.5 block text-[13px] font-semibold text-ink">
+                        পাসওয়ার্ড
+                    </label>
+                    <TextInput
+                        id="ov-pass"
                         type="password"
+                        autoComplete="off"
                         value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        className="w-full rounded-ctl border border-line px-3 py-2"
-                        placeholder="Enter secret password"
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="গোপন পাসওয়ার্ড লিখুন"
                     />
                 </div>
-                {error && <p className="text-danger text-sm">{error}</p>}
-                <Button type="submit" disabled={loading} className="w-full">
-                    {loading ? "Checking..." : "Unlock"}
+                {error && <p className="text-[13px] font-medium text-danger">{error}</p>}
+                <Button type="submit" disabled={loading || !password} className="w-full">
+                    {loading ? "যাচাই হচ্ছে…" : "খুলুন"}
                 </Button>
             </form>
         );
     }
 
-    // Calculate current offsets for display
-    // The parent passed realToday which *already includes* the offset.
-    // To show the actual "base" real value, we'd need a separate query, but we
-    // don't want to complicate the parent.
-    // Actually, we just want the user to type the *final displayed number*.
-    // The server will do: newOffset = typed - currentRealDBValue.
-    // But the parent passed `stats.todayRevenue` which is ALREADY offsetted.
-    // Let's just pass the current *displayed* values to the inputs.
-    // The server needs the *unoffsetted* real value.
-    // We will modify getDashboardStats to return both raw and final.
-    // Wait, the queries file I gave above already modified getDashboardStats to apply offsets.
-    // I'll just pass the current displayed numbers as props for initialization.
-
     return (
         <div className="space-y-6">
-            <div className="rounded-ctl bg-chalk p-4 text-sm text-ink-2">
-                <p><strong>Real Today Revenue:</strong> ৳{realToday}</p>
-                <p><strong>Real Month Revenue:</strong> ৳{realMonth}</p>
+            <div className="space-y-1 rounded-ctl bg-chalk p-4 text-[14px] text-ink-2">
+                <p>
+                    আজকের আসল আয়: <strong className="text-ink tnum">{taka(realToday)}</strong>
+                </p>
+                <p>
+                    এই মাসের আসল আয়: <strong className="text-ink tnum">{taka(realMonth)}</strong>
+                </p>
             </div>
 
             <form onSubmit={handleSave} className="space-y-4">
                 <div>
-                    <label className="block text-sm font-semibold mb-1">Display Today Revenue (৳)</label>
-                    <input
-                        type="number"
-                        value={todayInput}
-                        onChange={e => setTodayInput(e.target.value)}
-                        className="w-full rounded-ctl border border-line px-3 py-2"
-                    />
+                    <label htmlFor="ov-today" className="mb-1.5 block text-[13px] font-semibold text-ink">
+                        ড্যাশবোর্ডে আজকের আয় দেখাবে
+                    </label>
+                    <TextInput id="ov-today" type="number" min="0" step="1" prefix="৳" value={todayInput} onChange={(e) => setTodayInput(e.target.value)} />
                 </div>
                 <div>
-                    <label className="block text-sm font-semibold mb-1">Display Month Revenue (৳)</label>
-                    <input
-                        type="number"
-                        value={monthInput}
-                        onChange={e => setMonthInput(e.target.value)}
-                        className="w-full rounded-ctl border border-line px-3 py-2"
-                    />
+                    <label htmlFor="ov-month" className="mb-1.5 block text-[13px] font-semibold text-ink">
+                        ড্যাশবোর্ডে এই মাসের আয় দেখাবে
+                    </label>
+                    <TextInput id="ov-month" type="number" min="0" step="1" prefix="৳" value={monthInput} onChange={(e) => setMonthInput(e.target.value)} />
                 </div>
-                {error && <p className="text-danger text-sm">{error}</p>}
-                <div className="flex gap-3">
-                    <Button type="submit" disabled={loading} className="flex-1">
-                        {loading ? "Saving..." : "Save"}
-                    </Button>
-                    <Button type="button" variant="danger" onClick={handleReset} disabled={loading}>
-                        Reset Default
-                    </Button>
-                </div>
+                {error && <p className="text-[13px] font-medium text-danger">{error}</p>}
+
+                {confirmReset ? (
+                    <div className="rounded-ctl bg-danger-soft p-4">
+                        <p className="text-[13px] font-medium text-danger">দুটো সংখ্যাই আবার আসল আয়ে ফিরে যাবে। নিশ্চিত?</p>
+                        <div className="mt-3 flex gap-2">
+                            <Button type="button" variant="ink" size="sm" onClick={handleReset} disabled={loading}>
+                                {loading ? "হচ্ছে…" : "হ্যাঁ, আগের মতো করুন"}
+                            </Button>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmReset(false)} disabled={loading}>
+                                না
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                        <Button type="submit" disabled={loading} className="flex-1">
+                            {loading ? "সেভ হচ্ছে…" : "সেভ করুন"}
+                        </Button>
+                        <Button type="button" variant="outline" onClick={() => setConfirmReset(true)} disabled={loading}>
+                            আসল আয়ে ফিরুন
+                        </Button>
+                    </div>
+                )}
             </form>
         </div>
     );

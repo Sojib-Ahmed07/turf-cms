@@ -10,7 +10,7 @@ import { canOptimize, cn } from "@/lib/utils";
 export default function PitchPicker({ pitches = [], value, onChange }) {
     const { t, f } = useI18n();
     return (
-        <div role="radiogroup" aria-label={t("pitch.label")} className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0">
+        <div role="radiogroup" aria-label={t("pitch.label")} className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto scroll-px-4 px-4 py-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:scroll-px-0 sm:px-0 sm:py-0">
             {pitches.map((p) => {
                 const active = p.id === value;
                 return (

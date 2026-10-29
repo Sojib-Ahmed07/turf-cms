@@ -4,7 +4,7 @@ import { getPaymentsAdmin } from "@/features/admin/commerce-queries";
 import { configuredGateways, getPaymentMethodsAdmin } from "@/features/payment/methods";
 import { requireRole } from "@/lib/guards";
 
-export const metadata = { title: "Payments" };
+export const metadata = { title: "পেমেন্ট" };
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["paid", "started", "failed", "refund_due", "refunded", "risky"];

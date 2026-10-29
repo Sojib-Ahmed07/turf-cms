@@ -7,12 +7,16 @@ import Button from "@/components/ui/Button";
 import { KeyRound, Lock, Mail } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { safeNext } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
+import { authMessage } from "./AuthForms";
 
 /**
  * Two steps: email -> code + new password (Better Auth emailOTP "forget-password").
  * The request step always says "sent" (even for unknown emails), so it can't be used to find accounts.
  */
 export function ForgotPasswordForm({ initialEmail = "" }) {
+    const { t } = useI18n();
+    const fromAuth = (err, fallback) => authMessage(err, fallback);
     const router = useRouter();
     const params = useSearchParams();
     const next = safeNext(params.get("next"));
@@ -32,11 +36,11 @@ export function ForgotPasswordForm({ initialEmail = "" }) {
         const { error: err } = await authClient.emailOtp.requestPasswordReset({ email: email.trim() });
         setBusy(false);
         if (err) {
-            setError(err.message || "We couldn't send the code. Try again in a minute.");
+            setError(fromAuth(err, t("auth.sendFailed")));
             return;
         }
         setStep("reset");
-        setNote(`If ${email.trim()} has an account, a code is on its way. Check your inbox and spam folder.`);
+        setNote(t("auth.codeSent", { email: email.trim() }));
     }
 
     async function reset(e) {
@@ -46,7 +50,7 @@ export function ForgotPasswordForm({ initialEmail = "" }) {
         const { error: err } = await authClient.emailOtp.resetPassword({ email: email.trim(), otp, password });
         if (err) {
             setBusy(false);
-            setError(err.message || "That code didn't work. Check it, or send a new one.");
+            setError(fromAuth(err, t("auth.resetFailed")));
             return;
         }
         // Every session was signed out by the reset; sign in with the new password straight away.
@@ -63,7 +67,7 @@ export function ForgotPasswordForm({ initialEmail = "" }) {
     if (step === "email") {
         return (
             <form onSubmit={sendCode} className="space-y-4">
-                <Field label="Email" htmlFor="email">
+                <Field label={t("auth.email")} htmlFor="email">
                     <Input
                         id="email"
                         type="email"
@@ -77,7 +81,7 @@ export function ForgotPasswordForm({ initialEmail = "" }) {
                 </Field>
                 {error && <p className="text-sm text-danger">{error}</p>}
                 <Button type="submit" className="w-full" disabled={busy || !email.trim()}>
-                    {busy ? "Sending…" : "Email me a code"}
+                    {busy ? t("auth.sending") : t("auth.emailCode")}
                 </Button>
             </form>
         );
@@ -86,7 +90,7 @@ export function ForgotPasswordForm({ initialEmail = "" }) {
     return (
         <form onSubmit={reset} className="space-y-4">
             {note && <p className="text-sm text-ink-3">{note}</p>}
-            <Field label="6-digit code" htmlFor="otp">
+            <Field label={t("auth.code")} htmlFor="otp">
                 <Input
                     id="otp"
                     icon={KeyRound}
@@ -99,7 +103,7 @@ export function ForgotPasswordForm({ initialEmail = "" }) {
                     placeholder="123456"
                 />
             </Field>
-            <Field label="New password" htmlFor="password" hint="At least 8 characters.">
+            <Field label={t("auth.newPassword")} htmlFor="password" hint={t("auth.passwordHint")}>
                 <Input
                     id="password"
                     type="password"
@@ -114,11 +118,11 @@ export function ForgotPasswordForm({ initialEmail = "" }) {
             </Field>
             {error && <p className="text-sm text-danger">{error}</p>}
             <Button type="submit" className="w-full" disabled={busy || otp.length !== 6 || password.length < 8}>
-                {busy ? "Saving…" : "Set new password and sign in"}
+                {busy ? t("auth.saving") : t("auth.resetAndSignIn")}
             </Button>
             <div className="flex items-center justify-between text-sm">
                 <button type="button" onClick={sendCode} disabled={busy} className="font-semibold text-ink hover:underline disabled:opacity-60">
-                    Send a new code
+                    {t("auth.sendNew")}
                 </button>
                 <button
                     type="button"
@@ -130,7 +134,7 @@ export function ForgotPasswordForm({ initialEmail = "" }) {
                     }}
                     className="text-ink-3 hover:underline"
                 >
-                    Use another email
+                    {t("auth.otherEmail")}
                 </button>
             </div>
         </form>

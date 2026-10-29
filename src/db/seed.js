@@ -1,4 +1,5 @@
 // src/db/seed.js
+// Sample content, in Bangla (the whole site is Bangla only).
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
@@ -30,15 +31,16 @@ async function main() {
         .values({
             id: 1,
             siteName: "TurfZone",
-            tagline: "Floodlit football in Mirpur 12",
+            tagline: "মিরপুর ১২-তে ফ্লাডলাইটের আলোয় ফুটবল",
             brandColor: "#18a058",
-            menuButtonLabel: "Book a slot",
+            menuButtonLabel: "স্লট বুক করুন",
             showMyBookings: true,
             contact: {
                 phone: "+880 1700 000000",
+                whatsapp: "+880 1700 000000",
                 email: "hello@turfzone.bd",
-                address: "Mirpur 12, Dhaka 1216",
-                hours: "6:00 am to 3:00 am, every day",
+                address: "মিরপুর ১২, ঢাকা ১২১৬",
+                hours: "প্রতিদিন, সকাল ৬টা থেকে রাত ৩টা",
                 mapUrl: "https://maps.google.com/?q=Mirpur+12+Dhaka",
             },
             socials: [
@@ -46,9 +48,9 @@ async function main() {
                 { platform: "instagram", url: "https://instagram.com" },
             ],
             seo: {
-                title: "TurfZone — Book a floodlit ground in Mirpur 12",
+                title: "টার্ফজোন — মিরপুর ১২-তে ফ্লাডলাইট মাঠ বুক করুন",
                 description:
-                    "Pick a ground, choose your time, pay online. Three grounds open 6 am to 3 am in Mirpur 12, Dhaka.",
+                    "মাঠ সিলেক্ট করুন, সময় সিলেক্ট করুন, অনলাইনে পেমেন্ট করুন। মিরপুর ১২, ঢাকায় তিনটি মাঠ, খোলা সকাল ৬টা থেকে রাত ৩টা।",
             },
             slider: { autoplayMs: 6000, pauseOnHover: true },
         })
@@ -58,10 +60,9 @@ async function main() {
     const navCount = await db.select({ c: sql`count(*)` }).from(navItems);
     if (Number(navCount[0].c) === 0) {
         await db.insert(navItems).values([
-            { label: "Home", href: "/", sortOrder: 0, isVisible: true },
-            { label: "Book a slot", href: "/book", sortOrder: 1, isVisible: true },
-            { label: "Grounds", href: "/grounds", sortOrder: 2, isVisible: true },
-            { label: "Contact", href: "/#visit", sortOrder: 3, isVisible: true },
+            { label: "হোম", href: "/", sortOrder: 0, isVisible: true },
+            { label: "স্লট বুক করুন", href: "/book", sortOrder: 1, isVisible: true },
+            { label: "মাঠ", href: "/grounds", sortOrder: 2, isVisible: true },
         ]);
     }
 
@@ -70,27 +71,27 @@ async function main() {
         {
             key: "live_grounds",
             data: {
-                heading: "Grounds open today",
-                body: "Three grounds, all floodlit, all bookable by the block.",
+                heading: "আজ খালি মাঠ",
+                body: "তিনটি মাঠ, সবগুলোতে ফ্লাডলাইট। প্রতিটি স্লট আলাদা করে বুক করা যায়।",
             },
         },
         {
             key: "how_it_works",
             data: {
-                heading: "Book in three taps",
+                heading: "তিন ধাপে বুকিং",
                 steps: [
-                    { title: "Pick a ground", body: "Choose the surface and the format you want to play." },
-                    { title: "Choose your time", body: "Live availability. Booked slots are greyed out." },
-                    { title: "Pay online", body: "Card, bKash, Nagad or Rocket through SSLCommerz." },
+                    { title: "মাঠ সিলেক্ট করুন", body: "কোন মাঠে, কত জনের খেলা খেলবেন সিলেক্ট করুন।" },
+                    { title: "সময় সিলেক্ট করুন", body: "কোন সময় খালি, সরাসরি দেখুন। বুক হয়ে যাওয়া স্লট ধূসর থাকে।" },
+                    { title: "অনলাইনে পেমেন্ট করুন", body: "কার্ড, বিকাশ, নগদ বা রকেট দিয়ে পেমেন্ট করুন।" },
                 ],
             },
         },
         {
             key: "visit",
             data: {
-                heading: "Find us",
-                body: "We are five minutes from Mirpur 12 roundabout, with parking on site.",
-                facilities: ["Changing rooms", "Floodlights", "Drinking water", "Free parking"],
+                heading: "আমাদের ঠিকানা",
+                body: "মিরপুর ১২ গোলচত্বর থেকে মাত্র পাঁচ মিনিট। ভেতরেই গাড়ি রাখার জায়গা আছে।",
+                facilities: ["চেঞ্জিং রুম", "ফ্লাডলাইট", "খাবার পানি", "ফ্রি পার্কিং"],
             },
         },
     ];
@@ -103,13 +104,13 @@ async function main() {
     if (Number(pitchCount[0].c) === 0) {
         await db.insert(pitches).values([
             {
-                name: "Pitch A",
+                name: "পিচ এ",
                 slug: "pitch-a",
-                description: "Our main 5-a-side ground with a fresh 40 mm turf.",
+                description: "নতুন ৪০ মিমি টার্ফের আমাদের প্রধান মাঠ, ৫ জন করে খেলার জন্য।",
                 sport: "football",
-                format: "5-a-side",
-                size: "40 × 20 m",
-                surface: "Indoor, 40 mm turf",
+                format: "৫ জন করে",
+                size: "৪০ × ২০ মিটার",
+                surface: "ইনডোর, ৪০ মিমি টার্ফ",
                 hourlyRate: "1600",
                 openHour: 6,
                 closeHour: 3,
@@ -119,13 +120,13 @@ async function main() {
                 isActive: true,
             },
             {
-                name: "Pitch B",
+                name: "পিচ বি",
                 slug: "pitch-b",
-                description: "Wider 7-a-side ground, best for weekend leagues.",
+                description: "বড় মাঠ, ৭ জন করে খেলার জন্য। ছুটির দিনের লিগের জন্য সেরা।",
                 sport: "football",
-                format: "7-a-side",
-                size: "50 × 30 m",
-                surface: "Outdoor, 50 mm turf",
+                format: "৭ জন করে",
+                size: "৫০ × ৩০ মিটার",
+                surface: "আউটডোর, ৫০ মিমি টার্ফ",
                 hourlyRate: "2000",
                 openHour: 6,
                 closeHour: 3,
@@ -135,13 +136,13 @@ async function main() {
                 isActive: true,
             },
             {
-                name: "Box Cricket",
+                name: "বক্স ক্রিকেট",
                 slug: "box-cricket",
-                description: "Net-enclosed box cricket for six-a-side games.",
+                description: "নেট দিয়ে ঘেরা বক্স ক্রিকেট, ৬ জন করে খেলার জন্য।",
                 sport: "cricket",
-                format: "6-a-side",
-                size: "30 × 15 m",
-                surface: "Indoor matting",
+                format: "৬ জন করে",
+                size: "৩০ × ১৫ মিটার",
+                surface: "ইনডোর ম্যাট",
                 hourlyRate: "1800",
                 openHour: 6,
                 closeHour: 3,
@@ -159,31 +160,31 @@ async function main() {
         await db.insert(heroSlides).values([
             {
                 imageUrl: img("1487466365202-1afdb86c764e"),
-                alt: "Floodlit football turf at night",
-                eyebrow: "Open till 3 am",
-                heading: "Your game starts when the lights come on",
-                subheading: "Floodlit turf in Mirpur 12. Pick a slot, pay online, and walk straight onto the pitch.",
-                ctaLabel: "Book a slot",
+                alt: "রাতে ফ্লাডলাইটের আলোয় ফুটবল মাঠ",
+                eyebrow: "রাত ৩টা পর্যন্ত খোলা",
+                heading: "আলো জ্বললেই শুরু আপনার খেলা",
+                subheading: "মিরপুর ১২-তে ফ্লাডলাইটের টার্ফ। স্লট সিলেক্ট করুন, অনলাইনে পেমেন্ট করুন, সোজা মাঠে নেমে পড়ুন।",
+                ctaLabel: "স্লট বুক করুন",
                 ctaHref: "/book",
                 sortOrder: 0,
             },
             {
                 imageUrl: img("1517747614396-d21a78b850e8"),
-                alt: "Aerial view of a lit football field",
-                eyebrow: "7-a-side",
-                heading: "More room to run on Pitch B",
-                subheading: "A wider ground for weekend leagues, with LED floodlights.",
-                ctaLabel: "See evening slots",
+                alt: "ওপর থেকে দেখা আলো জ্বলা ফুটবল মাঠ",
+                eyebrow: "৭ জন করে",
+                heading: "পিচ বি-তে দৌড়ানোর জায়গা বেশি",
+                subheading: "ছুটির দিনের লিগের জন্য বড় মাঠ, এলইডি ফ্লাডলাইটসহ।",
+                ctaLabel: "সন্ধ্যার স্লট দেখুন",
                 ctaHref: "/book?part=evening",
                 sortOrder: 1,
             },
             {
                 imageUrl: img("1570498839593-e565b39455fc"),
-                alt: "Football resting on green turf",
-                eyebrow: "Morning slots",
-                heading: "Beat the heat with a 6 am kickoff",
-                subheading: "Morning slots are the cheapest of the day.",
-                ctaLabel: "See morning slots",
+                alt: "সবুজ টার্ফে রাখা ফুটবল",
+                eyebrow: "সকালের স্লট",
+                heading: "গরমের আগে সকাল ৬টায় খেলা শুরু",
+                subheading: "সারা দিনের মধ্যে সকালের স্লটের দাম সবচেয়ে কম।",
+                ctaLabel: "সকালের স্লট দেখুন",
                 ctaHref: "/book?part=morning",
                 sortOrder: 2,
             },
@@ -206,42 +207,42 @@ async function main() {
         await db.insert(promoBanners).values([
             {
                 placement: "top_bar",
-                title: "Weekend nights are 20% off",
-                ctaLabel: "Book now",
+                title: "ছুটির দিনের রাতে ২০% ছাড়",
+                ctaLabel: "এখনই বুক করুন",
                 ctaHref: "/book?part=late",
                 couponId: couponId("NIGHT20"),
             },
             {
                 placement: "home_after_hero",
                 imageUrl: img("1601701089287-2a4fa78d091b", 1200),
-                badge: "20% off",
-                title: "Friday and Saturday after 9 pm",
-                body: "Bring the squad for late games and save on every slot. Use the code below at checkout.",
-                ctaLabel: "Book a night slot",
+                badge: "২০% ছাড়",
+                title: "শুক্র ও শনিবার রাত ৯টার পর",
+                body: "দল নিয়ে রাতে খেলতে আসুন, প্রতিটি স্লটে টাকা বাঁচান। পেমেন্টের সময় নিচের কোডটি দিন।",
+                ctaLabel: "রাতের স্লট বুক করুন",
                 ctaHref: "/book?part=late",
                 couponId: couponId("NIGHT20"),
             },
             {
                 placement: "home_mid",
-                badge: "Tournament",
-                title: "Mirpur 5-a-side Cup is coming",
-                body: "16 teams, one weekend. Call the desk to register your team.",
-                ctaLabel: "Call the desk",
+                badge: "টুর্নামেন্ট",
+                title: "আসছে মিরপুর ফাইভ-এ-সাইড কাপ",
+                body: "১৬টি দল, এক সপ্তাহান্তে খেলা। দলের নাম দিতে কাউন্টারে ফোন করুন।",
+                ctaLabel: "কাউন্টারে ফোন করুন",
                 ctaHref: "/#visit",
             },
             {
                 placement: "booking_page",
-                badge: "20% off",
-                title: "Friday and Saturday after 9 pm",
+                badge: "২০% ছাড়",
+                title: "শুক্র ও শনিবার রাত ৯টার পর",
                 couponId: couponId("NIGHT20"),
             },
             {
                 placement: "popup",
                 imageUrl: img("1459865264687-595d652de67e", 900),
-                badge: "First booking",
-                title: "৳200 off your first game",
-                body: "Create an account and use the code at checkout. One use per player.",
-                ctaLabel: "Book my first slot",
+                badge: "প্রথম বুকিং",
+                title: "প্রথম খেলায় ৳২০০ ছাড়",
+                body: "অ্যাকাউন্ট খুলুন আর পেমেন্টের সময় কোডটি দিন। প্রতিজন একবারই ব্যবহার করতে পারবেন।",
+                ctaLabel: "প্রথম স্লট বুক করুন",
                 ctaHref: "/book",
                 couponId: couponId("FIRST200"),
                 isActive: false, // switch on in Admin > Offer banners when coupons work at checkout

@@ -22,17 +22,17 @@ export async function setUserRole(input) {
         const me = await requireRoles(ADMIN_ONLY);
         if (!me) return DENIED;
         const parsed = roleSchema.safeParse(input);
-        if (!parsed.success) return { ok: false, error: "Pick a role." };
+        if (!parsed.success) return { ok: false, error: "একটি ভূমিকা সিলেক্ট করুন।" };
         const { userId, role } = parsed.data;
-        if (userId === me.id) return { ok: false, error: "You can't change your own role. Ask another admin." };
+        if (userId === me.id) return { ok: false, error: "নিজের ভূমিকা নিজে বদলানো যায় না। অন্য একজন অ্যাডমিনকে বলুন।" };
 
         const [target] = await db.select({ role: user.role }).from(user).where(eq(user.id, userId)).limit(1);
-        if (!target) return { ok: false, error: "User not found." };
+        if (!target) return { ok: false, error: "ব্যবহারকারী পাওয়া যায়নি।" };
         if (target.role === role) return { ok: true };
 
         if (target.role === "admin" && role !== "admin") {
             const [{ n }] = await db.select({ n: count() }).from(user).where(eq(user.role, "admin"));
-            if (Number(n) <= 1) return { ok: false, error: "There must be at least one admin." };
+            if (Number(n) <= 1) return { ok: false, error: "কমপক্ষে একজন অ্যাডমিন থাকতে হবে।" };
         }
 
         await db.update(user).set({ role, updatedAt: new Date() }).where(eq(user.id, userId));
@@ -40,6 +40,6 @@ export async function setUserRole(input) {
         return { ok: true };
     } catch (err) {
         console.error("[setUserRole]", err);
-        return { ok: false, error: "Couldn't change the role. Try again." };
+        return { ok: false, error: "ভূমিকা বদলানো যায়নি। আবার চেষ্টা করুন।" };
     }
 }

@@ -16,16 +16,16 @@ export async function GET(request) {
     const date = searchParams.get("date") ?? "";
 
     if (!UUID_RE.test(pitchId) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return NextResponse.json({ error: "pitchId and date are required" }, { status: 400 });
+        return NextResponse.json({ error: "মাঠ ও তারিখ দরকার" }, { status: 400 });
     }
 
     try {
         const session = await auth.api.getSession({ headers: await headers() });
         const blocks = await getSlotBoard(pitchId, date, session?.user?.id ?? null);
-        if (!blocks) return NextResponse.json({ error: "Ground not found" }, { status: 404 });
+        if (!blocks) return NextResponse.json({ error: "মাঠটি পাওয়া যায়নি" }, { status: 404 });
         return NextResponse.json({ blocks }, { headers: { "Cache-Control": "no-store" } });
     } catch (err) {
         console.error("[booked-slots]", err);
-        return NextResponse.json({ error: "Failed to load slots" }, { status: 500 });
+        return NextResponse.json({ error: "স্লট লোড হয়নি" }, { status: 500 });
     }
 }

@@ -8,6 +8,7 @@ import { bookings, pitches, timeBlocks, user, heroSlides, coupons, siteSettings 
 import { addDaysISO, dayStartOf, isAfterMidnight, isBlockPast, operatingMinutes, shortDateLabel, slotInterval } from "@/lib/time";
 import { blockingBooking, currentVenueDay, getActiveIntervals, getSheetDayStarts, getTimeBlocksForPitch } from "@/features/booking/queries";
 import { time12 } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 export const EDITOR_DAYS = 30; // slot editor shows today + next 29 days
 const PAGE_SIZE = 25;
@@ -89,6 +90,8 @@ export async function getDashboardStats() {
         todayBookings: Number(todayActive[0]?.c ?? 0),
         todayRevenue,
         monthRevenue,
+        rawTodayRevenue, // without the control-room offsets (control room only)
+        rawMonthRevenue,
         monthChange,
         pendingHolds: holds,
     };
@@ -132,7 +135,7 @@ export async function getTodayBoard() {
                 if (status === "free") freeCount += 1;
                 if (minStart === null || at < minStart) minStart = at;
                 if (maxEnd === null || until > maxEnd) maxEnd = until;
-                return { start: b.startTime, end: b.endTime, at, until, status, who: t ? t.customerName || "Player" : null };
+                return { start: b.startTime, end: b.endTime, at, until, status, who: t ? t.customerName || "খেলোয়াড়" : null };
             }),
         });
     }
@@ -209,13 +212,13 @@ function relativeTime(date) {
     if (!date) return "";
     const diff = Math.max(0, Date.now() - date.getTime());
     const min = Math.floor(diff / 60000);
-    if (min < 1) return "Just now";
-    if (min < 60) return `${min} min ago`;
+    if (min < 1) return "এইমাত্র";
+    if (min < 60) return `${BN.digits(min)} মিনিট আগে`;
     const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr} hr ago`;
+    if (hr < 24) return `${BN.digits(hr)} ঘণ্টা আগে`;
     const days = Math.floor(hr / 24);
-    if (days === 1) return "Yesterday";
-    return `${days} days ago`;
+    if (days === 1) return "গতকাল";
+    return `${BN.digits(days)} দিন আগে`;
 }
 
 function displayStatus(r, dayStart) {
@@ -234,23 +237,23 @@ function toAdminBookingRow(r, dayStart) {
     return {
         id: r.code,
         bookingId: r.id,
-        customer: r.customerName || r.userName || "Walk-in",
+        customer: r.customerName || r.userName || "কাউন্টারের বুকিং",
         phone: r.customerPhone || r.userPhone || "",
         email: r.userEmail || "",
         pitch: r.pitchName,
         date: shortDateLabel(r.bookingDate),
         isoDate: r.bookingDate,
-        time: `${time12(r.startTime)} to ${time12(r.endTime)}${isAfterMidnight(r.startTime, dayStart) ? ", after midnight" : ""}`,
+        time: `${time12(r.startTime)} থেকে ${time12(r.endTime)}${isAfterMidnight(r.startTime, dayStart) ? ", রাত ১২টার পর" : ""}`,
         amount: Number(r.totalPrice),
         status: displayStatus(r, dayStart),
         rawStatus: r.status,
         method:
             r.source === "walk_in"
                 ? r.paymentStatus === "paid"
-                    ? "Paid at venue"
-                    : "Pay at venue"
+                    ? "মাঠে পেমেন্ট হয়েছে"
+                    : "মাঠে পেমেন্ট বাকি"
                 : ["paid", "refund_due", "refunded"].includes(r.paymentStatus)
-                    ? "Online"
+                    ? "অনলাইনে"
                     : null,
         source: r.source,
         paid: r.paymentStatus === "paid",
@@ -419,7 +422,7 @@ export async function getPitchEditorData(pitchId) {
             const override = byDate.get(date) ?? null;
             return {
                 date,
-                label: i === 0 ? `Today ${Number(date.slice(8))}` : i === 1 ? `Tomorrow ${Number(date.slice(8))}` : shortDateLabel(date).replace(/ \w+$/, ""),
+                label: i === 0 ? `আজ ${BN.digits(Number(date.slice(8)))}` : i === 1 ? `আগামীকাল ${BN.digits(Number(date.slice(8)))}` : shortDateLabel(date).replace(/\s\S+$/, ""),
                 isOverride: override !== null,
                 bookedCount: bookedMap.get(date) ?? 0,
                 blocks: override ?? defaultBlocks,

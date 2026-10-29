@@ -12,6 +12,7 @@ import PitchLines from "@/components/site/PitchLines";
 import PitchForm, { EMPTY_PITCH } from "./PitchForm";
 import { togglePitchActive } from "@/features/admin/actions/pitches";
 import { canOptimize, cn, taka, time12 } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 /** /admin/pitches — ground cards (prototype: PitchesManager list). */
 export default function GroundsList({ pitches = [] }) {
@@ -37,12 +38,12 @@ export default function GroundsList({ pitches = [] }) {
     return (
         <div className="mx-auto max-w-[1280px]">
             <PageHeader
-                title="Grounds & slots"
-                description={`${pitches.length} ground${pitches.length === 1 ? "" : "s"}, ${openCount} open for booking. Each ground has its own photo, price and daily time slots.`}
+                title="মাঠ ও স্লট"
+                description={`মোট ${BN.digits(pitches.length)}টি মাঠ, এর মধ্যে ${BN.digits(openCount)}টিতে বুকিং চালু। প্রতিটি মাঠের নিজস্ব ছবি, দাম আর প্রতিদিনের স্লট আছে।`}
                 actions={
                     <Button variant="ink" onClick={() => setEditing({ ...EMPTY_PITCH })}>
                         <Plus className="h-4 w-4" />
-                        Add ground
+                        মাঠ যোগ করুন
                     </Button>
                 }
             />
@@ -51,11 +52,11 @@ export default function GroundsList({ pitches = [] }) {
 
             {pitches.length === 0 ? (
                 <div className="rounded-card border-2 border-dashed border-line px-6 py-16 text-center">
-                    <p className="display text-[28px] text-ink">No grounds yet</p>
-                    <p className="mx-auto mt-2 max-w-sm text-[15px] text-ink-3">Add your first ground to start taking bookings.</p>
+                    <p className="display text-[28px] text-ink">এখনো কোনো মাঠ নেই</p>
+                    <p className="mx-auto mt-2 max-w-sm text-[15px] text-ink-3">বুকিং নেওয়া শুরু করতে প্রথম মাঠটি যোগ করুন।</p>
                     <Button className="mt-6" onClick={() => setEditing({ ...EMPTY_PITCH })}>
                         <Plus className="h-4 w-4" />
-                        Add ground
+                        মাঠ যোগ করুন
                     </Button>
                 </div>
             ) : (
@@ -74,35 +75,35 @@ export default function GroundsList({ pitches = [] }) {
                                     <p className="display text-[30px]">{p.name}</p>
                                 </div>
                                 <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full bg-white/95 py-1 pl-3 pr-1 text-[12px] font-semibold text-ink">
-                                    {p.isActive ? "Open for booking" : "Closed"}
+                                    {p.isActive ? "বুকিং চালু" : "বুকিং বন্ধ"}
                                     <Switch
                                         size="sm"
                                         checked={p.isActive}
                                         onChange={() => busyId !== p.id && toggle(p.id)}
-                                        label={`${p.name} open for booking`}
+                                        label={`${p.name}-এ বুকিং চালু`}
                                     />
                                 </div>
                             </div>
 
                             <dl className="grid grid-cols-3 divide-x divide-line border-b border-line text-center">
-                                <Stat label="Base price" value={`${taka(p.hourlyRate)}/hr`} />
-                                <Stat label="Slots a day" value={p.blockCount} />
-                                <Stat label="Slot length" value={`${p.defaultSlotMinutes} min`} />
+                                <Stat label="প্রতি ঘণ্টার দাম" value={`${taka(p.hourlyRate)}/ঘণ্টা`} />
+                                <Stat label="দিনে স্লট" value={BN.digits(p.blockCount)} />
+                                <Stat label="প্রতি স্লট" value={`${BN.digits(p.defaultSlotMinutes)} মিনিট`} />
                             </dl>
 
                             <div className="flex items-center justify-between gap-3 p-4">
                                 <p className="flex items-center gap-1.5 text-[13px] text-ink-3">
                                     <Clock3 className="h-3.5 w-3.5" />
-                                    {p.firstStart && p.lastEnd ? `${time12(p.firstStart)} to ${time12(p.lastEnd)}` : "No slots yet"}
+                                    {p.firstStart && p.lastEnd ? `${time12(p.firstStart)} থেকে ${time12(p.lastEnd)}` : "এখনো কোনো স্লট নেই"}
                                 </p>
                                 <div className="flex gap-2">
                                     <Button variant="outline" size="sm" onClick={() => setEditing(p)}>
                                         <Pencil className="h-3.5 w-3.5" />
-                                        Edit
+                                        বদলান
                                     </Button>
                                     <Button size="sm" variant="ink" href={`/admin/pitches/${p.id}`}>
                                         <SlidersHorizontal className="h-3.5 w-3.5" />
-                                        Edit slots
+                                        স্লট বদলান
                                     </Button>
                                 </div>
                             </div>

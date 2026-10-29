@@ -4,7 +4,7 @@ import { getMediaAdmin } from "@/features/cms/admin-queries";
 import { isCloudinaryConfigured } from "@/lib/cloudinary";
 import { requireRole } from "@/lib/guards";
 
-export const metadata = { title: "Media" };
+export const metadata = { title: "ছবির লাইব্রেরি" };
 
 export default async function Page() {
     await requireRole(["admin"]);

@@ -153,7 +153,7 @@ export async function currentVenueDay(now = new Date()) {
     return currentOperatingDay(nightEnd, now);
 }
 
-/** "Every day, 6 am to 3 am". Pass `i18n` ({ t, f } from getI18n) for the visitor's language. */
+/** "প্রতিদিন, সকাল ৬টা থেকে রাত ৩টা". Pass `i18n` ({ t, f } from getI18n) for the visitor's language. */
 export async function getVenueHoursLabel(i18n = null) {
     const rows = await db.select({ defaultBlocks: pitches.defaultBlocks }).from(pitches).where(eq(pitches.isActive, true));
     let open = null;
@@ -174,7 +174,7 @@ export async function getVenueHoursLabel(i18n = null) {
     const from = minutesToHHMM(open);
     const to = minutesToHHMM(close);
     if (i18n) return i18n.t("visit.everyDay", { from: i18n.f.time(from), to: i18n.f.time(to) });
-    return `Every day, ${time12(from)} to ${time12(to)}`;
+    return `প্রতিদিন, ${time12(from)} থেকে ${time12(to)}`;
 }
 
 /** Fills contact.hours from the grounds when the admin left it empty. `i18n` as in getVenueHoursLabel. */

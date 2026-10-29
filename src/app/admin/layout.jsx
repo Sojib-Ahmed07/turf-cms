@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/guards";
 import { countActiveHolds } from "@/features/admin/queries";
 import { getSiteSettings } from "@/features/cms/queries";
 
-export const metadata = { title: "Admin" };
+export const metadata = { title: "অ্যাডমিন" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }) {

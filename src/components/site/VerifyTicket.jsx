@@ -9,20 +9,15 @@ import { markTicketUsed } from "@/features/admin/actions/checkin";
 import { cn, taka } from "@/lib/utils";
 
 const toneFor = (site) => ({
-    valid: { bg: "bg-brand-soft", ring: "ring-brand/50", icon: CheckCircle2, iconClass: "text-brand-deep", title: "This ticket is valid", subtitle: `${site} confirms this is a real, paid booking.` },
-    cancelled: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "Cancelled", subtitle: "This booking was cancelled, so it's not a valid ticket." },
-    expired: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "Expired", subtitle: "The slot was released before the booking was confirmed." },
-    unpaid: { bg: "bg-flare-soft", ring: "ring-flare/50", icon: AlertTriangle, iconClass: "text-flare-deep", title: "Not paid", subtitle: "The slot is reserved, but the payment isn't done yet." },
-    refunded: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "Refunded", subtitle: "This booking was refunded, so it's not valid any more." },
-    played: { bg: "bg-chalk", ring: "ring-line", icon: Clock, iconClass: "text-ink-3", title: "Played", subtitle: "This ticket is real, but the match time has already passed." },
-    invalid: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: `Not a ${site} ticket`, subtitle: `This QR wasn't issued by ${site}, or it was tampered with.` },
-    not_found: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "Booking not found", subtitle: "The ticket is signed but the booking no longer exists." },
+    valid: { bg: "bg-brand-soft", ring: "ring-brand/50", icon: CheckCircle2, iconClass: "text-brand-deep", title: "টিকিটটি সঠিক", subtitle: `${site} নিশ্চিত করছে যে এটি পেমেন্ট করা আসল বুকিং।` },
+    cancelled: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "ক্যানসেল হয়েছে", subtitle: "বুকিংটি ক্যানসেল হয়েছে, তাই টিকিটটি আর চলবে না।" },
+    expired: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "মেয়াদ শেষ", subtitle: "বুকিং কনফার্মড হওয়ার আগেই স্লটটি ছেড়ে দেওয়া হয়েছে।" },
+    unpaid: { bg: "bg-flare-soft", ring: "ring-flare/50", icon: AlertTriangle, iconClass: "text-flare-deep", title: "পেমেন্ট হয়নি", subtitle: "স্লটটি রাখা আছে, কিন্তু পেমেন্ট এখনো শেষ হয়নি।" },
+    refunded: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "টাকা ফেরত দেওয়া হয়েছে", subtitle: "এই বুকিংয়ের টাকা ফেরত দেওয়া হয়েছে, তাই টিকিটটি আর চলবে না।" },
+    played: { bg: "bg-chalk", ring: "ring-line", icon: Clock, iconClass: "text-ink-3", title: "খেলা শেষ", subtitle: "টিকিটটি আসল, কিন্তু খেলার সময় পার হয়ে গেছে।" },
+    invalid: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: `এটি ${site}-এর টিকিট নয়`, subtitle: `এই QR ${site} দেয়নি, অথবা এটি বদলানো হয়েছে।` },
+    not_found: { bg: "bg-danger-soft", ring: "ring-danger/50", icon: XCircle, iconClass: "text-danger", title: "বুকিং পাওয়া যায়নি", subtitle: "টিকিটটি আমাদের দেওয়া, কিন্তু বুকিংটি আর নেই।" },
 });
-
-function formatTime(iso) {
-    if (!iso) return "";
-    return new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Dhaka" });
-}
 
 /**
  * wrongDay: admin view of a valid ticket for another day (no "Mark as used", explain why).
@@ -69,19 +64,19 @@ export default function VerifyTicket({ state, booking, canCheckIn = false, wrong
             {booking && (
                 <div className="rounded-card bg-white p-6 ring-1 ring-line">
                     <div className="space-y-3 text-[14px]">
-                        <Row label="Booking" value={booking.code} mono />
-                        <Row label="Ground" value={booking.pitch} />
-                        <Row label="Date" value={booking.playDateLabel} note={booking.nightOf ? `Night of ${booking.nightOf}` : null} />
-                        <Row label="Time" value={booking.timeLabel} />
-                        <Row label="Player" value={booking.player} />
-                        <Row label="Amount" value={taka(booking.total) + (booking.discount > 0 ? ` (saved ${taka(booking.discount)})` : "")} />
-                        {booking.checkedInAt && <Row label="Checked in" value={formatTime(booking.checkedInAt)} />}
+                        <Row label="বুকিং" value={booking.code} mono />
+                        <Row label="মাঠ" value={booking.pitch} />
+                        <Row label="তারিখ" value={booking.playDateLabel} note={booking.nightOf ? `${booking.nightOf}-এর রাত` : null} />
+                        <Row label="সময়" value={booking.timeLabel} />
+                        <Row label="খেলোয়াড়" value={booking.player} />
+                        <Row label="পরিমাণ" value={taka(booking.total) + (booking.discount > 0 ? ` (${taka(booking.discount)} ছাড়)` : "")} />
+                        {booking.checkedInAt && <Row label="প্রবেশ করেছেন" value={booking.checkedInLabel} />}
                     </div>
 
                     {riskNote && (
                         <p className="mt-5 rounded-ctl bg-flare-soft px-4 py-3 text-[13px] font-medium text-flare-deep">
-                            Check before entry: SSLCommerz flagged this payment as high risk{riskNote !== true ? ` (${riskNote})` : ""}. An admin
-                            should confirm it in the merchant panel (Admin, Payments, Risky) before the ticket is used.
+                            ঢোকার আগে যাচাই করুন: SSLCommerz এই পেমেন্টকে বেশি ঝুঁকিপূর্ণ বলেছে{riskNote !== true ? ` (${riskNote})` : ""}। টিকিট ব্যবহারের আগে
+                            একজন অ্যাডমিন মার্চেন্ট প্যানেলে এটি নিশ্চিত করবেন (অ্যাডমিন, পেমেন্ট, ঝুঁকিপূর্ণ)।
                         </p>
                     )}
 
@@ -89,20 +84,20 @@ export default function VerifyTicket({ state, booking, canCheckIn = false, wrong
 
                     {wrongDay && (
                         <p className="mt-5 rounded-ctl bg-flare-soft px-4 py-3 text-[13px] font-medium text-flare-deep">
-                            This ticket is for {booking.playDateLabel}, not today. It can be marked as used on match day.
+                            এই টিকিট {booking.playDateLabel} তারিখের, আজকের নয়। খেলার দিনেই এটি ব্যবহৃত হিসেবে চিহ্নিত করা যাবে।
                         </p>
                     )}
 
                     {canCheckIn && (
                         <Button className="mt-5 w-full" variant="ink" onClick={markUsed} disabled={busy}>
-                            {busy ? "Marking…" : "Mark as used"}
+                            {busy ? "চিহ্নিত হচ্ছে…" : "ব্যবহৃত হিসেবে চিহ্নিত করুন"}
                         </Button>
                     )}
                 </div>
             )}
 
             <p className="text-center text-[12px] text-ink-4">
-                Issued by TurfZone. Every ticket is signed, so the code on this page is proof.
+                {siteName} থেকে দেওয়া। প্রতিটি টিকিট আমাদের নিজস্ব সই করা, তাই এই পেজের তথ্যই প্রমাণ।
             </p>
         </div>
     );

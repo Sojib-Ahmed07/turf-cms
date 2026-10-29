@@ -51,13 +51,13 @@ export function Label({ children, htmlFor, optional }) {
     return (
         <label htmlFor={htmlFor} className="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink-2">
             {children}
-            {optional && <span className="font-normal text-ink-4">Optional</span>}
+            {optional && <span className="font-normal text-ink-4">ঐচ্ছিক</span>}
         </label>
     );
 }
 
 /** Sticky bar shown when a form has unsaved changes. Render it only while dirty. */
-export function SaveBar({ message = "You have unsaved changes", error, children }) {
+export function SaveBar({ message = "পরিবর্তন এখনো সেভ হয়নি", error, children }) {
     return (
         <div className="sticky bottom-4 z-20 mt-8 flex items-center justify-between gap-4 rounded-full bg-ink py-2 pl-6 pr-2 text-white shadow-[0_20px_40px_-16px_rgb(0_0_0/0.5)]">
             <p className={cn("flex min-w-0 items-center gap-2.5 text-[14px] font-medium", error && "text-[#ffb4a8]")}>
@@ -70,14 +70,14 @@ export function SaveBar({ message = "You have unsaved changes", error, children 
 }
 
 /** Up/down buttons for reorderable rows. onMove(-1 | 1). */
-export function OrderButtons({ onMove, first, last, disabled, label = "item" }) {
+export function OrderButtons({ onMove, first, last, disabled, label = "আইটেম" }) {
     const btn = "grid h-6 w-7 place-items-center rounded-md text-ink-3 hover:bg-ink/5 hover:text-ink disabled:pointer-events-none disabled:opacity-30";
     return (
         <span className="flex shrink-0 flex-col" onClick={(e) => e.stopPropagation()}>
-            <button type="button" aria-label={`Move ${label} up`} disabled={disabled || first} onClick={() => onMove(-1)} className={btn}>
+            <button type="button" aria-label={`${label} উপরে নিন`} disabled={disabled || first} onClick={() => onMove(-1)} className={btn}>
                 <ChevronUp className="h-4 w-4" />
             </button>
-            <button type="button" aria-label={`Move ${label} down`} disabled={disabled || last} onClick={() => onMove(1)} className={btn}>
+            <button type="button" aria-label={`${label} নিচে নিন`} disabled={disabled || last} onClick={() => onMove(1)} className={btn}>
                 <ChevronDown className="h-4 w-4" />
             </button>
         </span>

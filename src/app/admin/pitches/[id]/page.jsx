@@ -4,7 +4,7 @@ import SlotEditor from "@/features/admin/components/SlotEditor";
 import { getPitchEditorData } from "@/features/admin/queries";
 import { requireRole } from "@/lib/guards";
 
-export const metadata = { title: "Slot editor" };
+export const metadata = { title: "স্লট এডিটর" };
 export const dynamic = "force-dynamic";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

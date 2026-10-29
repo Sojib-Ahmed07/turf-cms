@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }) {
     const { slug } = await params;
     const row = await getPitchBySlug(slug);
-    if (!row) return { title: "Ground not found" };
+    const { t } = await getI18n();
+    if (!row) return { title: t("groundsPage.notFound") };
     const p = toPitchView(row);
     return { title: p.name, description: p.description || undefined };
 }
@@ -32,25 +33,25 @@ export default async function GroundPage({ params }) {
     const shown = today?.free ? today : (days.find((d) => d.free) ?? today);
 
     return (
-        <div className="mx-auto max-w-6xl px-4 pb-24 pt-6 sm:px-6 sm:pt-10 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 pb-24 pt-6 sm:px-6 sm:pt-10 lg:px-8">
             <Link href="/grounds" className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-ink-3 hover:text-ink">
                 <ArrowLeft className="h-4 w-4" />
                 {t("groundsPage.allGrounds")}
             </Link>
 
             <div className="relative mt-5 aspect-[16/9] overflow-hidden rounded-card bg-pitch sm:aspect-[21/9]">
-                <GroundPhoto pitch={p} sizes="(min-width:1152px) 1152px, 100vw" priority />
+                <GroundPhoto pitch={p} sizes="(min-width:1280px) 1216px, 100vw" priority />
                 <div className="absolute inset-0 bg-gradient-to-t from-pitch/85 via-pitch/10 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 flex flex-col gap-3 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-8">
-                    <div className="min-w-0">
-                        {p.format && <p className="text-[15px] font-semibold text-white/75">{p.format}</p>}
-                        <h1 className="display mt-1 text-[clamp(40px,6vw,72px)] text-white">{p.name}</h1>
+                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
+                    {p.format && <p className="text-[15px] font-semibold text-white/75">{p.format}</p>}
+                    <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <h1 className="display min-w-0 pb-[0.06em] text-[clamp(40px,6vw,72px)] text-white">{p.name}</h1>
+                        <p className="self-start whitespace-nowrap rounded-full bg-white px-4 py-2 text-[16px] font-bold text-ink tnum sm:self-auto">
+                            <span className="font-medium text-ink-3">{t("groundsPage.from")} </span>
+                            {f.taka(p.fromHourly)}
+                            <span className="font-medium text-ink-3">{t("common.perHour")}</span>
+                        </p>
                     </div>
-                    <p className="self-start rounded-full bg-white px-4 py-2 text-[16px] font-bold text-ink tnum sm:self-auto">
-                        <span className="font-medium text-ink-3">{t("groundsPage.from")} </span>
-                        {f.taka(p.fromHourly)}
-                        <span className="font-medium text-ink-3">{t("common.perHour")}</span>
-                    </p>
                 </div>
             </div>
 
@@ -61,18 +62,19 @@ export default async function GroundPage({ params }) {
                     <section>
                         <h2 className="display text-[28px] text-ink">{t("groundsPage.nextDays")}</h2>
                         <p className="mt-1 text-[14px] text-ink-3">{t("groundsPage.nextDaysHint")}</p>
-                        <ul className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                        <ul className="mt-5 grid grid-cols-4 gap-2 lg:grid-cols-7">
                             {days.map((d, i) => (
                                 <li key={d.date}>
                                     <Link
                                         href={`/book?pitch=${p.id}&date=${d.date}`}
                                         className={cn(
-                                            "flex h-full flex-col rounded-[16px] p-3 ring-1 transition-colors",
+                                            "flex h-full flex-col rounded-[16px] p-2.5 ring-1 transition-colors sm:p-3",
                                             d.free ? "bg-white ring-line hover:ring-ink-4" : "bg-chalk ring-line/60"
                                         )}
                                     >
-                                        <span className="text-[12px] font-medium text-ink-3">{i === 0 ? t("common.today") : f.date(d.date)}</span>
-                                        <span className={cn("mt-1 text-[15px] font-bold tnum", d.free ? "text-brand-deep" : "text-ink-4")}>
+                                        <span className="text-[12px] font-semibold text-ink-2">{i === 0 ? t("common.today") : f.dayShort(dowOf(d.date))}</span>
+                                        <span className="text-[12px] text-ink-3">{f.dayMonth(d.date)}</span>
+                                        <span className={cn("mt-1 text-[13px] font-bold tnum sm:text-[15px]", d.free ? "text-brand-deep" : "text-ink-4")}>
                                             {!d.slots ? t("groundsPage.noSlots") : d.free ? t("groundsPage.freeCount", { count: d.free }) : t("groundsPage.full")}
                                         </span>
                                     </Link>
@@ -122,6 +124,12 @@ export default async function GroundPage({ params }) {
             </div>
         </div>
     );
+}
+
+/** "2026-10-30" -> 0 (Sunday) to 6. */
+function dowOf(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
 function Spec({ icon: Icon, label, value }) {

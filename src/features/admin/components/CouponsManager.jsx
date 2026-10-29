@@ -15,8 +15,9 @@ import { deleteCoupon, saveCoupon, setCouponActive } from "@/features/admin/acti
 import { discountLabel, timeWindowLabel } from "@/features/coupons/rules";
 import { shortDateLabel } from "@/lib/time";
 import { cn, taka, time12 } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAYS = ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহঃ", "শুক্র", "শনি"];
 /** Half-hour times on the venue clock, from the earliest opening (dayStart, minutes) round to the next morning. */
 function timeOptions(dayStart) {
     const first = Math.floor(dayStart / 30) * 30;
@@ -101,7 +102,7 @@ export default function CouponsManager({ initial }) {
 
     function select(id) {
         if (id === selectedId) return;
-        if (dirty && !window.confirm("Discard your unsaved changes to this code?")) return;
+        if (dirty && !window.confirm("এই কোডে করা পরিবর্তনগুলো সেভ হয়নি। বাদ দেবেন?")) return;
         setSelectedId(id);
         setDraft(toDraft(coupons.find((c) => c.id === id) ?? null));
         setError("");
@@ -114,7 +115,7 @@ export default function CouponsManager({ initial }) {
             if (!res.ok) return setError(res.error);
             setSelectedId(res.data.id);
             setDraft((d) => ({ ...d, id: res.data.id, code: res.data.code }));
-            showToast(draft.id ? `${res.data.code} saved` : `${res.data.code} created`);
+            showToast(draft.id ? `${res.data.code} সেভ হয়েছে` : `${res.data.code} তৈরি হয়েছে`);
             router.refresh();
         });
     }
@@ -135,7 +136,7 @@ export default function CouponsManager({ initial }) {
             const rest = coupons.filter((c) => c.id !== draft.id);
             setSelectedId(rest[0]?.id ?? "new");
             setDraft(toDraft(rest[0] ?? null));
-            showToast("Code deleted");
+            showToast("কোড মুছে ফেলা হয়েছে");
             router.refresh();
         });
     }
@@ -143,34 +144,34 @@ export default function CouponsManager({ initial }) {
     const preview = draft.value
         ? `${discountLabel({ type: draft.type, value: draft.value, maxDiscount: draft.type === "percent" ? draft.maxDiscount || null : null })}${timeWindowLabel({ days: draft.days, from: draft.from, to: draft.to }) ? `, ${timeWindowLabel({ days: draft.days, from: draft.from, to: draft.to })}` : ""
         }`
-        : "Set the discount to see a summary.";
+        : "সারসংক্ষেপ দেখতে ছাড়ের পরিমাণ লিখুন।";
 
     return (
         <div className="mx-auto max-w-[1280px]">
             <PageHeader
-                title="Coupons"
-                description="Promo codes players type at checkout. Attach a code to an offer banner to advertise it."
+                title="কুপন"
+                description="পেমেন্টের সময় খেলোয়াড়রা যে প্রোমো কোড লেখেন। প্রচারের জন্য কোডটি কোনো অফার ব্যানারে যোগ করুন।"
                 actions={
                     <Button variant="ink" onClick={() => select("new")}>
                         <Plus className="h-4 w-4" />
-                        New code
+                        নতুন কোড
                     </Button>
                 }
             />
 
             <div className="grid gap-6 xl:grid-cols-12">
-                <Panel className="xl:col-span-7" title="All codes" description="A code counts as used once its booking is paid. While a player is on the payment page with a code, that use is set aside for them." bodyClassName="p-0">
+                <Panel className="xl:col-span-7" title="সব কোড" description="বুকিংয়ের পেমেন্ট হলে তবেই কোড ব্যবহার হয়েছে ধরা হয়। কেউ কোড দিয়ে পেমেন্ট পেজে থাকলে সেই ব্যবহারটি তার জন্য আলাদা রাখা হয়।" bodyClassName="p-0">
                     {coupons.length === 0 ? (
-                        <p className="px-6 py-12 text-center text-[14px] text-ink-3">No codes yet. Create your first one on the right.</p>
+                        <p className="px-6 py-12 text-center text-[14px] text-ink-3">এখনো কোনো কোড নেই। ডান পাশ থেকে প্রথম কোডটি তৈরি করুন।</p>
                     ) : (
                         <Table minWidth={620}>
                             <thead>
                                 <tr>
-                                    <Th>Code</Th>
-                                    <Th>Discount</Th>
-                                    <Th>Used</Th>
-                                    <Th>Status</Th>
-                                    <Th className="text-right">On</Th>
+                                    <Th>কোড</Th>
+                                    <Th>ছাড়</Th>
+                                    <Th>ব্যবহার</Th>
+                                    <Th>অবস্থা</Th>
+                                    <Th className="text-right">চালু</Th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -185,7 +186,7 @@ export default function CouponsManager({ initial }) {
                                             <Td>
                                                 <span className="rounded-md border border-dashed border-flare bg-flare-soft px-2 py-1 text-[12px] font-bold tracking-wider text-ink tnum">{c.code}</span>
                                                 <span className="mt-2 block max-w-[200px] truncate text-[12px] text-ink-3">
-                                                    {c.banners.length ? `On: ${c.banners.join(", ")}` : "Not advertised"}
+                                                    {c.banners.length ? `ব্যানারে: ${c.banners.join(", ")}` : "কোনো ব্যানারে নেই"}
                                                 </span>
                                             </Td>
                                             <Td className="font-semibold text-ink">
@@ -194,23 +195,23 @@ export default function CouponsManager({ initial }) {
                                             </Td>
                                             <Td>
                                                 <p className="tnum text-ink">
-                                                    {c.usedCount}
-                                                    {c.usageLimit && <span className="text-ink-3"> / {c.usageLimit}</span>}
+                                                    {BN.digits(c.usedCount)}
+                                                    {c.usageLimit && <span className="text-ink-3"> / {BN.digits(c.usageLimit)}</span>}
                                                 </p>
                                                 {pct !== null && (
                                                     <span className="mt-1.5 block h-1 w-24 overflow-hidden rounded-full bg-line">
                                                         <span className="block h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
                                                     </span>
                                                 )}
-                                                {c.discountGiven > 0 && <span className="mt-1 block text-[12px] text-ink-3">{taka(c.discountGiven)} given</span>}
+                                                {c.discountGiven > 0 && <span className="mt-1 block text-[12px] text-ink-3">{taka(c.discountGiven)} ছাড় দেওয়া হয়েছে</span>}
                                             </Td>
                                             <Td>
                                                 <StatusBadge status={c.status} />
-                                                <span className="mt-1 block text-[12px] text-ink-3">{c.endDate ? `Until ${shortDateLabel(c.endDate)}` : "No end date"}</span>
+                                                <span className="mt-1 block text-[12px] text-ink-3">{c.endDate ? `${shortDateLabel(c.endDate)} পর্যন্ত` : "শেষ তারিখ নেই"}</span>
                                             </Td>
                                             <Td className="text-right">
                                                 <span onClick={(e) => e.stopPropagation()} className="inline-flex">
-                                                    <Switch size="sm" checked={c.isActive} onChange={(v) => toggleActive(c, v)} label={`Turn ${c.code} on or off`} />
+                                                    <Switch size="sm" checked={c.isActive} onChange={(v) => toggleActive(c, v)} label={`${c.code} চালু বা বন্ধ করুন`} />
                                                 </span>
                                             </Td>
                                         </tr>
@@ -223,57 +224,57 @@ export default function CouponsManager({ initial }) {
 
                 <Panel
                     className="xl:col-span-5"
-                    title={draft.id ? `Edit ${baseline.code}` : "New code"}
+                    title={draft.id ? `${baseline.code} এডিট করুন` : "নতুন কোড"}
                     actions={
                         draft.id && (
                             <Button variant="ghost" size="sm" className="text-danger hover:bg-danger-soft hover:text-danger" onClick={() => setConfirmDelete(true)}>
                                 <Trash2 className="h-3.5 w-3.5" />
-                                Delete
+                                মুছে ফেলুন
                             </Button>
                         )
                     }
                 >
                     <form className="space-y-5" onSubmit={save}>
                         <div>
-                            <Label htmlFor="c-code">Code</Label>
+                            <Label htmlFor="c-code">কোড</Label>
                             <div className="flex gap-2">
                                 <TextInput
                                     id="c-code"
                                     value={draft.code}
                                     onChange={(e) => set({ code: e.target.value.toUpperCase().replace(/\s/g, "") })}
                                     maxLength={20}
-                                    placeholder="e.g. FRIDAY15"
+                                    placeholder="যেমন FRIDAY15"
                                     className="flex-1 font-bold uppercase tracking-wider placeholder:font-normal placeholder:normal-case placeholder:tracking-normal"
                                 />
-                                <Button variant="outline" size="icon" aria-label="Make up a code" onClick={() => set({ code: randomCode() })}>
+                                <Button variant="outline" size="icon" aria-label="নিজে থেকে একটি কোড বানান" onClick={() => set({ code: randomCode() })}>
                                     <Shuffle className="h-4 w-4" />
                                 </Button>
                             </div>
                         </div>
 
                         <div>
-                            <Label>Type</Label>
+                            <Label>ধরন</Label>
                             <Segmented
                                 value={draft.type}
                                 onChange={(v) => set({ type: v })}
                                 options={[
-                                    { value: "percent", label: "Percentage" },
-                                    { value: "fixed", label: "Fixed amount" },
+                                    { value: "percent", label: "শতকরা" },
+                                    { value: "fixed", label: "নির্দিষ্ট টাকা" },
                                 ]}
                             />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <Label htmlFor="c-value">{draft.type === "percent" ? "Percent off" : "Taka off"}</Label>
+                                <Label htmlFor="c-value">{draft.type === "percent" ? "কত শতাংশ ছাড়" : "কত টাকা ছাড়"}</Label>
                                 <TextInput id="c-value" type="number" min="1" value={draft.value} onChange={(e) => set({ value: e.target.value })} placeholder={draft.type === "percent" ? "15" : "200"} />
                             </div>
                             {draft.type === "percent" ? (
                                 <div>
                                     <Label htmlFor="c-max" optional>
-                                        Max discount
+                                        সর্বোচ্চ ছাড়
                                     </Label>
-                                    <TextInput id="c-max" type="number" min="1" prefix="৳" value={draft.maxDiscount} onChange={(e) => set({ maxDiscount: e.target.value })} placeholder="No cap" />
+                                    <TextInput id="c-max" type="number" min="1" prefix="৳" value={draft.maxDiscount} onChange={(e) => set({ maxDiscount: e.target.value })} placeholder="সীমা নেই" />
                                 </div>
                             ) : (
                                 <div />
@@ -283,34 +284,34 @@ export default function CouponsManager({ initial }) {
                         <div className="grid grid-cols-3 gap-3">
                             <div>
                                 <Label htmlFor="c-uses" optional>
-                                    Total uses
+                                    মোট কতবার
                                 </Label>
-                                <TextInput id="c-uses" type="number" min="1" value={draft.usageLimit} onChange={(e) => set({ usageLimit: e.target.value })} placeholder="No limit" />
+                                <TextInput id="c-uses" type="number" min="1" value={draft.usageLimit} onChange={(e) => set({ usageLimit: e.target.value })} placeholder="সীমা নেই" />
                             </div>
                             <div>
                                 <Label htmlFor="c-per" optional>
-                                    Per player
+                                    প্রতিজন কতবার
                                 </Label>
-                                <TextInput id="c-per" type="number" min="1" value={draft.perUserLimit} onChange={(e) => set({ perUserLimit: e.target.value })} placeholder="No limit" />
+                                <TextInput id="c-per" type="number" min="1" value={draft.perUserLimit} onChange={(e) => set({ perUserLimit: e.target.value })} placeholder="সীমা নেই" />
                             </div>
                             <div>
                                 <Label htmlFor="c-min" optional>
-                                    Min. price
+                                    স্লটের সর্বনিম্ন দাম
                                 </Label>
-                                <TextInput id="c-min" type="number" min="1" value={draft.minAmount} onChange={(e) => set({ minAmount: e.target.value })} placeholder="Any" />
+                                <TextInput id="c-min" type="number" min="1" value={draft.minAmount} onChange={(e) => set({ minAmount: e.target.value })} placeholder="যেকোনো" />
                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <Label htmlFor="c-start" optional>
-                                    Starts
+                                    শুরুর তারিখ
                                 </Label>
                                 <TextInput id="c-start" type="date" value={draft.startDate} onChange={(e) => set({ startDate: e.target.value })} />
                             </div>
                             <div>
                                 <Label htmlFor="c-end" optional>
-                                    Ends after
+                                    শেষ তারিখ
                                 </Label>
                                 <TextInput id="c-end" type="date" value={draft.endDate} onChange={(e) => set({ endDate: e.target.value })} />
                             </div>
@@ -318,10 +319,10 @@ export default function CouponsManager({ initial }) {
 
                         <div className="space-y-3 rounded-ctl bg-chalk p-4">
                             <p className="text-[14px] font-semibold text-ink">
-                                Where and when <span className="font-normal text-ink-4">Optional</span>
+                                কোথায় ও কখন <span className="font-normal text-ink-4">ঐচ্ছিক</span>
                             </p>
                             <div>
-                                <p className="mb-1.5 text-[12px] font-semibold text-ink-3">Grounds (none picked = every ground)</p>
+                                <p className="mb-1.5 text-[12px] font-semibold text-ink-3">মাঠ (কিছু সিলেক্ট না করলে সব মাঠ)</p>
                                 <div className="flex flex-wrap gap-1.5">
                                     {grounds.map((g) => (
                                         <Chip key={g.id} on={draft.pitchIds.includes(g.id)} onClick={() => toggleIn("pitchIds", g.id)}>
@@ -331,7 +332,7 @@ export default function CouponsManager({ initial }) {
                                 </div>
                             </div>
                             <div>
-                                <p className="mb-1.5 text-[12px] font-semibold text-ink-3">Days (none picked = every day)</p>
+                                <p className="mb-1.5 text-[12px] font-semibold text-ink-3">দিন (কিছু সিলেক্ট না করলে প্রতিদিন)</p>
                                 <div className="flex flex-wrap gap-1.5">
                                     {DAYS.map((d, i) => (
                                         <Chip key={d} on={draft.days.includes(i)} onClick={() => toggleIn("days", i)}>
@@ -342,21 +343,21 @@ export default function CouponsManager({ initial }) {
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <p className="mb-1.5 text-[12px] font-semibold text-ink-3">Slots starting from</p>
+                                    <p className="mb-1.5 text-[12px] font-semibold text-ink-3">যে সময় থেকে শুরু হওয়া স্লট</p>
                                     <Select
                                         value={draft.from}
                                         onChange={(e) => set({ from: e.target.value })}
-                                        options={[{ value: "", label: "Opening" }, ...TIMES.map((t) => ({ value: t, label: time12(t) }))]}
-                                        aria-label="Slots starting from"
+                                        options={[{ value: "", label: "খোলার সময়" }, ...TIMES.map((t) => ({ value: t, label: time12(t) }))]}
+                                        aria-label="যে সময় থেকে শুরু হওয়া স্লট"
                                     />
                                 </div>
                                 <div>
-                                    <p className="mb-1.5 text-[12px] font-semibold text-ink-3">Until</p>
+                                    <p className="mb-1.5 text-[12px] font-semibold text-ink-3">যে সময় পর্যন্ত</p>
                                     <Select
                                         value={draft.to}
                                         onChange={(e) => set({ to: e.target.value })}
-                                        options={[{ value: "", label: "Closing" }, ...TIMES.map((t) => ({ value: t, label: time12(t) }))]}
-                                        aria-label="Until"
+                                        options={[{ value: "", label: "বন্ধের সময়" }, ...TIMES.map((t) => ({ value: t, label: time12(t) }))]}
+                                        aria-label="যে সময় পর্যন্ত"
                                     />
                                 </div>
                             </div>
@@ -364,10 +365,10 @@ export default function CouponsManager({ initial }) {
 
                         <label className="flex items-center justify-between gap-4 rounded-ctl border border-line px-4 py-3">
                             <span>
-                                <span className="block text-[14px] font-semibold text-ink">Code is on</span>
-                                <span className="block text-[12px] text-ink-3">Switched off codes are refused at checkout and hidden from banners.</span>
+                                <span className="block text-[14px] font-semibold text-ink">কোড চালু আছে</span>
+                                <span className="block text-[12px] text-ink-3">বন্ধ কোড পেমেন্টের সময় কাজ করে না এবং ব্যানারেও দেখায় না।</span>
                             </span>
-                            <Switch checked={draft.isActive} onChange={(v) => set({ isActive: v })} label="Code is on" />
+                            <Switch checked={draft.isActive} onChange={(v) => set({ isActive: v })} label="কোড চালু আছে" />
                         </label>
 
                         <p className="rounded-ctl bg-brand-soft px-4 py-3 text-[13px] font-semibold text-brand-deep">{preview}</p>
@@ -383,10 +384,10 @@ export default function CouponsManager({ initial }) {
                                     setError("");
                                 }}
                             >
-                                Discard
+                                বাদ দিন
                             </Button>
                             <Button type="submit" disabled={pending || (!dirty && Boolean(draft.id))}>
-                                {pending ? "Saving…" : draft.id ? "Save code" : "Create code"}
+                                {pending ? "সেভ হচ্ছে…" : draft.id ? "কোড সেভ করুন" : "কোড তৈরি করুন"}
                             </Button>
                         </div>
                     </form>
@@ -397,15 +398,15 @@ export default function CouponsManager({ initial }) {
                 open={confirmDelete}
                 onClose={() => setConfirmDelete(false)}
                 size="sm"
-                title={`Delete ${baseline.code}?`}
-                description="Only codes nobody has used can be deleted. Banners showing it will stop showing a code."
+                title={`${baseline.code} মুছে ফেলবেন?`}
+                description="শুধু যে কোড কেউ ব্যবহার করেনি, সেটিই মোছা যায়। যে ব্যানারে কোডটি আছে, সেখানে আর কোনো কোড দেখাবে না।"
                 footer={
                     <>
                         <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-                            Keep it
+                            রেখে দিন
                         </Button>
                         <Button variant="ink" className="bg-danger hover:bg-danger" disabled={pending} onClick={remove}>
-                            Delete code
+                            কোড মুছে ফেলুন
                         </Button>
                     </>
                 }

@@ -102,16 +102,17 @@ function Band({ banner, className }) {
 /* ---------- Inline: compact row above the slot board ---------- */
 function Inline({ banner, className }) {
     return (
-        <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-3 rounded-card bg-flare-soft px-5 py-4 ring-1 ring-flare/40", className)}>
-            <span className="display text-[28px] text-flare-deep">{banner.badge}</span>
-            <p className="flex-1 text-[14px] font-medium text-ink-2">{banner.title}</p>
-            {banner.code && <CouponCode code={banner.code} size="sm" />}
+        // Phones: badge and code on the first row, the title under them. Wider: all on one row.
+        <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 rounded-card bg-flare-soft px-5 py-4 ring-1 ring-flare/40", className)}>
+            {banner.badge && <span className="display text-[28px] text-flare-deep">{banner.badge}</span>}
+            <p className="order-last basis-full text-[14px] font-medium text-ink-2 sm:order-none sm:basis-0 sm:flex-1">{banner.title}</p>
+            {banner.code && <CouponCode code={banner.code} size="sm" className="ml-auto sm:ml-0" />}
         </div>
     );
 }
 
 /* ---------- Coupon chip with copy ---------- */
-export function CouponCode({ code, size = "md", tone = "light" }) {
+export function CouponCode({ code, size = "md", tone = "light", className }) {
     const { t } = useI18n();
     const [copied, setCopied] = useState(false);
     const copy = () => {
@@ -128,7 +129,8 @@ export function CouponCode({ code, size = "md", tone = "light" }) {
                 tone === "light"
                     ? "border-flare bg-flare-soft text-ink hover:bg-flare/25"
                     : "border-flare/70 bg-white/5 text-flare hover:bg-white/10",
-                size === "sm" ? "h-9 pl-4 pr-1.5 text-[13px]" : "h-13 pl-5 pr-2 text-[15px]"
+                size === "sm" ? "h-9 pl-4 pr-1.5 text-[13px]" : "h-13 pl-5 pr-2 text-[15px]",
+                className
             )}
         >
             <span className="tracking-[0.12em]">{code}</span>

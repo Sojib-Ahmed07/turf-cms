@@ -7,8 +7,12 @@ import Button from "@/components/ui/Button";
 import { Mail, KeyRound } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { safeNext } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
+import { authMessage } from "./AuthForms";
 
 export function VerifyEmailForm({ initialEmail = "" }) {
+    const { t } = useI18n();
+    const fromAuth = (err, fallback) => authMessage(err, fallback);
     const router = useRouter();
     const params = useSearchParams();
     const next = safeNext(params.get("next"));
@@ -21,7 +25,7 @@ export function VerifyEmailForm({ initialEmail = "" }) {
     async function onSubmit(e) {
         e.preventDefault();
         if (!email) {
-            setError("We don't know your email. Go back and register again.");
+            setError(t("auth.noEmail"));
             return;
         }
         setError("");
@@ -29,7 +33,7 @@ export function VerifyEmailForm({ initialEmail = "" }) {
         const { error: err } = await authClient.emailOtp.verifyEmail({ email, otp });
         setBusy(false);
         if (err) {
-            setError(err.message || "That code didn't work. Check it and try again.");
+            setError(fromAuth(err, t("auth.codeFailed")));
             return;
         }
         router.push(next);
@@ -46,7 +50,7 @@ export function VerifyEmailForm({ initialEmail = "" }) {
         });
         setBusy(false);
         if (err) {
-            setError(err.message || "We couldn't send a new code. Try again in a moment.");
+            setError(fromAuth(err, t("auth.resendFailed")));
             return;
         }
         setResent(true);
@@ -56,15 +60,22 @@ export function VerifyEmailForm({ initialEmail = "" }) {
         <form onSubmit={onSubmit} className="space-y-4">
             {email ? (
                 <p className="text-sm text-ink-3">
-                    Sent to <span className="font-semibold text-ink">{email}</span>
+                    {t("auth.sentTo", { email: "\u0000" })
+                        .split("\u0000")
+                        .map((part, i) => (
+                            <span key={i}>
+                                {i > 0 && <span className="font-semibold text-ink">{email}</span>}
+                                {part}
+                            </span>
+                        ))}
                 </p>
             ) : (
-                <Field label="Email" htmlFor="email">
+                <Field label={t("auth.email")} htmlFor="email">
                     <Input id="email" type="email" icon={Mail} required value={email} readOnly placeholder="you@example.com" />
                 </Field>
             )}
 
-            <Field label="6-digit code" htmlFor="otp">
+            <Field label={t("auth.code")} htmlFor="otp">
                 <Input
                     id="otp"
                     icon={KeyRound}
@@ -79,15 +90,15 @@ export function VerifyEmailForm({ initialEmail = "" }) {
             </Field>
 
             {error && <p className="text-sm text-danger">{error}</p>}
-            {resent && !error && <p className="text-sm text-brand-deep">A new code is on its way. Check your inbox.</p>}
+            {resent && !error && <p className="text-sm text-brand-deep">{t("auth.resent")}</p>}
 
             <Button type="submit" className="w-full" disabled={busy || otp.length !== 6}>
-                {busy ? "Checking…" : "Verify email"}
+                {busy ? t("auth.checking") : t("auth.verify")}
             </Button>
 
             <div className="flex items-center justify-between text-sm">
                 <button type="button" onClick={resend} disabled={busy} className="font-semibold text-ink hover:underline disabled:opacity-60">
-                    Send a new code
+                    {t("auth.sendNew")}
                 </button>
             </div>
         </form>

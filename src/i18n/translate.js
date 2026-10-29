@@ -1,8 +1,8 @@
 // src/i18n/translate.js
 // t("book.slotsFree", { count: 3 }) lookup with {placeholders}. Pure: safe on the server and in the browser.
 //
-// Dictionary values are strings, or { one, other } for words that change with a count (English);
-// Bangla simply uses `other`. A missing key falls back to the English dictionary, then to the key itself,
+// Dictionary values are strings, or { one, other } for words that change with a count;
+// Bangla simply uses `other`. A missing key shows the key itself,
 // so a forgotten translation never breaks a page.
 
 function lookup(dict, key) {

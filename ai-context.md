@@ -132,6 +132,7 @@ When unsure, read `node_modules/next/dist/docs/` before writing code.
 | `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` | Registration OTP + booking receipt emails. Sender must be verified in Brevo |
 | `TICKET_SECRET` | HMAC key for QR ticket tokens, 32+ chars. Falls back to `BETTER_AUTH_SECRET` (env check warns). Changing it invalidates every QR issued before |
 | `APP_NAME` | Optional. Site name used in the OTP email only (default "TurfZone"); receipts use the CMS site name |
+| `ADMIN_OVERRIDE_SLUG`, `ADMIN_OVERRIDE_PASSWORD` | Control room (`/control-room/<slug>`): revenue display override for `/admin`. Both unset = page disabled |
 
 `SSLCZ_API_BASE`, `BKASH_API_BASE` and `CLOUDINARY_API_BASE` exist only to point tests at mocks; never set them in real env
 files (the live server refuses to start). Never print, log or commit `.env.local`.
@@ -595,8 +596,6 @@ Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:mig
   register-with-code, receipt email, QR scan -> `/verify/...` -> Mark as used; set the map in Branding.
 - **Admin bookings table**: "Checked in" column + optional `?checkedIn=yes|no` filter. Planned in 7b,
   not built: `getAdminBookings` doesn't select `checkedInAt` yet.
-- Optional polish: `/verify` shows 24-hour times (`startTime to endTime`); switch to `time12()`.
-  `VerifyTicket` copy hard-codes "TurfZone" instead of the CMS site name.
 - Decide with the client: should `/verify/<token>` stay public (anyone holding the QR sees name,
   ground, time, amount) or require staff sign-in? Currently public; check-in is admin only.
 
@@ -622,6 +621,12 @@ Refunds stay manual. `TICKET_SECRET` on live must never change after tickets go 
 - Remove the editor role if the client doesn't need it.
 
 ## 13. Known issues and gotchas
+
+- **Control room:** **Control room (revenue display override):** `/control-room/<ADMIN_OVERRIDE_SLUG>` (404 for any other slug or when the env var is missing; signed-in admins only, then `ADMIN_OVERRIDE_PASSWORD`, unlock cookie `tz_override_auth` for 2 hours). The admin types the "today" and "this month" revenue figures to show; `saveOverride` stores the difference from the real paid revenue in `site_settings.override_revenue_today` / `override_revenue_month` (migration 0005), and `getDashboardStats()` (`features/admin/queries.js`) adds those offsets to the revenue on `/admin` (also used for the month-on-month change). **Reset** sets both offsets back to 0. Bookings, payments, Admin > Payments and exports are not changed. Files: `app/control-room/[slug]/page.jsx`, `OverrideClient.jsx`, `features/override/actions.js` (`unlockOverride`, `isOverrideUnlocked`, `saveOverride`, `resetOverride`); env check warns when the two vars are unset.
+
+- **29 Oct (Bangla only):** the whole site is in Bangla, admin panel included: one language, no English version, no language switch, no second input box. Plain everyday Bangla (e.g. "সিলেক্ট করুন", "কনফার্মড", "পেমেন্ট", "লগইন"), not formal words like "বাছুন". UI texts used by player pages live in `src/i18n/dict/bn.js` and are read with `t("key")` (`getI18n()` on the server, `useI18n()` in client components; `LOCALE` is fixed to `"bn"` in `i18n/config.js`). Admin screens, server-action errors and emails have their Bangla written in the file itself. Numbers, dates and times are shown in Bangla digits: `taka()`, `time12()` (`lib/utils.js`), `shortDateLabel()` (`lib/time.js`), `longDateLabel()` (`booking/calendar.js`) and `BN` from `@/i18n/format` (`BN.digits`, `BN.taka`, `BN.time`, `BN.date`, `BN.dateLong`). Payment gateways get ASCII only: `takaAscii`, `time12Ascii`, `shortDateAscii` (SSLCommerz product name). Run `node scripts/check-i18n.mjs` after adding `t()` keys (`--unused` lists unused keys). Migration **0008_bangla_content** is data only: it deletes the old `/#visit` menu link and turns the sample/default English texts (grounds, menu, hero, banners, home sections, terms, settings, SEO) into Bangla when they still match exactly; text the admin wrote by hand is not touched (edit it in the admin panel). Don't add English UI text back; write new text in Bangla.
+  WhatsApp button: `components/site/WhatsAppButton.jsx` (number `contact.whatsapp`, else phone); the Contact menu link
+  was removed.
 
 | Issue | Fix / note |
 |---|---|

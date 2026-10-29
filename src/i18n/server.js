@@ -1,36 +1,32 @@
 // src/i18n/server.js
-// Language on the server: pages, layouts, server components and server actions.
-//   const { locale, t, f } = await getI18n();
+// Bangla texts on the server: pages, layouts, server components and server actions.
+//   const { t, f } = await getI18n();
 //   t("book.title")  f.taka(1800)  f.time("18:30")
 import "server-only";
-import { cookies } from "next/headers";
-import { LOCALE_COOKIE, normalizeLocale } from "./config";
+import { LOCALE } from "./config";
 import { makeFormat } from "./format";
 import { makeT } from "./translate";
-import en from "./dict/en";
 import bn from "./dict/bn";
 
-const DICTS = { en, bn };
+const f = makeFormat(LOCALE);
+const t = makeT(bn, null, f.digits);
 
-/** "en" | "bn" from the visitor's cookie. Never throws (outside a request it's the default). */
+/** Always "bn" (kept so callers don't need to change). */
 export async function getLocale() {
-    try {
-        const store = await cookies();
-        return normalizeLocale(store.get(LOCALE_COOKIE)?.value);
-    } catch {
-        return normalizeLocale();
-    }
+    return LOCALE;
 }
 
-/** Dictionary for a locale (the client provider gets only the one it needs). */
-export function getDictionary(locale) {
-    return DICTS[normalizeLocale(locale)];
+/** The dictionary sent to the browser (I18nProvider). */
+export function getDictionary() {
+    return bn;
 }
 
-/** { locale, t, f } for the current request. */
+/** { locale, t, f }. Async so existing `await getI18n()` calls keep working. */
 export async function getI18n() {
-    const locale = await getLocale();
-    const f = makeFormat(locale);
-    const t = makeT(DICTS[locale], locale === "en" ? null : en, f.digits);
-    return { locale, t, f };
+    return { locale: LOCALE, t, f };
+}
+
+/** Same as getI18n(), without await (for plain functions like emails and query helpers). */
+export function i18nSync() {
+    return { locale: LOCALE, t, f };
 }

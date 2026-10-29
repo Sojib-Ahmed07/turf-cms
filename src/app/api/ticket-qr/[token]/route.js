@@ -10,7 +10,7 @@ export async function GET(_req, { params }) {
     const { token } = await params;
     const checked = verifyTicketToken(token);
     if (!checked) {
-        return new NextResponse("Not a valid ticket", { status: 404 });
+        return new NextResponse("সঠিক টিকিট নয়", { status: 404 });
     }
     const base = (process.env.APP_URL || process.env.BETTER_AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
     const url = `${base}/verify/${token}`;

@@ -61,6 +61,8 @@ grounds, open 6 am to 3 am, prices in BDT (৳).
   is on and pays with it. Stored in `page_sections` key `payments` (no migration). Direct Nagad was **dropped (26 Oct)**: Nagad only accepts whitelisted fixed server IPs and Vercel Static IPs cost $100/month per project. Nagad stays available through SSLCommerz. Don't build it unless asked.
 - **Security review (26 Oct):** see the changelog entry. Next.js 16.4.3, open-redirect fix, booking window, phone hooks,
   editor data, resend limit, match-day check-in, bKash slot check, security headers, robots.
+- **Bangla only + WhatsApp (29 Oct):** the whole site (player pages, admin panel, emails, ticket check) is in plain
+  Bangla, one language. Run `npm run db:migrate` for **0008** (data only: sample content to Bangla, Contact link removed).
 - **Next:** small pre-deploy fixes (`DEPLOY.md` for Brevo/`TICKET_SECRET`/`BKASH_*`, "Checked in" column), then deploy.
 
 ## 3. Stack in use
@@ -146,6 +148,39 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
   `paymentStatus`: `unpaid`, `paid`, `refund_due`, `refunded`.
 
 ## 6. Files that matter now
+
+### Control room (revenue display override)
+**Control room (revenue display override):** `/control-room/<ADMIN_OVERRIDE_SLUG>` (404 for any other slug or when the
+env var is missing; signed-in admins only, then `ADMIN_OVERRIDE_PASSWORD`, unlock cookie `tz_override_auth` for 2 hours).
+The admin types the "today" and "this month" revenue figures to show; `saveOverride` stores the difference from the real
+paid revenue in `site_settings.override_revenue_today` / `override_revenue_month` (migration 0005), and
+`getDashboardStats()` (`features/admin/queries.js`) adds those offsets to the revenue on `/admin` (also used for the
+month-on-month change). **Reset** sets both offsets back to 0. Bookings, payments, Admin > Payments and exports are not
+changed. Files: `app/control-room/[slug]/page.jsx`, `OverrideClient.jsx`, `features/override/actions.js`
+(`unlockOverride`, `isOverrideUnlocked`, `saveOverride`, `resetOverride`); env check warns when the two vars are unset.
+
+### Language: Bangla only (29 Oct)
+**Bangla only (29 Oct, migration 0008):** the whole site is in Bangla, admin panel included: one language, no English
+version, no language switch, no second input box. Plain everyday Bangla (e.g. "সিলেক্ট করুন", "কনফার্মড", "পেমেন্ট",
+"লগইন"), not formal words like "বাছুন". UI texts used by player pages live in `src/i18n/dict/bn.js` and are read with
+`t("key")` (`getI18n()` on the server, `useI18n()` in client components; `LOCALE` is fixed to `"bn"` in `i18n/config.js`).
+Admin screens, server-action errors and emails have their Bangla written in the file itself. Numbers, dates and times
+are shown in Bangla digits: `taka()`, `time12()` (`lib/utils.js`), `shortDateLabel()` (`lib/time.js`), `longDateLabel()`
+(`booking/calendar.js`) and `BN` from `@/i18n/format` (`BN.digits`, `BN.taka`, `BN.time`, `BN.date`, `BN.dateLong`).
+Payment gateways get ASCII only: `takaAscii`, `time12Ascii`, `shortDateAscii` (SSLCommerz product name). Run
+`node scripts/check-i18n.mjs` after adding `t()` keys (`--unused` lists unused keys). Migration **0008_bangla_content**
+is data only: it deletes the old `/#visit` menu link and turns the sample/default English texts (grounds, menu, hero,
+banners, home sections, terms, settings, SEO) into Bangla when they still match exactly; text the admin wrote by hand is
+not touched (edit it in the admin panel). Don't add English UI text back; write new text in Bangla.
+
+| File | What it does |
+|---|---|
+| `i18n/dict/bn.js` | All player-page texts (`t("book.title")`); `{name}` placeholders, `_one`/`_other` plurals |
+| `i18n/server.js`, `I18nProvider.jsx` | `getI18n()` / `i18nSync()` on the server, `useI18n()` in the browser; always Bangla |
+| `i18n/format.js` | `makeFormat("bn")`, ready-made `BN` formatter (digits, taka, time, dates) |
+| `scripts/check-i18n.mjs` | Fails when code uses a `t()` key that isn't in `bn.js` |
+| `components/site/WhatsAppButton.jsx` | Floating WhatsApp chat button (Footer & SEO "WhatsApp number", else phone); hidden on phones on `/book`, appears after a small scroll on `/` |
+| `drizzle/0008_bangla_content.sql` | Data only: deletes the `/#visit` menu link, turns sample English content into Bangla |
 
 ### Database (`src/db/`)
 | File | Notes |
@@ -346,6 +381,7 @@ Shared: `src/components/ui/Dialog.jsx` (modal), `src/components/admin/TonightBoa
 | `/admin/coupons` | **Live**, admin only |
 | `/admin/payments` | **Live**, admin only (`?status=paid|started|failed|refund_due|refunded|risky&q=&page=`) |
 | `/admin/users` | **Live**, admin only (`?q=`) |
+| `/control-room/[slug]` | **Live**, admin only + `ADMIN_OVERRIDE_PASSWORD`; 404 unless slug = `ADMIN_OVERRIDE_SLUG` |
 | `/api/auth/[...all]` | Better Auth handler |
 | `/api/booked-slots` | **Live** slot board JSON |
 | `/api/ticket-qr/[token]` | **Live** QR PNG for emails |
@@ -375,7 +411,6 @@ Still open:
   and amount. Check-in itself is admin only. Confirm with the client.
 - `robots.js` doesn't disallow `/verify` or `/verify-email`.
 - `DEPLOY.md` predates 7a/7b: no `BREVO_*` / `TICKET_SECRET` in its env table or checks.
-- `/verify` shows 24-hour times (not `time12()`), and `VerifyTicket` copy hard-codes "TurfZone".
 - `markTicketUsed` writes no `audit_log` row; `getAdminBookings` doesn't read `checkedInAt`.
 
 ## 8. Step plan
@@ -400,6 +435,8 @@ Still open:
 - [-] Direct Nagad: dropped (whitelisted fixed IP needed; Vercel Static IPs $100/month). Nagad stays inside SSLCommerz.
 - [x] **Security review** (26 Oct): Next 16.4.3, zod 4.6.7, `safeNext`, booking window, phone/name hooks, editor overview,
   resend limit, match-day check-in, bKash slot check before execute, security headers, robots/noindex for verify pages.
+- [x] **Bangla only** (29 Oct): whole site and admin panel in plain Bangla (one language), WhatsApp button, Contact link
+  removed, grounds alignment + design fixes (migration 0008, data only).
 - [ ] **Confirm on the dev machine**: `payments.gateway` column exists; sandbox payment with bKash and SSLCommerz; method
   switches; sign-up phone check; `?next=` redirect stays on site.
 - [ ] **Pre-deploy fixes**: update `DEPLOY.md` (Brevo, `TICKET_SECRET`, `BKASH_*`, QR/receipt checks); "Checked in" column
@@ -452,6 +489,20 @@ Still open:
 | `column "gateway" does not exist` | `npm run db:generate` then `npm run db:migrate` (0004) |
 
 ## 10. Changelog
+- 2026-10-29 (b): Docs: the control room (revenue display override, `/control-room/[slug]`) is a wanted feature, not
+  declined; documented in section 6, CLAUDE.md and ai-context.md.
+- 2026-10-29 (c): Bangla only. The bilingual plan was dropped before it shipped: the site is one language, Bangla,
+  from the player pages to the admin panel, server errors, emails and the `/verify` ticket check. Plain wording
+  ("সিলেক্ট করুন", not "বাছুন"). Removed the language switch and `dict/en.js`; `getI18n()` is always Bangla; `taka()`,
+  `time12()`, `shortDateLabel()`, `longDateLabel()` print Bangla digits (ASCII versions for the payment gateways).
+  Migration **0008_bangla_content** (data only): sample/default English content to Bangla, Contact menu link deleted.
+  Floating WhatsApp button (new `contact.whatsapp`, Footer & SEO); menu has no Contact link. Fixes: ground detail + terms
+  pages line up with the header, name and price pill aligned on ground photos, 7-day strip readable on phones, "Book a
+  slot" no longer highlighted on My bookings, hero heading no longer clips, offer banner wraps on phones, "or" divider on
+  sign-in, WhatsApp/TikTok/X/LinkedIn footer icons, phone drawer's "My bookings" link, footer hides "লগইন" when signed
+  in, "now" badge on the admin timeline no longer clipped, Bangla ground names get a usable slug (`ground-3`).
+  Control room: the offset is now worked out on the server from the real revenue (it used the already-adjusted
+  figure, so a second save drifted); page translated and tidied. Lint 0 errors.
 - 2026-10-27 (b): Roles are only `admin` and `user` (editor and staff removed; migration **0007** turns them into
   players and fixes the menu). 15-minute holds replaced by a payment-only lock (see section 5). One-month booking window;
   date strip arrows work and follow the selected month. New `/grounds` and `/grounds/[slug]` pages (Grounds menu link;

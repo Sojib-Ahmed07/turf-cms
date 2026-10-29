@@ -3,7 +3,7 @@ import HeroEditor from "@/features/cms/admin/HeroEditor";
 import { getHeroAdmin } from "@/features/cms/admin-queries";
 import { requireRole } from "@/lib/guards";
 
-export const metadata = { title: "Hero slides" };
+export const metadata = { title: "হিরো স্লাইড" };
 
 export default async function HeroAdminPage() {
     await requireRole(["admin"]);

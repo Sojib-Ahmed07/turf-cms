@@ -13,11 +13,12 @@ import { payForBooking } from "@/features/payment/actions";
 import PayDialog from "@/features/payment/components/PayDialog";
 import MethodOffDialog from "@/features/payment/components/MethodOffDialog";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
 
 const TABS = [
-    { key: "upcoming", label: "Upcoming", match: (b) => b.status === "confirmed" || b.status === "held" },
-    { key: "past", label: "Played", match: (b) => b.status === "completed" },
-    { key: "cancelled", label: "Cancelled", match: (b) => b.status === "cancelled" || b.status === "expired" },
+    { key: "upcoming", label: "myBookings.tabUpcoming", match: (b) => b.status === "confirmed" || b.status === "held" },
+    { key: "past", label: "myBookings.tabPlayed", match: (b) => b.status === "completed" },
+    { key: "cancelled", label: "myBookings.tabCancelled", match: (b) => b.status === "cancelled" || b.status === "expired" },
 ];
 
 export default function MyBookingsClient({
@@ -30,6 +31,7 @@ export default function MyBookingsClient({
     venue = {},
 }) {
     const router = useRouter();
+    const { t, f } = useI18n();
     const paymentsLive = payMethods.length > 0;
     const enabledMethods = payMethods.filter((m) => m.enabled);
     const [tab, setTab] = useState("upcoming");
@@ -41,13 +43,13 @@ export default function MyBookingsClient({
     }, []);
     const [offInfo, setOffInfo] = useState(null); // { off, alternatives, bookingId }: "this method is off" dialog
     const [busy, setBusy] = useState(null);
-    const [error, setError] = useState(payFailed ? "We couldn't open the payment page. Try again from Book a slot." : "");
+    const [error, setError] = useState(payFailed ? t("myBookings.payFailed") : "");
     const [flash, setFlash] = useState("");
     const [, startTransition] = useTransition();
     const [ticket, setTicket] = useState(null);
     const closeTicket = useCallback(() => setTicket(null), []);
 
-    const current = TABS.find((t) => t.key === tab);
+    const current = TABS.find((x) => x.key === tab);
     const list = bookings.filter(current.match);
     const justHeld = highlightCode ? bookings.find((b) => b.id === highlightCode && b.status === "held") : null;
 
@@ -119,7 +121,7 @@ export default function MyBookingsClient({
                 setError(res.error);
                 return;
             }
-            setFlash(`Receipt sent to your email.`);
+            setFlash(t("myBookings.receiptSent"));
         });
     }
 
@@ -127,12 +129,12 @@ export default function MyBookingsClient({
         <div className="mx-auto max-w-5xl px-4 pb-24 pt-8 sm:px-6 sm:pt-12">
             <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    {userName && <p className="text-[15px] text-ink-3">Hi {userName},</p>}
-                    <h1 className="display mt-1 text-[clamp(40px,6vw,72px)] text-ink">My bookings</h1>
+                    {userName && <p className="text-[15px] text-ink-3">{t("myBookings.hi", { name: userName })}</p>}
+                    <h1 className="display mt-1 text-[clamp(40px,6vw,72px)] text-ink">{t("myBookings.title")}</h1>
                 </div>
                 <Button href="/book" size="lg">
                     <CalendarPlus className="h-4 w-4" />
-                    New booking
+                    {t("myBookings.newBooking")}
                 </Button>
             </header>
 
@@ -140,12 +142,10 @@ export default function MyBookingsClient({
                 <div className="mt-8 flex items-start gap-3 rounded-card bg-flare-soft p-5 ring-1 ring-flare/50">
                     <Hourglass className="mt-0.5 h-5 w-5 shrink-0 text-flare-deep" />
                     <div>
-                        <p className="text-[15px] font-semibold text-ink">
-                            Your payment for {justHeld.pitch} is still open
-                        </p>
+                        <p className="text-[15px] font-semibold text-ink">{t("myBookings.openTitle", { pitch: justHeld.pitch })}</p>
                         <p className="mt-1 text-[13px] text-ink-2">
-                            Finish it on the payment page, or press Release slot so other players can book it.
-                            {paymentsLive && enabledMethods.length === 0 && " Online payment is paused right now, so call the desk."}
+                            {t("myBookings.openBody")}
+                            {paymentsLive && enabledMethods.length === 0 && t("myBookings.openPaused")}
                         </p>
                     </div>
                 </div>
@@ -155,23 +155,23 @@ export default function MyBookingsClient({
             {error && <p className="mt-6 rounded-ctl bg-danger-soft px-4 py-3 text-[14px] font-medium text-danger">{error}</p>}
 
             <div role="tablist" className="mt-10 flex gap-1 border-b border-line">
-                {TABS.map((t) => {
-                    const count = bookings.filter(t.match).length;
-                    const active = t.key === tab;
+                {TABS.map((tb) => {
+                    const count = bookings.filter(tb.match).length;
+                    const active = tb.key === tab;
                     return (
                         <button
-                            key={t.key}
+                            key={tb.key}
                             role="tab"
                             aria-selected={active}
-                            onClick={() => setTab(t.key)}
+                            onClick={() => setTab(tb.key)}
                             className={cn(
                                 "relative -mb-px flex items-center gap-2 px-4 pb-3 pt-2 text-[15px] font-semibold transition-colors",
                                 active ? "text-ink" : "text-ink-3 hover:text-ink"
                             )}
                         >
-                            {t.label}
+                            {t(tb.label)}
                             <span className={cn("rounded-full px-2 py-0.5 text-[12px] tnum", active ? "bg-ink text-white" : "bg-ink/5 text-ink-3")}>
-                                {count}
+                                {f.digits(count)}
                             </span>
                             {active && <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-brand" />}
                         </button>
@@ -195,13 +195,13 @@ export default function MyBookingsClient({
                     ))
                 ) : (
                     <div className="rounded-card border-2 border-dashed border-line px-6 py-16 text-center">
-                        <p className="display text-[28px] text-ink">Nothing here yet</p>
+                        <p className="display text-[28px] text-ink">{t("myBookings.emptyTitle")}</p>
                         <p className="mx-auto mt-2 max-w-sm text-[15px] text-ink-3">
-                            {tab === "upcoming" ? "Book a slot and your ticket will show up here." : "Bookings move here after match day."}
+                            {tab === "upcoming" ? t("myBookings.emptyUpcoming") : t("myBookings.emptyPast")}
                         </p>
                         {tab === "upcoming" && (
                             <Button href="/book" className="mt-6">
-                                Book a slot
+                                {t("common.bookSlot")}
                             </Button>
                         )}
                     </div>

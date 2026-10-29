@@ -15,7 +15,7 @@ const fromMin = (m) => {
  */
 export default function TonightBoard({ rows = [], from, to, now }) {
     if (!rows.length || from == null || to == null) {
-        return <p className="py-8 text-center text-[14px] text-ink-3">No open grounds with slots today.</p>;
+        return <p className="py-8 text-center text-[14px] text-ink-3">আজ কোনো মাঠে স্লট নেই।</p>;
     }
 
     const start = from;
@@ -44,12 +44,12 @@ export default function TonightBoard({ rows = [], from, to, now }) {
                     ))}
                 </div>
 
-                <div className="relative mb-6">
+                <div className="relative mb-1 pb-8">
                     {showNow && (
-                        <div className="pointer-events-none absolute inset-y-0 left-[120px] right-0 z-10">
+                        <div className="pointer-events-none absolute top-0 bottom-8 left-[120px] right-0 z-10">
                             <div className="absolute inset-y-[-6px] w-0 border-l-2 border-brand" style={{ left: pos(nowMin) }}>
                                 <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-white tnum">
-                                    Now
+                                    এখন
                                 </span>
                             </div>
                         </div>
@@ -62,7 +62,7 @@ export default function TonightBoard({ rows = [], from, to, now }) {
                                 {row.blocks.map((b) => (
                                     <div
                                         key={b.start}
-                                        title={`${time12(b.start)} to ${time12(b.end)}${b.who ? `, ${b.who}` : ""}`}
+                                        title={`${time12(b.start)} থেকে ${time12(b.end)}${b.who ? `, ${b.who}` : ""}`}
                                         className={cn(
                                             "absolute inset-y-0 flex flex-col justify-center overflow-hidden rounded-[12px] px-3",
                                             b.status === "confirmed" && "bg-pitch text-white",
@@ -73,7 +73,7 @@ export default function TonightBoard({ rows = [], from, to, now }) {
                                         style={{ left: `calc(${pos(b.at)} + 2px)`, width: `calc(${pos(b.until)} - ${pos(b.at)} - 4px)` }}
                                     >
                                         <span className="truncate text-[13px] font-semibold">
-                                            {b.status === "free" ? "Free" : b.status === "past" ? "Passed" : b.who}
+                                            {b.status === "free" ? "খালি" : b.status === "past" ? "সময় শেষ" : b.who}
                                         </span>
                                         <span
                                             className={cn(
@@ -81,7 +81,7 @@ export default function TonightBoard({ rows = [], from, to, now }) {
                                                 b.status === "confirmed" ? "text-white/55" : b.status === "held" ? "text-ink/60" : "text-ink-4"
                                             )}
                                         >
-                                            {b.status === "held" ? "Waiting for payment" : time12(b.start)}
+                                            {b.status === "held" ? "পেমেন্টের অপেক্ষা" : time12(b.start)}
                                         </span>
                                     </div>
                                 ))}

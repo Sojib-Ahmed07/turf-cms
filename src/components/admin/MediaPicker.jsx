@@ -10,13 +10,13 @@ import { listMediaForPicker } from "@/features/cms/actions/media";
 import { canOptimize, cn } from "@/lib/utils";
 
 const FOLDERS = [
-    { key: "all", label: "All" },
-    { key: "hero", label: "Hero" },
-    { key: "banners", label: "Banners" },
-    { key: "branding", label: "Branding" },
-    { key: "pitches", label: "Grounds" },
-    { key: "seo", label: "Sharing" },
-    { key: "misc", label: "Other" },
+    { key: "all", label: "সব" },
+    { key: "hero", label: "হিরো" },
+    { key: "banners", label: "ব্যানার" },
+    { key: "branding", label: "লোগো" },
+    { key: "pitches", label: "মাঠ" },
+    { key: "seo", label: "শেয়ার" },
+    { key: "misc", label: "অন্যান্য" },
 ];
 
 /** Pick an already-uploaded image. onSelect({ url, publicId, name }). */
@@ -58,12 +58,12 @@ export default function MediaPicker({ open, onClose, onSelect, folder = "all" })
             open={open}
             onClose={onClose}
             size="lg"
-            title="Choose from media library"
-            description="Images you uploaded before. Upload new ones from the box or the Media page."
+            title="লাইব্রেরি থেকে ছবি সিলেক্ট করুন"
+            description="আগে আপলোড করা ছবি। নতুন ছবি আপলোড করুন বক্স থেকে বা “ছবির লাইব্রেরি” পেজ থেকে।"
             footer={
                 <>
                     <Button variant="ghost" onClick={onClose}>
-                        Cancel
+                        বাদ দিন
                     </Button>
                     <Button
                         disabled={!picked}
@@ -72,7 +72,7 @@ export default function MediaPicker({ open, onClose, onSelect, folder = "all" })
                             onClose();
                         }}
                     >
-                        Use this image
+                        এই ছবিটি নিন
                     </Button>
                 </>
             }
@@ -97,10 +97,10 @@ export default function MediaPicker({ open, onClose, onSelect, folder = "all" })
                 <p className="rounded-ctl bg-danger-soft px-4 py-3 text-[14px] font-medium text-danger">{error}</p>
             ) : items === null ? (
                 <p className="flex items-center justify-center gap-2 py-16 text-[14px] text-ink-3">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Loading images
+                    <Loader2 className="h-4 w-4 animate-spin" /> ছবি লোড হচ্ছে
                 </p>
             ) : list.length === 0 ? (
-                <p className="py-16 text-center text-[14px] text-ink-3">No images here yet.</p>
+                <p className="py-16 text-center text-[14px] text-ink-3">এখানে এখনো কোনো ছবি নেই।</p>
             ) : (
                 <div className="grid max-h-[52vh] grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-4">
                     {list.map((m) => (

@@ -17,7 +17,7 @@ const EN = {
     months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
 };
 
-const BN = {
+const BN_TEXT = {
     daysShort: ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহস্পতি", "শুক্র", "শনি"],
     days: ["রবিবার", "সোমবার", "মঙ্গলবার", "বুধবার", "বৃহস্পতিবার", "শুক্রবার", "শনিবার"],
     monthsShort: ["জানু", "ফেব্রু", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টে", "অক্টো", "নভে", "ডিসে"],
@@ -54,7 +54,7 @@ function parseISO(iso) {
  */
 export function makeFormat(locale = "en") {
     const bn = locale === "bn";
-    const L = bn ? BN : EN;
+    const L = bn ? BN_TEXT : EN;
     const digits = (v) => (bn ? toBnDigits(v) : String(v ?? ""));
     const num = (n) => digits((Number(n) || 0).toLocaleString("en-IN"));
 
@@ -107,3 +107,5 @@ export function makeFormat(locale = "en") {
         monthShort: (m) => L.monthsShort[m - 1] ?? "",
     };
 }
+/** Ready-made Bangla formatter (the site is Bangla only): BN.taka(1800), BN.time("18:30"), BN.digits(12). */
+export const BN = makeFormat("bn");

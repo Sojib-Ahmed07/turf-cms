@@ -1,47 +1,30 @@
 // src/i18n/I18nProvider.jsx
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, normalizeLocale } from "./config";
+import { createContext, useContext, useMemo } from "react";
+import { LOCALE } from "./config";
 import { makeFormat } from "./format";
 import { makeT } from "./translate";
 
 const I18nContext = createContext(null);
 
-/**
- * Wraps the whole app (root layout). The server picks the locale from the cookie and passes
- * that one dictionary, so the first paint is already in the right language (no flash, no mismatch).
- */
-export function I18nProvider({ locale, dict, fallback = null, children }) {
-    const router = useRouter();
-    const [switching, startTransition] = useTransition();
-
-    const setLocale = useCallback(
-        (next) => {
-            const value = normalizeLocale(next);
-            document.cookie = `${LOCALE_COOKIE}=${value}; path=/; max-age=${LOCALE_COOKIE_MAX_AGE}; samesite=lax`;
-            // Server components read the cookie again; client components get the new dictionary from the provider.
-            startTransition(() => router.refresh());
-        },
-        [router]
-    );
-
+/** Wraps the whole app (root layout) and hands the Bangla dictionary to client components. */
+export function I18nProvider({ dict, children }) {
     const value = useMemo(() => {
-        const f = makeFormat(locale);
-        return { locale, t: makeT(dict, fallback, f.digits), f, setLocale, switching };
-    }, [locale, dict, fallback, setLocale, switching]);
+        const f = makeFormat(LOCALE);
+        return { locale: LOCALE, t: makeT(dict, null, f.digits), f };
+    }, [dict]);
 
     return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
-/** { locale, t, f, setLocale, switching } in client components. */
+/** { locale, t, f } in client components. */
 export function useI18n() {
     const ctx = useContext(I18nContext);
     if (!ctx) {
-        // Outside the provider (should not happen): plain English so nothing crashes.
-        const f = makeFormat("en");
-        return { locale: "en", t: (k) => k, f, setLocale: () => { }, switching: false };
+        // Outside the provider (should not happen): keys stay visible instead of crashing.
+        const f = makeFormat(LOCALE);
+        return { locale: LOCALE, t: (k) => k, f };
     }
     return ctx;
 }

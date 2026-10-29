@@ -5,7 +5,7 @@ import { getAdminBookings, getAllPitchesAdmin } from "@/features/admin/queries";
 import { currentVenueDay } from "@/features/booking/queries";
 import { requireRole } from "@/lib/guards";
 
-export const metadata = { title: "Bookings" };
+export const metadata = { title: "বুকিং" };
 export const dynamic = "force-dynamic";
 
 const RANGES = ["today", "upcoming", "week", "all"];

@@ -4,8 +4,12 @@ import { getMyBookings } from "@/features/booking/queries";
 import { getSiteSettings } from "@/features/cms/queries";
 import { requireUser } from "@/lib/guards";
 import { getPayMethods } from "@/features/payment/methods";
+import { getI18n } from "@/i18n/server";
 
-export const metadata = { title: "My bookings" };
+export async function generateMetadata() {
+    const { t } = await getI18n();
+    return { title: t("common.myBookings") };
+}
 export const dynamic = "force-dynamic";
 
 export default async function MyBookingsPage({ searchParams }) {

@@ -12,6 +12,8 @@ import { db } from "@/db";
 import { bookings, timeBlocks } from "@/db/schema";
 import { activeBookingWhere, currentVenueDay, getSheetDayStarts } from "@/features/booking/queries";
 import { addDaysISO, dayStartOf, isBlockEnded, shortDateLabel, slotInterval } from "@/lib/time";
+import { BN } from "@/i18n/format";
+import { time12 } from "@/lib/utils";
 
 const sameSpan = (a, b) => a[0] === b[0] && a[1] === b[1];
 
@@ -82,15 +84,15 @@ export async function conflictsForDefault(pitchId, blocks) {
 /** Admin-facing refusal listing the bookings in the way. */
 export function conflictError(conflicts) {
     const shown = conflicts.slice(0, 4).map(
-        (c) => `${shortDateLabel(c.date)} ${c.startTime}–${c.endTime} (${c.code}${c.customerName ? `, ${c.customerName}` : ""})`
+        (c) => `${shortDateLabel(c.date)} ${time12(c.startTime)} থেকে ${time12(c.endTime)} (${c.code}${c.customerName ? `, ${c.customerName}` : ""})`
     );
-    const more = conflicts.length > 4 ? ` and ${conflicts.length - 4} more` : "";
+    const more = conflicts.length > 4 ? ` এবং আরও ${BN.digits(conflicts.length - 4)}টি` : "";
     const n = conflicts.length;
     return {
         ok: false,
         conflicts,
         error:
-            `This change would move or remove ${n === 1 ? "a booked slot" : `${n} booked slots`}: ${shown.join("; ")}${more}. ` +
-            "Keep those exact times in the new schedule, or cancel or move the bookings first (Admin, Bookings).",
+            `এই পরিবর্তনে ${BN.digits(n)}টি বুক হওয়া স্লট সরে যাবে বা মুছে যাবে: ${shown.join("; ")}${more}। ` +
+            "নতুন স্লটে ঠিক ওই সময়গুলো রাখুন, অথবা আগে “বুকিং” পেজ থেকে ওই বুকিংগুলো ক্যানসেল করুন বা সরান।",
     };
 }

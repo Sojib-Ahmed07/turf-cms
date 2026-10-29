@@ -27,7 +27,7 @@ async function requireAdmin() {
     return u;
 }
 
-const DENIED = { ok: false, error: "Only admins can change grounds and slots." };
+const DENIED = { ok: false, error: "শুধু অ্যাডমিন মাঠ ও স্লট বদলাতে পারেন।" };
 
 function revalidateAll(pitchId) {
     revalidatePath("/admin");
@@ -56,14 +56,16 @@ function fail(err, fallback) {
 }
 
 function slugify(s) {
-    return (
-        String(s)
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, "")
-            .slice(0, 60) || "ground"
-    );
+    // Bangla names have no Latin letters: keep their digits ("মাঠ ৩" -> "ground-3"), else fall back to "ground".
+    const ascii = String(s).replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)));
+    const slug = ascii
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60);
+    if (!slug) return "ground";
+    return /[a-z]/.test(slug) ? slug : `ground-${slug}`.slice(0, 60);
 }
 
 const blockSchema = z.object({
@@ -75,7 +77,7 @@ const blockSchema = z.object({
 /** Normalize blocks from the client and run the prototype's validation. */
 function normalizeBlocks(blocks) {
     const parsed = z.array(blockSchema).max(48).safeParse(blocks ?? []);
-    if (!parsed.success) return { ok: false, error: "Some blocks have an invalid time or price." };
+    if (!parsed.success) return { ok: false, error: "কিছু স্লটের সময় বা দাম ঠিক নেই।" };
     const normalized = parsed.data.map((b, i) => ({
         startTime: b.startTime,
         endTime: b.endTime,
@@ -96,23 +98,23 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 const pitchSchema = z.object({
     id: z.string().uuid().optional().nullable(),
-    name: z.string().trim().min(2, "Give the ground a name.").max(40),
+    name: z.string().trim().min(2, "মাঠের একটি নাম দিন।").max(40),
     description: z.string().trim().max(240).optional().default(""),
     sport: z.enum(SPORTS),
     format: z.string().trim().max(30).optional().default(""),
     size: z.string().trim().max(30).optional().default(""),
     surface: z.string().trim().max(40).optional().default(""),
-    hourlyRate: z.coerce.number().min(1, "Set a price per hour.").max(1_000_000),
+    hourlyRate: z.coerce.number().min(1, "ঘণ্টাপ্রতি দাম লিখুন।").max(1_000_000),
     openHour: z.coerce.number().int().min(0).max(23),
     closeHour: z.coerce.number().int().min(0).max(23),
-    defaultSlotMinutes: z.coerce.number().int().min(15, "Slots must be at least 15 minutes.").max(240, "Slots can be at most 4 hours."),
+    defaultSlotMinutes: z.coerce.number().int().min(15, "একটি স্লট কমপক্ষে ১৫ মিনিটের হতে হবে।").max(240, "একটি স্লট সর্বোচ্চ ৪ ঘণ্টার হতে পারে।"),
     imageUrl: z
         .string()
         .trim()
         .max(500)
         .optional()
         .default("")
-        .refine((v) => v === "" || /^https:\/\//.test(v), "Image link must start with https://"),
+        .refine((v) => v === "" || /^https:\/\//.test(v), "ছবির লিংক https:// দিয়ে শুরু হতে হবে"),
     imagePublicId: z.string().trim().max(300).optional().default(""),
     isActive: z.boolean().optional().default(true),
 });
@@ -143,10 +145,10 @@ export async function upsertPitch(input) {
         if (!(await requireAdmin())) return DENIED;
         const parsed = pitchSchema.safeParse(input);
         if (!parsed.success) {
-            return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form.", fieldErrors: parsed.error.flatten().fieldErrors };
+            return { ok: false, error: parsed.error.issues[0]?.message ?? "ফর্মটি দেখে নিন।", fieldErrors: parsed.error.flatten().fieldErrors };
         }
         const v = parsed.data;
-        if (v.openHour === v.closeHour) return { ok: false, error: "Opening and closing hour can't be the same." };
+        if (v.openHour === v.closeHour) return { ok: false, error: "খোলা ও বন্ধের সময় এক হতে পারে না।" };
 
         const values = {
             name: v.name,
@@ -170,13 +172,13 @@ export async function upsertPitch(input) {
                 .from(pitches)
                 .where(eq(pitches.id, v.id))
                 .limit(1);
-            if (!old) return { ok: false, error: "Ground not found." };
+            if (!old) return { ok: false, error: "মাঠটি পাওয়া যায়নি।" };
 
             const rebuilt =
                 old.openHour !== v.openHour || old.closeHour !== v.closeHour || old.defaultSlotMinutes !== v.defaultSlotMinutes;
             if (rebuilt) {
                 const blocks = buildSchedule(v, old.defaultBlocks);
-                if (!blocks.length) return { ok: false, error: "Those hours are shorter than one slot. Open longer or pick shorter slots." };
+                if (!blocks.length) return { ok: false, error: "এই সময় একটি স্লটের চেয়েও কম। বেশি সময় খোলা রাখুন বা ছোট স্লট সিলেক্ট করুন।" };
                 values.defaultBlocks = blocks;
             }
 
@@ -191,7 +193,7 @@ export async function upsertPitch(input) {
         }
 
         const template = buildSchedule(v);
-        if (!template.length) return { ok: false, error: "Those hours are shorter than one slot. Open longer or pick shorter slots." };
+        if (!template.length) return { ok: false, error: "এই সময় একটি স্লটের চেয়েও কম। বেশি সময় খোলা রাখুন বা ছোট স্লট সিলেক্ট করুন।" };
 
         // Unique slug: "pitch-c", "pitch-c-2", ...
         const base = slugify(v.name);
@@ -211,7 +213,7 @@ export async function upsertPitch(input) {
         revalidateAll(row.id);
         return { ok: true, data: { pitchId: row.id } };
     } catch (err) {
-        return fail(err, "Couldn't save the ground. Try again.");
+        return fail(err, "মাঠ সেভ হয়নি। আবার চেষ্টা করুন।");
     }
 }
 
@@ -219,16 +221,16 @@ export async function upsertPitch(input) {
 export async function togglePitchActive(pitchId) {
     try {
         if (!(await requireAdmin())) return DENIED;
-        if (!uuid.safeParse(pitchId).success) return { ok: false, error: "Ground not found." };
+        if (!uuid.safeParse(pitchId).success) return { ok: false, error: "মাঠটি পাওয়া যায়নি।" };
 
         const [row] = await db.select({ isActive: pitches.isActive }).from(pitches).where(eq(pitches.id, pitchId)).limit(1);
-        if (!row) return { ok: false, error: "Ground not found." };
+        if (!row) return { ok: false, error: "মাঠটি পাওয়া যায়নি।" };
 
         await db.update(pitches).set({ isActive: !row.isActive }).where(eq(pitches.id, pitchId));
         revalidateAll(pitchId);
         return { ok: true, data: { isActive: !row.isActive } };
     } catch (err) {
-        return fail(err, "Couldn't change the ground. Try again.");
+        return fail(err, "মাঠ বদলানো যায়নি। আবার চেষ্টা করুন।");
     }
 }
 
@@ -240,7 +242,7 @@ export async function togglePitchActive(pitchId) {
 export async function replaceDefaultBlocks(pitchId, blocks) {
     try {
         if (!(await requireAdmin())) return DENIED;
-        if (!uuid.safeParse(pitchId).success) return { ok: false, error: "Ground not found." };
+        if (!uuid.safeParse(pitchId).success) return { ok: false, error: "মাঠটি পাওয়া যায়নি।" };
 
         const n = normalizeBlocks(blocks);
         if (!n.ok) return n;
@@ -256,7 +258,7 @@ export async function replaceDefaultBlocks(pitchId, blocks) {
         revalidateAll(pitchId);
         return { ok: true };
     } catch (err) {
-        return fail(err, "Couldn't save the default schedule. Try again.");
+        return fail(err, "প্রতিদিনের স্লট সেভ হয়নি। আবার চেষ্টা করুন।");
     }
 }
 
@@ -281,7 +283,7 @@ async function writeDateBlocks(pitchId, date, blocks) {
 export async function replaceDateBlocks(pitchId, date, blocks) {
     try {
         if (!(await requireAdmin())) return DENIED;
-        if (!uuid.safeParse(pitchId).success || !isoDate.safeParse(date).success) return { ok: false, error: "Ground or date not found." };
+        if (!uuid.safeParse(pitchId).success || !isoDate.safeParse(date).success) return { ok: false, error: "মাঠ বা তারিখ পাওয়া যায়নি।" };
 
         const n = normalizeBlocks(blocks);
         if (!n.ok) return n;
@@ -296,7 +298,7 @@ export async function replaceDateBlocks(pitchId, date, blocks) {
         revalidateAll(pitchId);
         return { ok: true };
     } catch (err) {
-        return fail(err, "Couldn't save this day. Try again.");
+        return fail(err, "এই দিনের স্লট সেভ হয়নি। আবার চেষ্টা করুন।");
     }
 }
 
@@ -304,10 +306,10 @@ export async function replaceDateBlocks(pitchId, date, blocks) {
 export async function resetDateToDefault(pitchId, date) {
     try {
         if (!(await requireAdmin())) return DENIED;
-        if (!uuid.safeParse(pitchId).success || !isoDate.safeParse(date).success) return { ok: false, error: "Ground or date not found." };
+        if (!uuid.safeParse(pitchId).success || !isoDate.safeParse(date).success) return { ok: false, error: "মাঠ বা তারিখ পাওয়া যায়নি।" };
 
         const [pitch] = await db.select({ defaultBlocks: pitches.defaultBlocks }).from(pitches).where(eq(pitches.id, pitchId)).limit(1);
-        if (!pitch) return { ok: false, error: "Ground not found." };
+        if (!pitch) return { ok: false, error: "মাঠটি পাওয়া যায়নি।" };
         const refused = await guardedWrite(
             pitchId,
             () => conflictsForDate(pitchId, date, pitch.defaultBlocks),
@@ -317,7 +319,7 @@ export async function resetDateToDefault(pitchId, date) {
         revalidateAll(pitchId);
         return { ok: true };
     } catch (err) {
-        return fail(err, "Couldn't reset this day. Try again.");
+        return fail(err, "এই দিন আগের মতো করা যায়নি। আবার চেষ্টা করুন।");
     }
 }
 
@@ -325,10 +327,10 @@ export async function resetDateToDefault(pitchId, date) {
 export async function regenerateDefaultBlocks(pitchId) {
     try {
         if (!(await requireAdmin())) return DENIED;
-        if (!uuid.safeParse(pitchId).success) return { ok: false, error: "Ground not found." };
+        if (!uuid.safeParse(pitchId).success) return { ok: false, error: "মাঠটি পাওয়া যায়নি।" };
 
         const [pitch] = await db.select().from(pitches).where(eq(pitches.id, pitchId)).limit(1);
-        if (!pitch) return { ok: false, error: "Ground not found." };
+        if (!pitch) return { ok: false, error: "মাঠটি পাওয়া যায়নি।" };
 
         const template = generateDefaultBlocks({
             openHour: pitch.openHour,
@@ -346,7 +348,7 @@ export async function regenerateDefaultBlocks(pitchId) {
         revalidateAll(pitchId);
         return { ok: true };
     } catch (err) {
-        return fail(err, "Couldn't rebuild the schedule. Try again.");
+        return fail(err, "স্লট আবার তৈরি করা যায়নি। আবার চেষ্টা করুন।");
     }
 }
 
@@ -354,10 +356,10 @@ export async function regenerateDefaultBlocks(pitchId) {
 export async function seedDateFromDefault(pitchId, date) {
     try {
         if (!(await requireAdmin())) return DENIED;
-        if (!uuid.safeParse(pitchId).success || !isoDate.safeParse(date).success) return { ok: false, error: "Ground or date not found." };
+        if (!uuid.safeParse(pitchId).success || !isoDate.safeParse(date).success) return { ok: false, error: "মাঠ বা তারিখ পাওয়া যায়নি।" };
 
         const [pitch] = await db.select().from(pitches).where(eq(pitches.id, pitchId)).limit(1);
-        if (!pitch) return { ok: false, error: "Ground not found." };
+        if (!pitch) return { ok: false, error: "মাঠটি পাওয়া যায়নি।" };
 
         const template = Array.isArray(pitch.defaultBlocks)
             ? cloneAsTemplate(pitch.defaultBlocks.map((b, i) => ({ ...b, sortOrder: b.sortOrder ?? i })))
@@ -373,6 +375,6 @@ export async function seedDateFromDefault(pitchId, date) {
         revalidateAll(pitchId);
         return { ok: true };
     } catch (err) {
-        return fail(err, "Couldn't copy the default schedule. Try again.");
+        return fail(err, "প্রতিদিনের স্লট কপি করা যায়নি। আবার চেষ্টা করুন।");
     }
 }

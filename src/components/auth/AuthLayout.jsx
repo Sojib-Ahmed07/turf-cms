@@ -3,9 +3,11 @@ import Image from "next/image";
 import Logo from "@/components/site/Logo";
 import PitchLines from "@/components/site/PitchLines";
 import { canOptimize } from "@/lib/utils";
+import { getI18n } from "@/i18n/server";
 
-/** Split screen: photo panel on the left (desktop), form on the right. */
-export default function AuthLayout({ settings, imageUrl, title, subtitle, children, footer }) {
+/** Split screen: photo panel on the left (desktop), form on the right. Language switch top right. */
+export default async function AuthLayout({ settings, imageUrl, title, subtitle, children, footer }) {
+    const { t, f } = await getI18n();
     return (
         <div className="grid min-h-svh lg:grid-cols-2">
             {/* Visual panel */}
@@ -21,23 +23,23 @@ export default function AuthLayout({ settings, imageUrl, title, subtitle, childr
                         {/* Ticket preview */}
                         <div className="mb-10 w-[300px] overflow-hidden rounded-card bg-white text-ink shadow-[0_30px_60px_-20px_rgb(0_0_0/0.5)]">
                             <div className="flex items-center justify-between bg-brand px-5 py-3 text-white">
-                                <span className="text-[13px] font-semibold">Confirmed</span>
+                                <span className="text-[13px] font-semibold">{t("ticket.confirmed")}</span>
                                 <span className="text-[12px] font-semibold tnum opacity-80">TZ-8F2K1</span>
                             </div>
                             <div className="flex items-center gap-4 px-5 py-4">
                                 <div className="text-center">
-                                    <p className="text-[11px] font-medium text-ink-3">Sat</p>
-                                    <p className="display text-[34px] leading-none tnum">17</p>
-                                    <p className="text-[11px] font-semibold text-ink-3">Oct</p>
+                                    <p className="text-[11px] font-medium text-ink-3">{f.dayShort(6)}</p>
+                                    <p className="display text-[34px] leading-none tnum">{f.digits(17)}</p>
+                                    <p className="text-[11px] font-semibold text-ink-3">{f.monthShort(10)}</p>
                                 </div>
                                 <span className="h-12 border-l-2 border-dashed border-line" />
                                 <div>
-                                    <p className="display text-[20px]">Pitch B</p>
-                                    <p className="text-[13px] text-ink-3 tnum">9 pm to 10:30 pm</p>
+                                    <p className="display text-[20px]">{t("auth.samplePitch")}</p>
+                                    <p className="text-[13px] text-ink-3 tnum">{t("auth.sampleTime")}</p>
                                 </div>
                             </div>
                         </div>
-                        <p className="display max-w-[16ch] text-[clamp(40px,4vw,60px)]">Book in a minute. Play all night.</p>
+                        <p className="display max-w-[16ch] text-[clamp(40px,4vw,60px)]">{t("auth.sideTitle")}</p>
                     </div>
                 </div>
             </div>

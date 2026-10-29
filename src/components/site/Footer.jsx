@@ -9,8 +9,8 @@ import { navLabel } from "@/i18n/nav";
 
 const PAY_METHODS = ["bKash", "Nagad", "Rocket", "Visa", "Mastercard", "Amex"];
 
-export default async function Footer({ settings, items = [] }) {
-    const { t, locale } = await getI18n();
+export default async function Footer({ settings, items = [], signedIn = false }) {
+    const { t } = await getI18n();
     const { contact, socials = [] } = settings;
     const year = new Date().getFullYear();
 
@@ -48,7 +48,7 @@ export default async function Footer({ settings, items = [] }) {
                         {items.map((i) => (
                             <li key={i.id ?? i.href}>
                                 <Link href={i.href} className="hover:text-white">
-                                    {navLabel(i, t, locale)}
+                                    {navLabel(i)}
                                 </Link>
                             </li>
                         ))}
@@ -57,7 +57,7 @@ export default async function Footer({ settings, items = [] }) {
                     <FooterCol title={t("footer.account")} className="lg:col-span-2">
                         <li><Link href="/bookings" className="hover:text-white">{t("common.myBookings")}</Link></li>
                         <li><Link href="/profile" className="hover:text-white">{t("common.profile")}</Link></li>
-                        <li><Link href="/login" className="hover:text-white">{t("common.signIn")}</Link></li>
+                        {!signedIn && <li><Link href="/login" className="hover:text-white">{t("common.signIn")}</Link></li>}
                         <li><Link href="/terms" className="hover:text-white">{t("footer.terms")}</Link></li>
                     </FooterCol>
 

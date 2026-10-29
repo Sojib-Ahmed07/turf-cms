@@ -4,11 +4,15 @@ import Link from "next/link";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { VerifyEmailForm } from "@/components/auth/VerifyEmailForm";
 import { getHeroSlides, getSiteSettings } from "@/features/cms/queries";
+import { getI18n } from "@/i18n/server";
 
-export const metadata = { title: "Verify your email" };
+export async function generateMetadata() {
+    const { t } = await getI18n();
+    return { title: t("auth.verifyTitle") };
+}
 
 export default async function VerifyEmailPage({ searchParams }) {
-    const [settings, slides] = await Promise.all([getSiteSettings(), getHeroSlides()]);
+    const [settings, slides, { t }] = await Promise.all([getSiteSettings(), getHeroSlides(), getI18n()]);
     const withImage = slides.filter((s) => s.imageUrl);
     const imageUrl = withImage[0]?.imageUrl ?? null;
     const sp = await searchParams;
@@ -17,13 +21,13 @@ export default async function VerifyEmailPage({ searchParams }) {
         <AuthLayout
             settings={settings}
             imageUrl={imageUrl}
-            title="Check your email"
-            subtitle="We sent a 6-digit code to your inbox. Enter it below to finish creating your account."
+            title={t("auth.verifyTitle")}
+            subtitle={t("auth.verifySub")}
             footer={
                 <>
-                    Wrong email?{" "}
+                    {t("auth.wrongEmail")}{" "}
                     <Link href="/register" className="font-semibold text-ink hover:underline">
-                        Start again
+                        {t("auth.startAgain")}
                     </Link>
                 </>
             }

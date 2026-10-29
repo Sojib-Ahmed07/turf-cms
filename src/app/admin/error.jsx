@@ -4,5 +4,5 @@
 import ErrorPanel from "@/components/ErrorPanel";
 
 export default function Error({ error, retry }) {
-    return <ErrorPanel error={error} retry={retry} homeHref="/admin" homeLabel="Back to overview" />;
+    return <ErrorPanel error={error} retry={retry} homeHref="/admin" homeLabel="ওভারভিউতে ফিরুন" />;
 }

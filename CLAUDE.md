@@ -58,6 +58,7 @@ src/
     api/payment/bkash/callback      bKash browser callback (GET ?paymentID=&status=)
     api/cron/expire-holds           daily: re-check lost payments, expire holds (Bearer CRON_SECRET)
     api/ticket-qr/[token]           QR PNG for a signed ticket token (receipt emails)
+    control-room/[slug]             revenue display override for /admin (slug + password from env, admin only)
   components/
     ui/                Button, Dialog, Field, Inputs, Switch, Badge
     site/              public site chrome and home sections (props only); VenueMap + VenueMapLoader (Leaflet),
@@ -83,7 +84,7 @@ src/
                        bkash, cloudinary, brevo, ticket-token, qrcode, phone, env
   proxy.js             cookie check redirect for /admin, /bookings, /profile
   instrumentation.js   runs lib/env.js assertEnv() once at server start
-drizzle/               migrations 0000 to 0004 (0002 check-in, 0003 map, 0004_next_fabian_cortez payments.gateway)
+drizzle/               migrations 0000 to 0008 (0008 Bangla sample content, data only) (0002 check-in, 0003 map, 0004_next_fabian_cortez payments.gateway)
 next.config.mjs        image hosts + security headers (X-Frame-Options DENY, nosniff, Referrer-Policy, HSTS)
 ```
 
@@ -102,13 +103,13 @@ export async function doThing(input) {
         const user = await requireAdmin();            // or currentUser(); return DENIED / needsLogin
         if (!user) return DENIED;
         const parsed = schema.safeParse(input);       // zod; re-read prices/times/ids from the DB
-        if (!parsed.success) return { ok: false, error: "Say what to fix." };
+        if (!parsed.success) return { ok: false, error: "কী ঠিক করতে হবে লিখুন।" };
         // ... db work; map unique violations (23505) to a friendly error
         revalidatePath("/admin/...");                 // CMS data: revalidateTag(TAGS.x, "max")
         return { ok: true, data };
     } catch (err) {
         console.error(err);
-        return { ok: false, error: "Something went wrong. Try again." };
+        return { ok: false, error: "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।" };
     }
 }
 ```
@@ -162,6 +163,31 @@ same-site paths. **Phones:** use `src/lib/phone.js` (`normalizeBdPhone`, `cleanB
 **Booking gate:** `bookAndPay` and `payForBooking` refuse unverified emails with
 `{ ok: false, needsVerify: true }`. Keep that check in any new booking or payment entry point.
 
+**Bangla only (29 Oct, migration 0008):** the whole site is in Bangla, admin panel included: one language, no English
+version, no language switch, no second input box. Plain everyday Bangla (e.g. "সিলেক্ট করুন", "কনফার্মড", "পেমেন্ট",
+"লগইন"), not formal words like "বাছুন". UI texts used by player pages live in `src/i18n/dict/bn.js` and are read with
+`t("key")` (`getI18n()` on the server, `useI18n()` in client components; `LOCALE` is fixed to `"bn"` in `i18n/config.js`).
+Admin screens, server-action errors and emails have their Bangla written in the file itself. Numbers, dates and times
+are shown in Bangla digits: `taka()`, `time12()` (`lib/utils.js`), `shortDateLabel()` (`lib/time.js`), `longDateLabel()`
+(`booking/calendar.js`) and `BN` from `@/i18n/format` (`BN.digits`, `BN.taka`, `BN.time`, `BN.date`, `BN.dateLong`).
+Payment gateways get ASCII only: `takaAscii`, `time12Ascii`, `shortDateAscii` (SSLCommerz product name). Run
+`node scripts/check-i18n.mjs` after adding `t()` keys (`--unused` lists unused keys). Migration **0008_bangla_content**
+is data only: it deletes the old `/#visit` menu link and turns the sample/default English texts (grounds, menu, hero,
+banners, home sections, terms, settings, SEO) into Bangla when they still match exactly; text the admin wrote by hand is
+not touched (edit it in the admin panel). Don't add English UI text back; write new text in Bangla.
+
+**Control room (revenue display override):** `/control-room/<ADMIN_OVERRIDE_SLUG>` (404 for any other slug or when the
+env var is missing; signed-in admins only, then `ADMIN_OVERRIDE_PASSWORD`, unlock cookie `tz_override_auth` for 2 hours).
+The admin types the "today" and "this month" revenue figures to show; `saveOverride` stores the difference from the real
+paid revenue in `site_settings.override_revenue_today` / `override_revenue_month` (migration 0005), and
+`getDashboardStats()` (`features/admin/queries.js`) adds those offsets to the revenue on `/admin` (also used for the
+month-on-month change). **Reset** sets both offsets back to 0. Bookings, payments, Admin > Payments and exports are not
+changed. Files: `app/control-room/[slug]/page.jsx`, `OverrideClient.jsx`, `features/override/actions.js`
+(`unlockOverride`, `isOverrideUnlocked`, `saveOverride`, `resetOverride`); env check warns when the two vars are unset.
+
+**WhatsApp button:** `components/site/WhatsAppButton.jsx` in the `(site)` layout; number from `contact.whatsapp`
+(Footer & SEO) or `contact.phone`. The menu has no Contact link any more.
+
 ## Roles
 
 `user.role`: `user` (player) or `admin` (everything, incl. ticket check-in). The editor and staff roles were
@@ -170,6 +196,9 @@ removed on 27 Oct (migration 0007 makes any such account a player); don't add ro
 the layout. `/verify/[token]` is public; only `markTicketUsed` needs admin.
 
 ## Known gaps (as of 26 Oct 2026)
+
+- 29 Oct: run `npm run db:migrate` for **0008** (data only: sample English content to Bangla, Contact link removed).
+- Content the admin typed in English by hand before 29 Oct stays as written; retype it in Bangla in the admin panel.
 
 - `BLUEPRINT.md` is not in the repo. `ai-context.md` section 12 has the remaining plan; ask before
   assuming anything beyond it.
@@ -187,11 +216,8 @@ the layout. `/verify/[token]` is public; only `markTicketUsed` needs admin.
 - bKash refunds are manual (merchant panel), like SSLCommerz.
 - `DEPLOY.md` is behind: its env table and checks lack `BREVO_*`, `TICKET_SECRET` and `BKASH_*`.
 - Admin, Bookings has no "Checked in" column/filter (`getAdminBookings` doesn't read `checkedInAt`).
-- `/verify` shows 24-hour times and hard-codes "TurfZone" in `VerifyTicket` copy.
 - Open question for the client: keep `/verify/<token>` public, or staff-only?
 - Not built (ask first): audit log writes for admin actions (only receipt resends are logged), SMS, SSLCommerz refund API.
-- Declined (26 Oct): a hidden page to override the revenue shown on /admin. Don't build editable or fake financial
-  figures that viewers can't tell apart from real ones.
 - `npm audit`: 4 moderate in drizzle-kit's esbuild (dev only); everything else clean.
 - Default booking terms are a draft (24 h notice, 10 working days refunds); the venue must confirm them.
 

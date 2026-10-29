@@ -6,8 +6,12 @@ import { account } from "@/db/schema";
 import { getMyBookings } from "@/features/booking/queries";
 import { requireUser } from "@/lib/guards";
 import { dhakaDate } from "@/lib/time";
+import { getI18n } from "@/i18n/server";
 
-export const metadata = { title: "Your profile" };
+export async function generateMetadata() {
+    const { t } = await getI18n();
+    return { title: t("common.yourProfile") };
+}
 export const dynamic = "force-dynamic";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -30,6 +34,7 @@ export default async function ProfilePage() {
                 image: user.image ?? null,
                 role: user.role ?? "user",
                 joined: `${MONTHS[m - 1]} ${y}`,
+                joinedIso: `${y}-${String(m).padStart(2, "0")}-01`,
             }}
             hasPassword={accounts.some((a) => a.providerId === "credential")}
             hasGoogle={accounts.some((a) => a.providerId === "google")}

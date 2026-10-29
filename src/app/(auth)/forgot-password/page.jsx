@@ -4,11 +4,15 @@ import Link from "next/link";
 import AuthLayout from "@/components/auth/AuthLayout";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 import { getHeroSlides, getSiteSettings } from "@/features/cms/queries";
+import { getI18n } from "@/i18n/server";
 
-export const metadata = { title: "Reset your password", robots: { index: false, follow: false } };
+export async function generateMetadata() {
+    const { t } = await getI18n();
+    return { title: t("auth.forgotTitle"), robots: { index: false, follow: false } };
+}
 
 export default async function ForgotPasswordPage({ searchParams }) {
-    const [settings, slides] = await Promise.all([getSiteSettings(), getHeroSlides()]);
+    const [settings, slides, { t }] = await Promise.all([getSiteSettings(), getHeroSlides(), getI18n()]);
     const imageUrl = slides.find((s) => s.imageUrl)?.imageUrl ?? null;
     const sp = await searchParams;
 
@@ -16,13 +20,13 @@ export default async function ForgotPasswordPage({ searchParams }) {
         <AuthLayout
             settings={settings}
             imageUrl={imageUrl}
-            title="Reset your password"
-            subtitle="We'll email you a 6-digit code. Enter it with a new password to get back in."
+            title={t("auth.forgotTitle")}
+            subtitle={t("auth.forgotSub")}
             footer={
                 <>
-                    Remembered it?{" "}
+                    {t("auth.remembered")}{" "}
                     <Link href="/login" className="font-semibold text-ink hover:underline">
-                        Sign in
+                        {t("auth.signIn")}
                     </Link>
                 </>
             }

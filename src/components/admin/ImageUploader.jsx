@@ -44,7 +44,7 @@ export default function ImageUploader({
             const item = await uploadImage(file, folder, setProgress);
             onChange?.({ url: item.url, publicId: item.publicId, name: item.name });
         } catch (err) {
-            setError(err.message || "The upload failed. Try again.");
+            setError(err.message || "ছবি আপলোড হয়নি। আবার চেষ্টা করুন।");
         } finally {
             setProgress(null);
             if (inputRef.current) inputRef.current.value = "";
@@ -92,13 +92,13 @@ export default function ImageUploader({
                         className={fit === "contain" ? "object-contain p-3" : "object-cover"}
                     />
                     <div className="absolute inset-0 flex items-end justify-between gap-2 bg-gradient-to-t from-ink/70 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
-                        <span className="truncate text-[12px] font-medium text-white/85">{value.name ?? value.publicId?.split("/").pop() ?? "Image"}</span>
+                        <span className="truncate text-[12px] font-medium text-white/85">{value.name ?? value.publicId?.split("/").pop() ?? "ছবি"}</span>
                         {!disabled && (
                             <span className="flex gap-1.5">
-                                <IconBtn label="Replace image" onClick={() => inputRef.current?.click()}>
+                                <IconBtn label="ছবি বদলান" onClick={() => inputRef.current?.click()}>
                                     <RefreshCw className="h-3.5 w-3.5" />
                                 </IconBtn>
-                                <IconBtn label="Remove image" danger onClick={() => onChange?.(null)}>
+                                <IconBtn label="ছবি সরান" danger onClick={() => onChange?.(null)}>
                                     <Trash2 className="h-3.5 w-3.5" />
                                 </IconBtn>
                             </span>
@@ -136,7 +136,7 @@ export default function ImageUploader({
                 {fileInput}
                 {progress !== null ? (
                     <div className="w-full max-w-[220px]">
-                        <p className="text-[13px] font-semibold text-ink">{progress < 100 ? "Uploading…" : "Saving…"}</p>
+                        <p className="text-[13px] font-semibold text-ink">{progress < 100 ? "আপলোড হচ্ছে…" : "সেভ হচ্ছে…"}</p>
                         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-line">
                             <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${progress}%` }} />
                         </div>
@@ -149,7 +149,7 @@ export default function ImageUploader({
                         </span>
                         <span>
                             <span className="block text-[14px] font-semibold text-ink">
-                                Drop an image or <span className="text-brand-deep underline underline-offset-2">browse</span>
+                                ছবি এখানে টেনে আনুন, অথবা <span className="text-brand-deep underline underline-offset-2">ফাইল সিলেক্ট করুন</span>
                             </span>
                             {hint && <span className="mt-1 block text-[12px] text-ink-3">{hint}</span>}
                         </span>
@@ -163,7 +163,7 @@ export default function ImageUploader({
                     className="mt-2 inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] font-semibold text-ink-2 hover:text-ink"
                 >
                     <Images className="h-3.5 w-3.5" />
-                    From media library
+                    লাইব্রেরি থেকে নিন
                 </button>
             )}
             {errorLine}

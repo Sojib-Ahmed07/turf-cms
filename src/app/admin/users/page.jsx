@@ -3,7 +3,7 @@ import UsersTable from "@/features/admin/components/UsersTable";
 import { getUsersAdmin } from "@/features/admin/commerce-queries";
 import { requireRole } from "@/lib/guards";
 
-export const metadata = { title: "Users" };
+export const metadata = { title: "ইউজার" };
 
 export default async function Page({ searchParams }) {
     const me = await requireRole(["admin"]);

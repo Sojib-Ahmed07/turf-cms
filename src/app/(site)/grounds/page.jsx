@@ -16,7 +16,8 @@ export async function generateMetadata() {
 }
 
 export default async function GroundsPage() {
-    const [{ date, pitches }, i18n] = await Promise.all([getGroundsToday(), getI18n()]);
+    const i18n = await getI18n();
+    const { date, pitches } = await getGroundsToday();
     const { t } = i18n;
 
     return (
@@ -42,6 +43,19 @@ export default async function GroundsPage() {
     );
 }
 
+/** "from ৳1,000/hr" chip on the ground photos. */
+function PricePill({ pitch, t, f }) {
+    return (
+        <p className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap rounded-full bg-white px-4 py-2.5 text-[15px] font-bold leading-none text-ink tnum">
+            <span className="text-[12px] font-medium text-ink-3">{t("groundsPage.from")}</span>
+            <span>
+                {f.taka(pitch.fromHourly)}
+                <span className="font-medium text-ink-3">{t("common.perHour")}</span>
+            </span>
+        </p>
+    );
+}
+
 function GroundCard({ pitch: p, date, i18n: { t, f } }) {
     const free = p.freeToday ?? [];
     const status = !p.slotsToday ? t("groundsPage.closedToday") : free.length ? t("groundsPage.freeToday", { count: free.length }) : t("groundsPage.fullToday");
@@ -51,15 +65,13 @@ function GroundCard({ pitch: p, date, i18n: { t, f } }) {
             <Link href={href} className="relative block aspect-[16/9] overflow-hidden bg-pitch" aria-label={p.name}>
                 <GroundPhoto pitch={p} sizes="(min-width:768px) 50vw, 100vw" className="transition-transform duration-700 ease-out group-hover:scale-[1.03]" />
                 <div className="absolute inset-0 bg-gradient-to-t from-pitch/85 via-pitch/10 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5 sm:p-6">
-                    <div className="min-w-0">
-                        {p.format && <p className="text-[14px] font-semibold text-white/75">{p.format}</p>}
-                        <h2 className="display mt-1 truncate text-[clamp(30px,3.6vw,44px)] text-white">{p.name}</h2>
+                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+                    {p.format && <p className="text-[14px] font-semibold text-white/75">{p.format}</p>}
+                    {/* Name and price share one row, centred on each other (Bangla headings sit taller than Latin ones) */}
+                    <div className="mt-1 flex items-center justify-between gap-4">
+                        <h2 className="display min-w-0 truncate pb-[0.06em] text-[clamp(30px,3.6vw,44px)] text-white">{p.name}</h2>
+                        <PricePill pitch={p} t={t} f={f} />
                     </div>
-                    <p className="shrink-0 rounded-full bg-white px-4 py-2 text-[15px] font-bold text-ink tnum">
-                        {f.taka(p.fromHourly)}
-                        <span className="font-medium text-ink-3">{t("common.perHour")}</span>
-                    </p>
                 </div>
             </Link>
 
@@ -113,11 +125,11 @@ function GroundCard({ pitch: p, date, i18n: { t, f } }) {
                     )}
                 </div>
 
-                <div className="mt-auto flex flex-col gap-2 pt-1 sm:flex-row">
-                    <Button href={`/book?pitch=${p.id}`} className="w-full sm:flex-1">
+                <div className="mt-auto grid gap-2 pt-1 sm:grid-cols-2">
+                    <Button href={`/book?pitch=${p.id}`} className="w-full">
                         {t("groundsPage.book")}
                     </Button>
-                    <Button href={href} variant="outline" className="w-full sm:flex-1">
+                    <Button href={href} variant="outline" className="w-full">
                         {t("groundsPage.seeTimes")}
                     </Button>
                 </div>

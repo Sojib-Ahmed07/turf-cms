@@ -8,6 +8,15 @@ import Button from "@/components/ui/Button";
 import { Mail, Lock, User as UserIcon, Phone, KeyRound } from "lucide-react";
 import { signIn, signUp, authClient } from "@/lib/auth-client";
 import { safeNext } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
+
+/**
+ * Better Auth's own messages are English, so show our Bangla text instead. Messages written in Bangla
+ * (our sign-up checks in lib/auth.js, e.g. the phone number hint) are shown as they are.
+ */
+export function authMessage(err, fallback) {
+    return err?.message && /[\u0980-\u09FF]/.test(err.message) ? err.message : fallback;
+}
 
 function GoogleIcon() {
     return (
@@ -20,7 +29,8 @@ function GoogleIcon() {
     );
 }
 
-export function GoogleButton({ label = "Continue with Google" }) {
+export function GoogleButton({ label }) {
+    const { t } = useI18n();
     const [busy, setBusy] = useState(false);
     const params = useSearchParams();
     const next = safeNext(params.get("next"));
@@ -38,12 +48,13 @@ export function GoogleButton({ label = "Continue with Google" }) {
             className="flex h-11 w-full items-center justify-center gap-2 rounded-ctl border border-line bg-paper text-sm font-semibold text-ink hover:bg-grass disabled:opacity-60"
         >
             <GoogleIcon />
-            {busy ? "Redirecting…" : label}
+            {busy ? t("auth.redirecting") : label || t("auth.google")}
         </button>
     );
 }
 
 export function LoginForm() {
+    const { t } = useI18n();
     const router = useRouter();
     const params = useSearchParams();
     const next = safeNext(params.get("next"));
@@ -59,7 +70,7 @@ export function LoginForm() {
         const { error: err } = await signIn.email({ email, password });
         setBusy(false);
         if (err) {
-            setError(err.message || "We couldn't sign you in. Check your email and password.");
+            setError(authMessage(err, t("auth.signInFailed")));
             return;
         }
         router.push(next);
@@ -68,7 +79,7 @@ export function LoginForm() {
 
     return (
         <form onSubmit={onSubmit} className="space-y-4">
-            <Field label="Email" htmlFor="email">
+            <Field label={t("auth.email")} htmlFor="email">
                 <Input
                     id="email"
                     type="email"
@@ -81,14 +92,14 @@ export function LoginForm() {
                 />
             </Field>
             <Field
-                label="Password"
+                label={t("auth.password")}
                 htmlFor="password"
                 hint={
                     <Link
                         href={`/forgot-password?next=${encodeURIComponent(next)}${email ? `&email=${encodeURIComponent(email)}` : ""}`}
                         className="font-semibold text-ink hover:underline"
                     >
-                        Forgot your password?
+                        {t("auth.forgot")}
                     </Link>
                 }
             >
@@ -105,10 +116,10 @@ export function LoginForm() {
             </Field>
             {error && <p className="text-sm text-danger">{error}</p>}
             <Button type="submit" className="w-full" disabled={busy}>
-                {busy ? "Signing in…" : "Sign in"}
+                {busy ? t("auth.signingIn") : t("auth.signIn")}
             </Button>
-            <div className="relative py-1 text-center text-xs text-ink-3">
-                <span className="bg-paper px-2">or</span>
+            <div className="relative py-1 text-center text-xs text-ink-3 before:absolute before:inset-x-0 before:top-1/2 before:h-px before:bg-line">
+                <span className="relative bg-chalk px-3">{t("auth.or")}</span>
             </div>
             <GoogleButton />
         </form>
@@ -116,6 +127,7 @@ export function LoginForm() {
 }
 
 export function RegisterForm() {
+    const { t } = useI18n();
     const router = useRouter();
     const params = useSearchParams();
     const next = safeNext(params.get("next"));
@@ -139,7 +151,7 @@ export function RegisterForm() {
         });
         setBusy(false);
         if (err) {
-            setError(err.message || "We couldn't create your account. Try again.");
+            setError(authMessage(err, t("auth.registerFailed")));
             return;
         }
         // Account created and signed in (autoSignIn). Send the first OTP and
@@ -160,26 +172,26 @@ export function RegisterForm() {
 
     return (
         <form onSubmit={onSubmit} className="space-y-4">
-            <Field label="Name" htmlFor="name">
-                <Input id="name" icon={UserIcon} required value={form.name} onChange={set("name")} placeholder="Your full name" />
+            <Field label={t("auth.name")} htmlFor="name">
+                <Input id="name" icon={UserIcon} required value={form.name} onChange={set("name")} placeholder={t("auth.namePlaceholder")} />
             </Field>
-            <Field label="Mobile" htmlFor="phone">
+            <Field label={t("auth.mobile")} htmlFor="phone">
                 <Input id="phone" icon={Phone} required value={form.phone} onChange={set("phone")} placeholder="01XXXXXXXXX" />
             </Field>
-            <Field label="Email" htmlFor="email">
+            <Field label={t("auth.email")} htmlFor="email">
                 <Input id="email" type="email" icon={Mail} required autoComplete="email" value={form.email} onChange={set("email")} placeholder="you@example.com" />
             </Field>
-            <Field label="Password" htmlFor="password" hint="At least 8 characters.">
+            <Field label={t("auth.password")} htmlFor="password" hint={t("auth.passwordHint")}>
                 <Input id="password" type="password" icon={Lock} required autoComplete="new-password" value={form.password} onChange={set("password")} placeholder="••••••••" />
             </Field>
             {error && <p className="text-sm text-danger">{error}</p>}
             <Button type="submit" className="w-full" disabled={busy}>
-                {busy ? "Creating account…" : "Create account"}
+                {busy ? t("auth.creating") : t("auth.createAccount")}
             </Button>
-            <div className="relative py-1 text-center text-xs text-ink-3">
-                <span className="bg-paper px-2">or</span>
+            <div className="relative py-1 text-center text-xs text-ink-3 before:absolute before:inset-x-0 before:top-1/2 before:h-px before:bg-line">
+                <span className="relative bg-chalk px-3">{t("auth.or")}</span>
             </div>
-            <GoogleButton label="Sign up with Google" />
+            <GoogleButton label={t("auth.googleSignUp")} />
         </form>
     );
 }

@@ -57,7 +57,7 @@ export default function Dialog({ open, onClose, title, description, footer, size
                             <button
                                 type="button"
                                 onClick={onClose}
-                                aria-label="Close"
+                                aria-label="বন্ধ করুন"
                                 className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-3 hover:bg-chalk hover:text-ink"
                             >
                                 <X className="h-4 w-4" />

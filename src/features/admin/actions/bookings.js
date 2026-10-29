@@ -19,7 +19,7 @@ async function requireAdmin() {
     return u;
 }
 
-const DENIED = { ok: false, error: "Only admins can change bookings." };
+const DENIED = { ok: false, error: "শুধু অ্যাডমিন বুকিং বদলাতে পারেন।" };
 
 function revalidateAll() {
     revalidatePath("/admin");
@@ -58,7 +58,7 @@ export async function adminCancelBooking(input) {
         const admin = await requireAdmin();
         if (!admin) return DENIED;
         const parsed = cancelSchema.safeParse(input);
-        if (!parsed.success) return { ok: false, error: "Booking not found." };
+        if (!parsed.success) return { ok: false, error: "বুকিংটি পাওয়া যায়নি।" };
         const { bookingId, reason } = parsed.data;
 
         const [b] = await db
@@ -66,15 +66,15 @@ export async function adminCancelBooking(input) {
             .from(bookings)
             .where(eq(bookings.id, bookingId))
             .limit(1);
-        if (!b) return { ok: false, error: "Booking not found." };
-        if (!["held", "confirmed"].includes(b.status)) return { ok: false, error: "This booking is already cancelled or expired." };
+        if (!b) return { ok: false, error: "বুকিংটি পাওয়া যায়নি।" };
+        if (!["held", "confirmed"].includes(b.status)) return { ok: false, error: "এই বুকিং আগেই ক্যানসেল হয়েছে বা মেয়াদ শেষ।" };
 
         await db
             .update(bookings)
             .set({
                 status: "cancelled",
                 cancelledAt: new Date(),
-                cancelReason: reason || `Cancelled by ${admin.name}`,
+                cancelReason: reason || `${admin.name} ক্যানসেল করেছেন`,
                 paymentStatus: b.paymentStatus === "paid" ? "refund_due" : b.paymentStatus,
                 updatedAt: new Date(),
             })
@@ -84,7 +84,7 @@ export async function adminCancelBooking(input) {
         return { ok: true, data: { refundDue: b.paymentStatus === "paid" } };
     } catch (err) {
         console.error("[adminCancelBooking]", err);
-        return { ok: false, error: "Couldn't cancel the booking. Try again." };
+        return { ok: false, error: "বুকিং ক্যানসেল করা যায়নি। আবার চেষ্টা করুন।" };
     }
 }
 
@@ -92,14 +92,14 @@ export async function adminCancelBooking(input) {
 export async function markRefunded(bookingId) {
     try {
         if (!(await requireAdmin())) return DENIED;
-        if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: "Booking not found." };
+        if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: "বুকিংটি পাওয়া যায়নি।" };
 
         const rows = await db
             .update(bookings)
             .set({ paymentStatus: "refunded", updatedAt: new Date() })
             .where(and(eq(bookings.id, bookingId), eq(bookings.paymentStatus, "refund_due")))
             .returning({ id: bookings.id });
-        if (rows.length === 0) return { ok: false, error: "This booking has no refund waiting." };
+        if (rows.length === 0) return { ok: false, error: "এই বুকিংয়ে কোনো টাকা ফেরত বাকি নেই।" };
 
         // Keep the Payments page in step: the paid attempt for this booking is now refunded.
         await db
@@ -112,7 +112,7 @@ export async function markRefunded(bookingId) {
         return { ok: true };
     } catch (err) {
         console.error("[markRefunded]", err);
-        return { ok: false, error: "Couldn't update the refund. Try again." };
+        return { ok: false, error: "টাকা ফেরতের তথ্য আপডেট হয়নি। আবার চেষ্টা করুন।" };
     }
 }
 
@@ -120,7 +120,7 @@ export async function markRefunded(bookingId) {
 export async function markPaidAtDesk(bookingId) {
     try {
         if (!(await requireAdmin())) return DENIED;
-        if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: "Booking not found." };
+        if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: "বুকিংটি পাওয়া যায়নি।" };
         const rows = await db
             .update(bookings)
             .set({ paymentStatus: "paid", updatedAt: new Date() })
@@ -133,12 +133,12 @@ export async function markPaidAtDesk(bookingId) {
                 )
             )
             .returning({ id: bookings.id });
-        if (rows.length === 0) return { ok: false, error: "Only unpaid walk-in bookings can be marked as paid here." };
+        if (rows.length === 0) return { ok: false, error: "শুধু কাউন্টারের যেসব বুকিংয়ে পেমেন্ট বাকি, সেগুলোকেই এখানে পেমেন্ট হয়েছে বলে চিহ্নিত করা যায়।" };
         revalidateAll();
         return { ok: true };
     } catch (err) {
         console.error("[markPaidAtDesk]", err);
-        return { ok: false, error: "Couldn't update the booking. Try again." };
+        return { ok: false, error: "বুকিং আপডেট হয়নি। আবার চেষ্টা করুন।" };
     }
 }
 
@@ -151,11 +151,11 @@ const walkInSchema = z.object({
     blockId: z.string().min(1).max(64),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-    customerName: z.string().trim().min(2, "Enter the player's name.").max(60),
+    customerName: z.string().trim().min(2, "খেলোয়াড়ের নাম লিখুন।").max(60),
     customerPhone: z
         .string()
         .trim()
-        .regex(/^(\+?88)?01[3-9]\d{8}$/, "Enter a Bangladeshi mobile number, e.g. 01712345678."),
+        .regex(/^(\+?88)?01[3-9]\d{8}$/, "বাংলাদেশি মোবাইল নম্বর দিন, যেমন 01712345678।"),
     paidAtVenue: z.boolean().optional().default(false),
 });
 
@@ -164,18 +164,18 @@ export async function createWalkInBooking(input) {
     try {
         if (!(await requireAdmin())) return DENIED;
         const parsed = walkInSchema.safeParse(input);
-        if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form." };
+        if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "ফর্মটি দেখে নিন।" };
         const v = parsed.data;
 
         const pitch = await getPitchById(v.pitchId);
-        if (!pitch) return { ok: false, error: "This ground is closed for booking." };
+        if (!pitch) return { ok: false, error: "এই মাঠে বুকিং বন্ধ আছে।" };
 
         const block = await resolveBlock(pitch, v.date, v.blockId);
-        if (!block) return { ok: false, error: "That time slot no longer exists." };
+        if (!block) return { ok: false, error: "এই স্লটটি আর নেই।" };
         if (v.startTime && v.startTime !== block.startTime) {
-            return { ok: false, error: "This slot's time just changed. Close this window and pick the slot again." };
+            return { ok: false, error: "এইমাত্র এই স্লটের সময় বদলেছে। এই উইন্ডো বন্ধ করে আবার স্লট সিলেক্ট করুন।" };
         }
-        if (isBlockPast(v.date, block.startTime, block.dayStart)) return { ok: false, error: "That slot has already started." };
+        if (isBlockPast(v.date, block.startTime, block.dayStart)) return { ok: false, error: "এই স্লটের সময় শুরু হয়ে গেছে।" };
 
         await expireStaleHolds({ pitchId: v.pitchId, date: v.date });
 
@@ -209,20 +209,20 @@ export async function createWalkInBooking(input) {
                         .returning({ id: bookings.id, code: bookings.code });
                     return inserted;
                 });
-                if (!row) return { ok: false, error: "That slot is already booked or on hold." };
+                if (!row) return { ok: false, error: "এই স্লটটি আগেই বুক হয়ে গেছে বা পেমেন্ট চলছে।" };
                 revalidateAll();
                 return { ok: true, data: row };
             } catch (err) {
                 if (!isUniqueViolation(err)) throw err;
                 const msg = String(err?.message ?? "") + String(err?.cause?.message ?? "") + String(err?.cause?.constraint ?? "");
                 if (!msg.includes("bookings_code_unique")) {
-                    return { ok: false, error: "That slot is already booked or on hold." };
+                    return { ok: false, error: "এই স্লটটি আগেই বুক হয়ে গেছে বা পেমেন্ট চলছে।" };
                 }
             }
         }
-        return { ok: false, error: "Couldn't create the booking. Try again." };
+        return { ok: false, error: "বুকিং তৈরি হয়নি। আবার চেষ্টা করুন।" };
     } catch (err) {
         console.error("[createWalkInBooking]", err);
-        return { ok: false, error: "Couldn't create the booking. Try again." };
+        return { ok: false, error: "বুকিং তৈরি হয়নি। আবার চেষ্টা করুন।" };
     }
 }

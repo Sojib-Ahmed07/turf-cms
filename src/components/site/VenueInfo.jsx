@@ -99,8 +99,8 @@ function MapArt({ name }) {
                 </g>
                 {/* metro line */}
                 <path d="M-20 470C200 430 360 300 500 250S760 120 820 90" stroke="var(--color-pitch)" strokeWidth="4" strokeDasharray="2 10" strokeLinecap="round" fill="none" opacity="0.45" />
-                <text x="58" y="172" fontSize="13" fontWeight="600" fill="#7d8b84">Road 7</text>
-                <text x="512" y="320" fontSize="13" fontWeight="600" fill="#7d8b84" transform="rotate(90 512 320)">Mirpur Road</text>
+                <text x="58" y="172" fontSize="13" fontWeight="600" fill="#7d8b84">রোড ৭</text>
+                <text x="512" y="320" fontSize="13" fontWeight="600" fill="#7d8b84" transform="rotate(90 512 320)">মিরপুর রোড</text>
             </svg>
 
             {/* pin */}

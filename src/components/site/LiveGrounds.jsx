@@ -45,15 +45,15 @@ export default async function LiveGrounds({ content, pitches = [], date }) {
                                 className="transition-transform duration-700 ease-out group-hover:scale-[1.03]"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-pitch/90 via-pitch/10 to-transparent" />
-                            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-6 sm:p-8">
-                                <div>
-                                    <p className="text-[14px] font-semibold text-white/75">{featured.format}</p>
-                                    <h3 className="display mt-1 text-[clamp(36px,4.6vw,56px)] text-white">{featured.name}</h3>
+                            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+                                {featured.format && <p className="text-[14px] font-semibold text-white/75">{featured.format}</p>}
+                                <div className="mt-1 flex items-center justify-between gap-4">
+                                    <h3 className="display min-w-0 truncate pb-[0.06em] text-[clamp(36px,4.6vw,56px)] text-white">{featured.name}</h3>
+                                    <p className="shrink-0 whitespace-nowrap rounded-full bg-white px-4 py-2.5 text-[15px] font-bold leading-none text-ink tnum">
+                                        {f.taka(featured.fromHourly)}
+                                        <span className="font-medium text-ink-3">{t("common.perHour")}</span>
+                                    </p>
                                 </div>
-                                <p className="shrink-0 rounded-full bg-white px-4 py-2 text-[15px] font-bold text-ink tnum">
-                                    {f.taka(featured.fromHourly)}
-                                    <span className="font-medium text-ink-3">{t("common.perHour")}</span>
-                                </p>
                             </div>
                         </div>
                         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">

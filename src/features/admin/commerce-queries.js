@@ -9,6 +9,7 @@ import { prettyMethod } from "@/lib/sslcommerz";
 import { dayStartOf, DEFAULT_DAY_START, dhakaDate, dhakaTime, shortDateLabel } from "@/lib/time";
 import { defaultSheet } from "@/features/booking/queries";
 import { time12 } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 export const PAYMENTS_PAGE_SIZE = 25;
 
@@ -216,7 +217,7 @@ export async function getPaymentsAdmin({ q = "", status = "", page = 1 } = {}) {
 /* Users                                                           */
 /* -------------------------------------------------------------- */
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS = ["জানু", "ফেব্রু", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টে", "অক্টো", "নভে", "ডিসে"];
 
 /** Users with how many bookings they made (not counting cancelled or expired). */
 export async function getUsersAdmin({ q = "" } = {}) {
@@ -253,7 +254,7 @@ export async function getUsersAdmin({ q = "" } = {}) {
                 role: u.role ?? "user",
                 image: u.image ?? null,
                 bookings: byUser.get(u.id) ?? 0,
-                joined: `${MONTHS[m - 1]} ${y}`,
+                joined: `${MONTHS[m - 1]} ${BN.digits(y)}`,
             };
         }),
         adminCount: Number(admins[0]?.n ?? 0),

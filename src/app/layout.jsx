@@ -2,7 +2,7 @@
 import { Anek_Bangla, Archivo } from "next/font/google";
 import { brandInk, getSiteSettings } from "@/features/cms/queries";
 import { I18nProvider } from "@/i18n/I18nProvider";
-import { getDictionary, getLocale } from "@/i18n/server";
+import { getDictionary } from "@/i18n/server";
 import "./globals.css";
 
 // Archivo is variable in weight AND width: the width axis gives the
@@ -50,18 +50,18 @@ export async function generateMetadata() {
 }
 
 export default async function RootLayout({ children }) {
-  const [settings, locale] = await Promise.all([getSiteSettings(), getLocale()]);
+  const settings = await getSiteSettings();
   const brand = settings.brandColor;
 
   return (
     <html
-      lang={locale}
+      lang="bn"
       className={`${archivo.variable} ${anekBangla.variable}`}
       style={{ "--brand": brand, "--brand-ink": brandInk(brand) }}
     >
       <body className="min-h-svh antialiased">
-        {/* Only the active language's texts go to the browser (bn.js is checked complete by scripts/check-i18n.mjs). */}
-        <I18nProvider locale={locale} dict={getDictionary(locale)}>
+        {/* The site is Bangla only; scripts/check-i18n.mjs checks every key used in code exists in bn.js. */}
+        <I18nProvider dict={getDictionary()}>
           {children}
         </I18nProvider>
       </body>

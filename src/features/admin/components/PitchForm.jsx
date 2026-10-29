@@ -13,12 +13,13 @@ import { upsertPitch } from "@/features/admin/actions/pitches";
 import { generateDefaultBlocks, hourOptions } from "@/features/booking/slots";
 import { hhmmToMinutes } from "@/lib/time";
 import { cn, time12 } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 const SPORTS = [
-    { value: "football", label: "Football" },
-    { value: "cricket", label: "Cricket" },
-    { value: "badminton", label: "Badminton" },
-    { value: "swimming_pool", label: "Swimming pool" },
+    { value: "football", label: "ফুটবল" },
+    { value: "cricket", label: "ক্রিকেট" },
+    { value: "badminton", label: "ব্যাডমিন্টন" },
+    { value: "swimming_pool", label: "সুইমিং পুল" },
 ];
 
 // Quick picks under the typeable slot length. Any whole number from MIN_LEN to MAX_LEN works.
@@ -32,11 +33,11 @@ function minutesOf(b) {
     return d <= 0 ? d + 1440 : d;
 }
 
-/** 90 -> "1 h 30 min", 60 -> "1 h", 45 -> "45 min" */
+/** 90 -> "১ ঘণ্টা ৩০ মিনিট", 60 -> "১ ঘণ্টা", 45 -> "৪৫ মিনিট" */
 function lengthLabel(min) {
     const h = Math.floor(min / 60);
     const m = min % 60;
-    return [h && `${h} h`, m && `${m} min`].filter(Boolean).join(" ");
+    return [h && `${BN.digits(h)} ঘণ্টা`, m && `${BN.digits(m)} মিনিট`].filter(Boolean).join(" ");
 }
 const HOURS = hourOptions();
 
@@ -101,7 +102,7 @@ export default function PitchForm({ pitch, onClose }) {
         e?.preventDefault();
         setError("");
         if (!slotLenOk) {
-            setError(`Slot length must be a whole number of minutes from ${MIN_LEN} to ${MAX_LEN}.`);
+            setError(`স্লটের সময় ${BN.digits(MIN_LEN)} থেকে ${BN.digits(MAX_LEN)} মিনিটের মধ্যে একটি পূর্ণ সংখ্যা হতে হবে।`);
             return;
         }
         startTransition(async () => {
@@ -125,19 +126,19 @@ export default function PitchForm({ pitch, onClose }) {
         <Dialog
             open={Boolean(pitch)}
             onClose={() => !isPending && onClose?.()}
-            title={isNew ? "Add a ground" : `Edit ${pitch?.name ?? "ground"}`}
+            title={isNew ? "নতুন মাঠ যোগ করুন" : `${pitch?.name ?? "মাঠ"} বদলান`}
             description={
                 isNew
-                    ? "We'll build a default schedule from the hours and slot length. You can fine-tune it next."
-                    : "Change the hours or slot length and the default slots are rebuilt to match. Prices per slot are set in Edit slots."
+                    ? "খোলার সময় আর স্লটের দৈর্ঘ্য দেখে প্রতিদিনের স্লট নিজে থেকেই তৈরি হবে। পরে চাইলে ঠিকঠাক করে নিতে পারবেন।"
+                    : "খোলার সময় বা স্লটের দৈর্ঘ্য বদলালে প্রতিদিনের স্লটগুলো নতুন করে তৈরি হবে। প্রতিটি স্লটের দাম ঠিক করুন “স্লট বদলান” থেকে।"
             }
             footer={
                 <>
                     <Button variant="outline" onClick={onClose} disabled={isPending}>
-                        Cancel
+                        বাদ দিন
                     </Button>
                     <Button onClick={submit} disabled={isPending}>
-                        {isPending ? "Saving…" : isNew ? "Add ground" : "Save ground"}
+                        {isPending ? "সেভ হচ্ছে…" : isNew ? "মাঠ যোগ করুন" : "মাঠ সেভ করুন"}
                     </Button>
                 </>
             }
@@ -145,38 +146,38 @@ export default function PitchForm({ pitch, onClose }) {
             <form onSubmit={submit} className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                        <Label htmlFor="p-name">Name</Label>
-                        <TextInput id="p-name" value={form.name} onChange={set("name")} placeholder="Pitch C" maxLength={40} />
+                        <Label htmlFor="p-name">মাঠের নাম</Label>
+                        <TextInput id="p-name" value={form.name} onChange={set("name")} placeholder="পিচ সি" maxLength={40} />
                     </div>
                     <div>
-                        <Label htmlFor="p-sport">Sport</Label>
+                        <Label htmlFor="p-sport">খেলা</Label>
                         <Select id="p-sport" value={form.sport} onChange={set("sport")} options={SPORTS} />
                     </div>
                 </div>
 
                 <div>
-                    <Label optional>Short description</Label>
+                    <Label optional>ছোট বিবরণ</Label>
                     <CharInput max={240} multiline rows={2} value={form.description} onChange={set("description")} />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-3">
                     <div>
-                        <Label optional>Format</Label>
-                        <TextInput value={form.format} onChange={set("format")} placeholder="5-a-side" maxLength={30} />
+                        <Label optional>কত জন করে খেলা</Label>
+                        <TextInput value={form.format} onChange={set("format")} placeholder="৫ জন করে" maxLength={30} />
                     </div>
                     <div>
-                        <Label optional>Size</Label>
-                        <TextInput value={form.size} onChange={set("size")} placeholder="40 × 20 m" maxLength={30} />
+                        <Label optional>মাপ</Label>
+                        <TextInput value={form.size} onChange={set("size")} placeholder="৪০ × ২০ মিটার" maxLength={30} />
                     </div>
                     <div>
-                        <Label optional>Surface</Label>
-                        <TextInput value={form.surface} onChange={set("surface")} placeholder="Indoor, 40 mm turf" maxLength={40} />
+                        <Label optional>মাঠের ধরন</Label>
+                        <TextInput value={form.surface} onChange={set("surface")} placeholder="ইনডোর, ৪০ মিমি টার্ফ" maxLength={40} />
                     </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                        <Label htmlFor="p-rate">Price per hour</Label>
+                        <Label htmlFor="p-rate">প্রতি ঘণ্টার দাম</Label>
                         <TextInput
                             id="p-rate"
                             type="number"
@@ -188,7 +189,7 @@ export default function PitchForm({ pitch, onClose }) {
                         />
                     </div>
                     <div>
-                        <Label htmlFor="p-len">Slot length</Label>
+                        <Label htmlFor="p-len">প্রতি স্লটের সময়</Label>
                         <div className="relative">
                             <TextInput
                                 id="p-len"
@@ -205,38 +206,38 @@ export default function PitchForm({ pitch, onClose }) {
                                     !slotLenOk && "border-danger"
                                 )}
                             />
-                            <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] font-medium text-ink-3">min</span>
+                            <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] font-medium text-ink-3">মিনিট</span>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <span className="text-[12px] text-ink-3">Quick pick</span>
+                            <span className="text-[12px] text-ink-3">তাড়াতাড়ি বেছে নিন</span>
                             {SLOT_PRESETS.map((m) => (
                                 <button
-                                    key={m}
+                                    key={BN.digits(m)}
                                     type="button"
-                                    aria-label={`${m} minutes`}
+                                    aria-label={`${m} মিনিট`}
                                     onClick={() => setForm((f) => ({ ...f, defaultSlotMinutes: String(m) }))}
                                     className={cn(
                                         "rounded-full px-2.5 py-1 text-[12px] font-semibold transition-colors",
                                         slotLen === m ? "bg-ink text-white" : "bg-chalk text-ink-2 hover:bg-ink/10"
                                     )}
                                 >
-                                    {m}
+                                    {BN.digits(m)}
                                 </button>
                             ))}
                         </div>
                         <p className={cn("mt-1.5 text-[12px]", slotLenOk ? "text-ink-3" : "text-danger")}>
-                            {slotLenOk ? lengthLabel(slotLen) : `Type ${MIN_LEN} to ${MAX_LEN} minutes.`}
+                            {slotLenOk ? lengthLabel(slotLen) : `${BN.digits(MIN_LEN)} থেকে ${BN.digits(MAX_LEN)} মিনিট লিখুন।`}
                         </p>
                     </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                        <Label>Opens at</Label>
+                        <Label>খোলে</Label>
                         <Select value={form.openHour} onChange={set("openHour")} options={HOURS} />
                     </div>
                     <div>
-                        <Label>Closes at</Label>
+                        <Label>বন্ধ হয়</Label>
                         <Select value={form.closeHour} onChange={set("closeHour")} options={HOURS} />
                     </div>
                 </div>
@@ -244,42 +245,42 @@ export default function PitchForm({ pitch, onClose }) {
                 {slotLenOk && (
                     <p className="-mt-2 text-[13px] text-ink-3">
                         {preview.length === 0 ? (
-                            <span className="text-danger">These hours are shorter than one {slotLen}-minute slot.</span>
+                            <span className="text-danger">এই সময়ের মধ্যে {BN.digits(slotLen)} মিনিটের একটি স্লটও হয় না।</span>
                         ) : (
                             <>
-                                Makes <span className="font-semibold text-ink">{fullSlots} slot{fullSlots === 1 ? "" : "s"}</span> of {slotLen} min,{" "}
-                                {time12(preview[0].startTime)} to {time12(preview[preview.length - 1].endTime)}
-                                {shortLast > 0 && `, plus a ${shortLast}-min slot at the end`}.
+                                {BN.digits(slotLen)} মিনিটের <span className="font-semibold text-ink">{BN.digits(fullSlots)}টি স্লট</span> হবে,{" "}
+                                {time12(preview[0].startTime)} থেকে {time12(preview[preview.length - 1].endTime)}
+                                {shortLast > 0 && `, শেষে ${BN.digits(shortLast)} মিনিটের আরও একটি স্লট`}।
                             </>
                         )}
                     </p>
                 )}
 
                 <div>
-                    <Label optional>Photo</Label>
+                    <Label optional>ছবি</Label>
                     <ImageUploader
                         value={form.imageUrl ? { url: form.imageUrl, publicId: form.imagePublicId || null } : null}
                         onChange={(img) => setForm((f) => ({ ...f, imageUrl: img?.url ?? "", imagePublicId: img?.publicId ?? "" }))}
                         folder="pitches"
                         ratio="16/10"
-                        hint="1600 × 1000 px. Without a photo, the ground shows chalk pitch lines."
+                        hint="১৬০০ × ১০০০ পিক্সেল। ছবি না দিলে মাঠের দাগের একটি নকশা দেখাবে।"
                     />
                 </div>
 
                 <label className="flex items-center justify-between gap-4 rounded-ctl bg-chalk px-4 py-3">
                     <span>
-                        <span className="block text-[14px] font-semibold text-ink">Open for booking</span>
-                        <span className="block text-[12px] text-ink-3">Closed grounds don&apos;t show on the website.</span>
+                        <span className="block text-[14px] font-semibold text-ink">বুকিং চালু</span>
+                        <span className="block text-[12px] text-ink-3">বুকিং বন্ধ থাকলে মাঠটি ওয়েবসাইটে দেখাবে না।</span>
                     </span>
-                    <Switch checked={form.isActive} onChange={(v) => setForm((f) => ({ ...f, isActive: v }))} label="Open for booking" />
+                    <Switch checked={form.isActive} onChange={(v) => setForm((f) => ({ ...f, isActive: v }))} label="বুকিং চালু" />
                 </label>
 
                 {scheduleChanges && (
                     <p className="rounded-ctl bg-flare-soft px-4 py-3 text-[13px] text-ink-2 ring-1 ring-flare/50">
-                        <span className="font-semibold text-ink">Saving rebuilds the default slots</span> for{" "}
-                        {time12(`${String(form.openHour).padStart(2, "0")}:00`)} to {time12(`${String(form.closeHour).padStart(2, "0")}:00`)},{" "}
-                        {form.defaultSlotMinutes} min each. Slots with the same times keep their price; new ones use the base price.
-                        Dates with a custom schedule and existing bookings stay as they are.
+                        <span className="font-semibold text-ink">সেভ করলে প্রতিদিনের স্লটগুলো নতুন করে তৈরি হবে:</span>{" "}
+                        {time12(`${String(form.openHour).padStart(2, "0")}:00`)} থেকে {time12(`${String(form.closeHour).padStart(2, "0")}:00`)},{" "}
+                        প্রতিটি {BN.digits(form.defaultSlotMinutes)} মিনিটের। একই সময়ের স্লটের দাম আগের মতোই থাকবে; নতুন স্লটে প্রতি ঘণ্টার দাম ধরা হবে।
+                        যেসব তারিখের আলাদা স্লট বানানো আছে, আর যেসব বুকিং হয়ে গেছে, সেগুলো যেমন আছে তেমনই থাকবে।
                     </p>
                 )}
 

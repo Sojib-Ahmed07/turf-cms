@@ -14,15 +14,16 @@ import { TextInput } from "@/components/ui/Inputs";
 import { adminRecheckPayment, markPaymentRefunded, markRiskChecked } from "@/features/admin/actions/payments";
 import PaymentMethodsPanel from "./PaymentMethodsPanel";
 import { cn, taka } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 const TABS = [
-    { key: "", label: "All" },
-    { key: "paid", label: "Paid" },
-    { key: "started", label: "Started" },
-    { key: "failed", label: "Failed or cancelled" },
-    { key: "refund_due", label: "Refund due" },
-    { key: "refunded", label: "Refunded" },
-    { key: "risky", label: "Risky" },
+    { key: "", label: "সব" },
+    { key: "paid", label: "পেমেন্ট হয়েছে" },
+    { key: "started", label: "শুরু হয়েছে" },
+    { key: "failed", label: "ব্যর্থ বা ক্যানসেল" },
+    { key: "refund_due", label: "টাকা ফেরত বাকি" },
+    { key: "refunded", label: "টাকা ফেরত দেওয়া হয়েছে" },
+    { key: "risky", label: "ঝুঁকিপূর্ণ" },
 ];
 
 function href({ q, status, page }) {
@@ -64,7 +65,7 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
             const res = await markRiskChecked(p.id);
             setBusyId(null);
             if (!res.ok) return showToast(res.error, "error");
-            showToast(`${p.bookingCode} marked as checked`);
+            showToast(`${p.bookingCode} যাচাই করা হয়েছে`);
             router.refresh();
         });
     }
@@ -75,14 +76,14 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
             const res = await markPaymentRefunded(p.id);
             setRefund(null);
             if (!res.ok) return showToast(res.error, "error");
-            showToast(`Refund for ${p.bookingCode} recorded`);
+            showToast(`${p.bookingCode}-এর টাকা ফেরত লিখে রাখা হয়েছে`);
             router.refresh();
         });
     }
 
     return (
         <div className="mx-auto max-w-[1280px]">
-            <PageHeader title="Payments" description="Every bKash and SSLCommerz transaction. A booking is only confirmed after the gateway itself confirms the payment." />
+            <PageHeader title="পেমেন্ট" description="bKash ও SSLCommerz-এর সব লেনদেন। গেটওয়ে নিজে পেমেন্ট নিশ্চিত করলে তবেই বুকিং কনফার্মড হয়।" />
 
             <PaymentMethodsPanel methods={methods} showToast={showToast} />
 
@@ -90,18 +91,18 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                 <div className="mb-6 grid gap-3 md:grid-cols-2">
                     {counts.refundDue > 0 && (
                         <Alert
-                            title={`${counts.refundDue} ${counts.refundDue === 1 ? "refund" : "refunds"} to send`}
-                            body="Refund in the SSLCommerz merchant panel (or by bKash or cash), then mark it refunded here."
+                            title={`${BN.digits(counts.refundDue)}টি টাকা ফেরত পাঠানো বাকি`}
+                            body="SSLCommerz মার্চেন্ট প্যানেল থেকে (বা bKash বা নগদ টাকায়) টাকা ফেরত দিন, তারপর এখানে টাকা ফেরত দেওয়া হয়েছে চিহ্ন দিন।"
                             href={href({ status: "refund_due" })}
-                            cta="Show refunds"
+                            cta="টাকা ফেরত দেখুন"
                         />
                     )}
                     {counts.risky > 0 && (
                         <Alert
-                            title={`${counts.risky} risky ${counts.risky === 1 ? "payment" : "payments"}`}
-                            body="SSLCommerz flagged these as high risk. The bookings are confirmed, but the gate check warns admins until you check each one in the merchant panel and press Mark checked."
+                            title={`${BN.digits(counts.risky)}টি ঝুঁকিপূর্ণ পেমেন্ট`}
+                            body="SSLCommerz এগুলোকে বেশি ঝুঁকিপূর্ণ বলেছে। বুকিং কনফার্মড, তবে মার্চেন্ট প্যানেলে প্রতিটি যাচাই করে “যাচাই করেছি” চাপ না দেওয়া পর্যন্ত গেটে টিকিট চেক করার সময় অ্যাডমিনকে সতর্ক করা হবে।"
                             href={href({ status: "risky" })}
-                            cta="Show risky"
+                            cta="ঝুঁকিপূর্ণগুলো দেখুন"
                         />
                     )}
                 </div>
@@ -118,7 +119,7 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                         )}
                     >
                         {t.label}
-                        {t.key === "refund_due" && counts.refundDue > 0 && <span className="ml-1.5 rounded-full bg-danger px-1.5 text-[11px] text-white tnum">{counts.refundDue}</span>}
+                        {t.key === "refund_due" && counts.refundDue > 0 && <span className="ml-1.5 rounded-full bg-danger px-1.5 text-[11px] text-white tnum">{BN.digits(counts.refundDue)}</span>}
                     </Link>
                 ))}
             </div>
@@ -128,25 +129,25 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                     <form action="/admin/payments" className="relative sm:w-80">
                         {filters.status && <input type="hidden" name="status" value={filters.status} />}
                         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
-                        <TextInput name="q" defaultValue={filters.q} placeholder="Transaction, booking, player or bank ref" className="pl-10" />
+                        <TextInput name="q" defaultValue={filters.q} placeholder="লেনদেন, বুকিং, খেলোয়াড় বা ব্যাংক রেফারেন্স" className="pl-10" />
                     </form>
                     <p className="text-[13px] text-ink-3 sm:ml-auto">
-                        {total} {total === 1 ? "payment" : "payments"}
+                        {BN.digits(total)}টি পেমেন্ট
                     </p>
                 </Toolbar>
 
                 {rows.length === 0 ? (
-                    <p className="px-6 py-14 text-center text-[14px] text-ink-3">No payments match.</p>
+                    <p className="px-6 py-14 text-center text-[14px] text-ink-3">কোনো পেমেন্ট মেলেনি।</p>
                 ) : (
                     <Table minWidth={980}>
                         <thead>
                             <tr>
-                                <Th>Transaction</Th>
-                                <Th>Booking</Th>
-                                <Th className="text-right">Amount</Th>
-                                <Th>Method</Th>
-                                <Th>Status</Th>
-                                <Th>Time</Th>
+                                <Th>লেনদেন</Th>
+                                <Th>বুকিং</Th>
+                                <Th className="text-right">পরিমাণ</Th>
+                                <Th>মাধ্যম</Th>
+                                <Th>অবস্থা</Th>
+                                <Th>সময়</Th>
                                 <Th />
                             </tr>
                         </thead>
@@ -158,7 +159,7 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                                         <span className="block text-[12px] text-ink-3">{p.gatewayLabel}</span>
                                         {p.bankTranId && (
                                             <span className="block text-[12px] text-ink-3 tnum">
-                                                {p.gateway === "bkash" ? "bKash TrxID" : "Bank ref"} {p.bankTranId}
+                                                {p.gateway === "bkash" ? "bKash TrxID" : "ব্যাংক রেফারেন্স"} {p.bankTranId}
                                             </span>
                                         )}
                                     </Td>
@@ -166,17 +167,17 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                                         <Link href={`/admin/bookings?range=all&q=${encodeURIComponent(p.bookingCode)}`} className="font-semibold text-ink hover:underline tnum">
                                             {p.bookingCode}
                                         </Link>
-                                        <span className="block text-[12px] text-ink-3">{p.customer || "Walk-in"}</span>
+                                        <span className="block text-[12px] text-ink-3">{p.customer || "কাউন্টারের বুকিং"}</span>
                                         <span className="block max-w-[220px] truncate text-[12px] text-ink-3">{p.slot}</span>
                                     </Td>
                                     <Td className="text-right font-bold text-ink tnum">{taka(p.amount)}</Td>
-                                    <Td>{p.method || <span className="text-ink-4">Not paid</span>}</Td>
+                                    <Td>{p.method || <span className="text-ink-4">পেমেন্ট হয়নি</span>}</Td>
                                     <Td>
                                         <div className="flex items-center gap-2">
                                             <StatusBadge status={p.status === "paid" ? "paid" : p.status} />
                                             {p.risky && (
                                                 <span title={p.riskTitle} className="text-[12px] font-semibold text-flare-deep">
-                                                    Risky
+                                                    ঝুঁকিপূর্ণ
                                                 </span>
                                             )}
                                         </div>
@@ -190,22 +191,22 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                                                     size="sm"
                                                     disabled={pending}
                                                     onClick={() => clearRisk(p)}
-                                                    title="You checked this payment in the SSLCommerz merchant panel and it's genuine"
+                                                    title="SSLCommerz মার্চেন্ট প্যানেলে দেখে নিশ্চিত হয়েছেন যে পেমেন্টটি আসল"
                                                 >
                                                     <ShieldCheck className="h-3.5 w-3.5" />
-                                                    Mark checked
+                                                    যাচাই করেছি
                                                 </Button>
                                             )}
                                             {p.status === "refund_due" && (
                                                 <Button variant="outline" size="sm" disabled={pending} onClick={() => setRefund(p)}>
                                                     <RotateCcw className="h-3.5 w-3.5" />
-                                                    Mark refunded
+                                                    টাকা ফেরত দেওয়া হয়েছে
                                                 </Button>
                                             )}
                                             {readyGateways.includes(p.gateway) && ["initiated", "failed", "cancelled"].includes(p.status) && (
                                                 <Button variant="outline" size="sm" disabled={pending} onClick={() => recheck(p)}>
                                                     <RefreshCw className={cn("h-3.5 w-3.5", busyId === p.id && "animate-spin")} />
-                                                    {busyId === p.id ? "Checking…" : `Check with ${p.gatewayLabel}`}
+                                                    {busyId === p.id ? "যাচাই হচ্ছে…" : `${p.gatewayLabel}-এ যাচাই করুন`}
                                                 </Button>
                                             )}
                                         </div>
@@ -219,17 +220,17 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                 {pageCount > 1 && (
                     <div className="flex items-center justify-between border-t border-line px-6 py-3 text-[13px] text-ink-3">
                         <span>
-                            Page {page} of {pageCount}
+                            পৃষ্ঠা {BN.digits(page)} / {BN.digits(pageCount)}
                         </span>
                         <span className="flex gap-2">
                             {page > 1 && (
                                 <Button href={href({ ...filters, page: page - 1 })} variant="outline" size="sm">
-                                    <ChevronLeft className="h-3.5 w-3.5" /> Newer
+                                    <ChevronLeft className="h-3.5 w-3.5" /> নতুনগুলো
                                 </Button>
                             )}
                             {page < pageCount && (
                                 <Button href={href({ ...filters, page: page + 1 })} variant="outline" size="sm">
-                                    Older <ChevronRight className="h-3.5 w-3.5" />
+                                    পুরনোগুলো <ChevronRight className="h-3.5 w-3.5" />
                                 </Button>
                             )}
                         </span>
@@ -241,15 +242,15 @@ export default function PaymentsTable({ data, filters, readyGateways = [], metho
                 open={Boolean(refund)}
                 onClose={() => setRefund(null)}
                 size="sm"
-                title={refund ? `Refund ${taka(refund.amount)} for ${refund.bookingCode}?` : ""}
-                description="This only records the refund. Send the money first, from the SSLCommerz merchant panel or by bKash or cash."
+                title={refund ? `${refund.bookingCode}-এর ${taka(refund.amount)} ফেরত দিয়েছেন?` : ""}
+                description="এখানে শুধু টাকা ফেরতের তথ্য লিখে রাখা হয়। আগে SSLCommerz মার্চেন্ট প্যানেল থেকে বা bKash বা নগদ টাকায় টাকা পাঠিয়ে দিন।"
                 footer={
                     <>
                         <Button variant="ghost" onClick={() => setRefund(null)}>
-                            Not yet
+                            এখনো না
                         </Button>
                         <Button variant="ink" disabled={pending} onClick={confirmRefund}>
-                            I sent the refund
+                            টাকা ফেরত পাঠিয়েছি
                         </Button>
                     </>
                 }

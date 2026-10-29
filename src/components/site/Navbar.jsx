@@ -16,7 +16,6 @@ import {
     ChevronDown,
 } from "lucide-react";
 import Logo from "./Logo";
-import LangToggle from "./LangToggle";
 import { useI18n } from "@/i18n/I18nProvider";
 import { bookButtonLabel, navLabel } from "@/i18n/nav";
 import Button from "@/components/ui/Button";
@@ -29,7 +28,7 @@ import { signOut, useSession } from "@/lib/auth-client";
  * a "Sign in" flash on first paint. Live auth state comes from useSession().
  */
 export default function Navbar({ settings, items = [], user: initialUser = null }) {
-    const { t, locale } = useI18n();
+    const { t } = useI18n();
     const { data: session, isPending } = useSession();
     const user = session?.user ?? (isPending ? initialUser : null);
 
@@ -84,8 +83,11 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
         };
     }, [menuOpen]);
 
-    const isActive = (href) =>
-        href === "/" ? pathname === "/" : pathname.startsWith(href);
+    // "/book" must not light up on "/bookings": match the path itself or a sub-path.
+    const isActive = (href) => {
+        const path = href.split("#")[0] || "/";
+        return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
+    };
 
     async function handleSignOut() {
         setMenuOpen(false);
@@ -101,7 +103,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
     }
 
     const drawerItems = showMyBookings
-        ? [...items, { label: "My bookings", href: "/bookings", id: "my-bookings" }]
+        ? [...items, { label: t("common.myBookings"), href: "/bookings", id: "my-bookings" }]
         : items;
 
     return (
@@ -129,7 +131,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                             : "text-ink-3 hover:text-ink"
                                     )}
                                 >
-                                    {navLabel(item, t, locale)}
+                                    {navLabel(item)}
                                     {isActive(item.href) && (
                                         <span className="absolute inset-x-3.5 -bottom-[13px] h-[3px] rounded-t-full bg-brand" />
                                     )}
@@ -139,7 +141,6 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                     </ul>
 
                     <div className="ml-auto flex items-center gap-2">
-                        <LangToggle className="hidden md:inline-flex" />
                         {showMyBookings && (
                             <Link
                                 href="/bookings"
@@ -282,7 +283,6 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                     >
                         <div className="flex h-[68px] items-center justify-between px-4 sm:px-6">
                             <Logo settings={settings} tone="light" homeLabel={t("common.homeOf", { name: settings?.siteName ?? "TurfZone" })} />
-                            <LangToggle tone="light" className="ml-auto mr-3" />
                             <button
                                 type="button"
                                 onClick={() => setOpen(false)}
@@ -338,7 +338,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
                                                 : "text-white/55"
                                         )}
                                     >
-                                        {navLabel(item, t, locale)}
+                                        {navLabel(item)}
                                         {isActive(item.href) && (
                                             <span className="h-2.5 w-2.5 rounded-full bg-brand" />
                                         )}

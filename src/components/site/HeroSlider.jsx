@@ -150,7 +150,7 @@ export default function HeroSlider({ slides = [], autoplayMs = 6000, pauseOnHove
                             )}
                             <h1 className="display text-balance text-[clamp(40px,6.4vw,92px)] text-white">
                                 {active.heading.split(" ").map((word, i) => (
-                                    <span key={i} className="inline-block overflow-hidden pb-[0.08em] align-bottom">
+                                    <span key={i} className="-mb-[0.12em] inline-block overflow-hidden pb-[0.2em] align-bottom">
                                         <motion.span
                                             className="inline-block"
                                             variants={{

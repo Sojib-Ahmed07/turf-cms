@@ -30,6 +30,7 @@ import {
     seedDateFromDefault,
 } from "@/features/admin/actions/pitches";
 import { cn, taka, time12 } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 /**
  * props (from getPitchEditorData):
@@ -83,9 +84,9 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
         if (next === tab) return;
         if (dirty) {
             setConfirm({
-                title: "Discard unsaved changes?",
-                body: "You changed this schedule but didn't save it.",
-                label: "Discard changes",
+                title: "সেভ না করা পরিবর্তন বাদ দেবেন?",
+                body: "এই স্লটগুলো বদলেছেন কিন্তু সেভ করেননি।",
+                label: "পরিবর্তন বাদ দিন",
                 danger: true,
                 action: () => {
                     // reload from server state
@@ -132,7 +133,7 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
             ...prev,
             { startTime: minutesToHHMM(startMin), endTime: minutesToHHMM(startMin + len), price: String(price), sortOrder: prev.length },
         ]);
-        setNote("Added a block after the last one. Check that it doesn't run past closing time.");
+        setNote("শেষ স্লটের পরে একটি স্লট যোগ হয়েছে। বন্ধের সময় পার হয়ে যাচ্ছে কি না দেখে নিন।");
     }
 
     function run(fn, after) {
@@ -152,21 +153,21 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
 
     function save() {
         if (isDefault) {
-            run(() => replaceDefaultBlocks(pitch.id, defaultBlocks), () => setNote("Default schedule saved. Days without a custom schedule use it now."));
+            run(() => replaceDefaultBlocks(pitch.id, defaultBlocks), () => setNote("প্রতিদিনের স্লট সেভ হয়েছে। যেসব দিনের আলাদা স্লট নেই, সেগুলোতে এখন থেকে এটাই চলবে।"));
         } else if (activeDay) {
             const go = () =>
                 run(
                     () => replaceDateBlocks(pitch.id, activeDay.date, activeDay.blocks),
                     () => {
                         setDays((ds) => ds.map((d) => (d.date === activeDay.date ? { ...d, isOverride: true } : d)));
-                        setNote(`Custom schedule saved for ${activeDay.label}.`);
+                        setNote(`${activeDay.label}-এর আলাদা স্লট সেভ হয়েছে।`);
                     }
                 );
             if (activeDay.bookedCount > 0) {
                 setConfirm({
-                    title: "This day already has bookings",
-                    body: `${activeDay.bookedCount} booking${activeDay.bookedCount === 1 ? "" : "s"} exist for ${activeDay.label}. Existing bookings keep their time and price, but if you remove or move their slot, players may turn up for a slot that's no longer on the schedule.`,
-                    label: "Save anyway",
+                    title: "এই দিনে আগেই বুকিং আছে",
+                    body: `${activeDay.label}-এ ${BN.digits(activeDay.bookedCount)}টি বুকিং আছে। আগের বুকিংগুলোর সময় আর দাম বদলাবে না, কিন্তু তাদের স্লট সরিয়ে দিলে বা সময় বদলালে খেলোয়াড়রা এমন স্লটের জন্য চলে আসতে পারেন যা আর তালিকায় নেই।`,
+                    label: "তবুও সেভ করুন",
                     action: go,
                 });
                 return;
@@ -175,17 +176,17 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
         }
     }
 
-    const tabs = [{ key: "default", label: "Default schedule" }, ...days.map((d) => ({ key: d.date, label: d.label, custom: d.isOverride, booked: d.bookedCount }))];
+    const tabs = [{ key: "default", label: "প্রতিদিনের স্লট" }, ...days.map((d) => ({ key: d.date, label: d.label, custom: d.isOverride, booked: d.bookedCount }))];
 
     return (
         <div className="mx-auto max-w-[1080px] pb-28">
             <Link href="/admin/pitches" className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-3 hover:text-ink">
                 <ArrowLeft className="h-3.5 w-3.5" />
-                All grounds
+                সব মাঠ
             </Link>
             <PageHeader
                 title={`${pitch.name} slots`}
-                description="The default schedule is used every day. Give a date its own schedule for holidays, tournaments or maintenance."
+                description="প্রতিদিনের স্লট সব দিনে চলে। ছুটি, টুর্নামেন্ট বা মেরামতের জন্য কোনো তারিখে আলাদা স্লট বানাতে পারেন।"
             />
 
             {/* Tabs */}
@@ -206,12 +207,12 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                             {t.label}
                             {t.custom && (
                                 <span className={cn("rounded-full px-1.5 text-[10px] font-bold", active ? "bg-flare text-ink" : "bg-flare-soft text-flare-deep")}>
-                                    Custom
+                                    আলাদা
                                 </span>
                             )}
                             {t.booked > 0 && (
                                 <span className={cn("rounded-full px-1.5 text-[10px] font-bold tnum", active ? "bg-white/20" : "bg-brand-soft text-brand-deep")}>
-                                    {t.booked}
+                                    {BN.digits(t.booked)}
                                 </span>
                             )}
                         </button>
@@ -220,11 +221,11 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
             </div>
 
             <Panel
-                title={isDefault ? "Default schedule" : `${activeDay?.label} ${activeDay?.isOverride ? "(custom schedule)" : "(uses the default)"}`}
+                title={isDefault ? "প্রতিদিনের স্লট" : `${activeDay?.label} ${activeDay?.isOverride ? "(আলাদা স্লট)" : "(প্রতিদিনের স্লট চলছে)"}`}
                 description={
                     derived
-                        ? `${blocks.length} slot${blocks.length === 1 ? "" : "s"}, ${time12(blocks[0].startTime)} to ${time12(blocks[blocks.length - 1].endTime)}, ${Math.round(totalMinutes / 6) / 10} hours bookable`
-                        : "No slots on this schedule."
+                        ? `${BN.digits(blocks.length)}টি স্লট, ${time12(blocks[0].startTime)} থেকে ${time12(blocks[blocks.length - 1].endTime)}, মোট ${BN.digits(Math.round(totalMinutes / 6) / 10)} ঘণ্টা বুক করা যায়`
+                        : "এখানে কোনো স্লট নেই।"
                 }
                 actions={
                     isDefault ? (
@@ -234,16 +235,16 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                             disabled={isPending}
                             onClick={() =>
                                 setConfirm({
-                                    title: "Rebuild from the ground's hours?",
-                                    body: `This replaces the default schedule with ${pitch.defaultSlotMinutes}-minute slots from the ground's opening to closing hour, priced from ${taka(pitch.hourlyRate)}/hr. Your manual edits to the default will be lost.`,
-                                    label: "Rebuild schedule",
+                                    title: "মাঠের খোলার সময় থেকে নতুন করে বানাবেন?",
+                                    body: `প্রতিদিনের স্লটগুলো মুছে মাঠ খোলা থেকে বন্ধ হওয়া পর্যন্ত ${BN.digits(pitch.defaultSlotMinutes)} মিনিটের স্লট বানানো হবে, দাম ঘণ্টায় ${taka(pitch.hourlyRate)} হিসেবে। প্রতিদিনের স্লটে নিজে যা বদলেছিলেন তা মুছে যাবে।`,
+                                    label: "নতুন করে বানান",
                                     danger: true,
-                                    action: () => run(() => regenerateDefaultBlocks(pitch.id), () => setNote("Default schedule rebuilt.")),
+                                    action: () => run(() => regenerateDefaultBlocks(pitch.id), () => setNote("প্রতিদিনের স্লট নতুন করে বানানো হয়েছে।")),
                                 })
                             }
                         >
                             <RefreshCw className="h-3.5 w-3.5" />
-                            Rebuild from hours
+                            খোলার সময় থেকে বানান
                         </Button>
                     ) : (
                         <div className="flex flex-wrap gap-2">
@@ -257,13 +258,13 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                                             () => seedDateFromDefault(pitch.id, activeDay.date),
                                             () => {
                                                 setDays((ds) => ds.map((d) => (d.date === activeDay.date ? { ...d, isOverride: true } : d)));
-                                                setNote(`${activeDay.label} now has its own schedule. Edit it and save.`);
+                                                setNote(`${activeDay.label}-এর জন্য আলাদা স্লট তৈরি হয়েছে। বদলে সেভ করুন।`);
                                             }
                                         )
                                     }
                                 >
                                     <Copy className="h-3.5 w-3.5" />
-                                    Make custom for this day
+                                    এই দিনের জন্য আলাদা স্লট বানান
                                 </Button>
                             ) : (
                                 <Button
@@ -272,9 +273,9 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                                     disabled={isPending}
                                     onClick={() =>
                                         setConfirm({
-                                            title: `Use the default schedule on ${activeDay.label}?`,
-                                            body: "The custom schedule for this day will be deleted.",
-                                            label: "Reset to default",
+                                            title: `${activeDay.label}-এ প্রতিদিনের স্লট চালাবেন?`,
+                                            body: "এই দিনের আলাদা স্লটগুলো মুছে যাবে।",
+                                            label: "প্রতিদিনের স্লটে ফেরান",
                                             danger: true,
                                             action: () =>
                                                 run(
@@ -283,14 +284,14 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                                                         setDays((ds) =>
                                                             ds.map((d) => (d.date === activeDay.date ? { ...d, isOverride: false, blocks: defaultBlocks } : d))
                                                         );
-                                                        setNote(`${activeDay.label} uses the default schedule again.`);
+                                                        setNote(`${activeDay.label}-এ আবার প্রতিদিনের স্লট চলছে।`);
                                                     }
                                                 ),
                                         })
                                     }
                                 >
                                     <RotateCcw className="h-3.5 w-3.5" />
-                                    Reset to default
+                                    প্রতিদিনের স্লটে ফেরান
                                 </Button>
                             )}
                         </div>
@@ -300,14 +301,14 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
             >
                 {!isDefault && !activeDay?.isOverride && (
                     <p className="mb-3 rounded-ctl bg-chalk px-4 py-3 text-[13px] text-ink-2">
-                        This day follows the default schedule. To change only this day, choose “Make custom for this day”. To change every day, edit the
-                        default schedule.
+                        এই দিনে প্রতিদিনের স্লট চলছে। শুধু এই দিনটি বদলাতে “এই দিনের জন্য আলাদা স্লট বানান” চাপুন। সব দিন বদলাতে
+                        প্রতিদিনের স্লট বদলান।
                     </p>
                 )}
 
                 {blocks.length === 0 ? (
                     <div className="rounded-ctl border-2 border-dashed border-line px-6 py-12 text-center text-[14px] text-ink-3">
-                        {isDefault ? "No slots yet. Use “Rebuild from hours” or add a slot." : "No slots on this day: the ground is closed for booking."}
+                        {isDefault ? "এখনো কোনো স্লট নেই। “খোলার সময় থেকে বানান” চাপুন অথবা একটি স্লট যোগ করুন।" : "এই দিনে কোনো স্লট নেই: মাঠে বুকিং বন্ধ।"}
                     </div>
                 ) : (
                     <ul className="space-y-2">
@@ -325,9 +326,9 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                                         </span>
                                         <div>
                                             <p className="text-[15px] font-bold text-ink tnum wide">
-                                                {time12(b.startTime)} to {time12(b.endTime)}
+                                                {time12(b.startTime)} থেকে {time12(b.endTime)}
                                             </p>
-                                            <p className="text-[12px] text-ink-3 tnum">{dur} min</p>
+                                            <p className="text-[12px] text-ink-3 tnum">{BN.digits(dur)} মিনিট</p>
                                         </div>
                                     </div>
 
@@ -339,23 +340,23 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                                             value={b.price}
                                             disabled={locked}
                                             onChange={(e) => updatePrice(i, e.target.value)}
-                                            aria-label={`Price for ${time12(b.startTime)}`}
+                                            aria-label={`${time12(b.startTime)}-এর দাম`}
                                             className="h-full w-24 bg-transparent px-3 text-[14px] font-semibold text-ink outline-none tnum disabled:text-ink-4"
                                         />
                                     </label>
 
                                     <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                                        <SmallBtn disabled={locked || dur <= 30} onClick={() => resize(i, -30)}>−30m</SmallBtn>
-                                        <SmallBtn disabled={locked || dur <= 15} onClick={() => resize(i, -15)}>−15m</SmallBtn>
-                                        <SmallBtn disabled={locked || dur + 15 > MAX_SLOT_MINUTES} onClick={() => resize(i, 15)}>+15m</SmallBtn>
+                                        <SmallBtn disabled={locked || dur <= 30} onClick={() => resize(i, -30)}>−৩০ মি.</SmallBtn>
+                                        <SmallBtn disabled={locked || dur <= 15} onClick={() => resize(i, -15)}>−১৫ মি.</SmallBtn>
+                                        <SmallBtn disabled={locked || dur + 15 > MAX_SLOT_MINUTES} onClick={() => resize(i, 15)}>+১৫ মি.</SmallBtn>
                                         <SmallBtn disabled={locked || dur + 30 > MAX_SLOT_MINUTES} onClick={() => resize(i, 30)} accent>
-                                            +30m
+                                            +৩০ মি.
                                         </SmallBtn>
                                         <button
                                             type="button"
                                             disabled={locked}
                                             onClick={() => remove(i)}
-                                            aria-label={`Delete ${time12(b.startTime)} slot`}
+                                            aria-label={`${time12(b.startTime)}-এর স্লট মুছুন`}
                                             className="grid h-8 w-8 place-items-center rounded-full text-ink-3 hover:bg-danger-soft hover:text-danger disabled:opacity-30"
                                         >
                                             <Trash2 className="h-4 w-4" />
@@ -374,13 +375,13 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                         className="mt-2 flex w-full items-center justify-center gap-2 rounded-[16px] border-2 border-dashed border-line py-3 text-[13px] font-semibold text-ink-3 hover:border-ink-4 hover:text-ink"
                     >
                         <Plus className="h-4 w-4" />
-                        Add a slot after the last one
+                        শেষ স্লটের পরে একটি স্লট যোগ করুন
                     </button>
                 )}
 
                 <p className="mt-4 px-1 text-[12px] leading-relaxed text-ink-3">
-                    Making a slot longer pushes every later slot back; making it shorter pulls them earlier. Deleting a slot leaves a gap. Existing bookings keep
-                    their own time and price.
+                    কোনো স্লট লম্বা করলে পরের সব স্লট পিছিয়ে যায়; ছোট করলে এগিয়ে আসে। কোনো স্লট মুছলে সেখানে ফাঁকা থাকে। আগের বুকিংগুলোর
+                    সময় আর দাম বদলায় না।
                 </p>
             </Panel>
 
@@ -401,7 +402,7 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                 <div className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-[1000px] items-center justify-between gap-4 rounded-full bg-ink py-2 pl-6 pr-2 text-white shadow-[0_20px_40px_-16px_rgb(0_0_0/0.5)] lg:left-[296px]">
                     <p className="flex items-center gap-2.5 text-[14px] font-medium">
                         <span className="h-2 w-2 rounded-full bg-flare" />
-                        Unsaved changes to {isDefault ? "the default schedule" : activeDay?.label}
+                        {isDefault ? "প্রতিদিনের স্লটে" : `${activeDay?.label}-এ`} পরিবর্তন সেভ হয়নি
                     </p>
                     <div className="flex gap-2">
                         <Button
@@ -416,10 +417,10 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                                 setError("");
                             }}
                         >
-                            Discard
+                            বাদ দিন
                         </Button>
                         <Button size="sm" onClick={save} disabled={isPending}>
-                            {isPending ? "Saving…" : isDefault ? "Save default" : "Save this day"}
+                            {isPending ? "সেভ হচ্ছে…" : isDefault ? "প্রতিদিনের স্লট সেভ করুন" : "এই দিন সেভ করুন"}
                         </Button>
                     </div>
                 </div>
@@ -433,7 +434,7 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                 footer={
                     <>
                         <Button variant="outline" onClick={() => setConfirm(null)}>
-                            Keep editing
+                            বদলানো চালিয়ে যান
                         </Button>
                         <Button
                             variant={confirm?.danger ? "ink" : "brand"}

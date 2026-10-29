@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
 const ICONS = { bkash: Smartphone, sslcommerz: CreditCard };
 const MARK = { bkash: "bg-[#e2136e] text-white", sslcommerz: "bg-pitch text-white" };
 const WHAT = {
-    bkash: "Direct bKash checkout.",
-    sslcommerz: "Cards, Nagad, Rocket and other wallets through SSLCommerz.",
+    bkash: "সরাসরি bKash দিয়ে পেমেন্ট।",
+    sslcommerz: "SSLCommerz-এর মাধ্যমে কার্ড, নগদ, রকেট ও অন্যান্য ওয়ালেট।",
 };
 
 /**
@@ -41,7 +41,7 @@ export default function PaymentMethodsPanel({ methods = [], showToast }) {
                 showToast?.(res.error, "error");
                 return;
             }
-            showToast?.(`${m.name} is ${enabled ? "on" : "off"} for players`);
+            showToast?.(`খেলোয়াড়দের জন্য ${m.name} ${enabled ? "চালু" : "বন্ধ"} করা হয়েছে`);
             setLocal({});
             router.refresh();
         });
@@ -50,8 +50,8 @@ export default function PaymentMethodsPanel({ methods = [], showToast }) {
     return (
         <Panel
             className="mb-6"
-            title="Payment methods"
-            description="Turn a method off and players are told to use the one that's on. Payments already in progress still finish."
+            title="পেমেন্টের মাধ্যম"
+            description="কোনো মাধ্যম বন্ধ করলে খেলোয়াড়দের চালু মাধ্যমটি ব্যবহার করতে বলা হয়। যে পেমেন্ট চলছে, সেগুলো ঠিকমতো শেষ হবে।"
         >
             <ul className="divide-y divide-line">
                 {methods.map((m) => {
@@ -67,26 +67,26 @@ export default function PaymentMethodsPanel({ methods = [], showToast }) {
                                     {m.name}
                                     {!m.configured ? (
                                         <span className="rounded-full bg-chalk px-2 py-0.5 text-[11px] font-semibold text-ink-3 ring-1 ring-inset ring-line">
-                                            Keys not set
+                                            কী সেট করা হয়নি
                                         </span>
                                     ) : on ? (
-                                        <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-deep">On</span>
+                                        <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-deep">চালু</span>
                                     ) : (
-                                        <span className="rounded-full bg-flare-soft px-2 py-0.5 text-[11px] font-semibold text-flare-deep">Off</span>
+                                        <span className="rounded-full bg-flare-soft px-2 py-0.5 text-[11px] font-semibold text-flare-deep">বন্ধ</span>
                                     )}
                                 </p>
                                 <p className="mt-0.5 text-[13px] text-ink-3">
                                     {m.configured ? WHAT[m.id] : (
                                         <span className="inline-flex items-center gap-1.5">
                                             <KeyRound className="h-3.5 w-3.5" />
-                                            Add its keys to the server settings to use it. Hidden from players until then.
+                                            ব্যবহার করতে সার্ভারের সেটিংসে এর কী যোগ করুন। ততক্ষণ খেলোয়াড়রা এটি দেখবেন না।
                                         </span>
                                     )}
                                 </p>
                             </div>
                             {m.configured && (
                                 <div className={cn(pendingId === m.id && "pointer-events-none opacity-60")}>
-                                    <Switch checked={on} onChange={(v) => toggle(m, v)} label={`${m.name} payments`} />
+                                    <Switch checked={on} onChange={(v) => toggle(m, v)} label={`${m.name} পেমেন্ট`} />
                                 </div>
                             )}
                         </li>
@@ -95,7 +95,7 @@ export default function PaymentMethodsPanel({ methods = [], showToast }) {
             </ul>
             {methods.some((m) => m.configured) && liveCount === 0 && (
                 <p className="mt-5 rounded-ctl bg-flare-soft px-4 py-3 text-[13px] font-medium text-flare-deep">
-                    Every online payment method is off, so players can&apos;t book and pay online. Turn one back on, or take bookings at the desk (walk-ins).
+                    সব অনলাইন পেমেন্ট মাধ্যম বন্ধ, তাই খেলোয়াড়রা অনলাইনে বুক করে পেমেন্ট করতে পারবেন না। একটি আবার চালু করুন, অথবা কাউন্টারে বুকিং নিন।
                 </p>
             )}
         </Panel>

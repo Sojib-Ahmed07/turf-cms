@@ -11,8 +11,8 @@ import { GATEWAYS, isGatewayConfigured } from "./methods";
 import { PAYMENT_LOCK_MINUTES, blockingBooking, getActiveIntervals, getSheetDayStarts, seatNeedForBooking } from "@/features/booking/queries";
 import { redeemCoupon } from "@/features/coupons/service";
 import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
-import { isBlockEnded, isBlockPast, shortDateAscii, slotInterval } from "@/lib/time";
-import { time12Ascii } from "@/lib/utils";
+import { isBlockEnded, isBlockPast, shortDateLabel, slotInterval } from "@/lib/time";
+import { time12 } from "@/lib/utils";
 import { i18nSync } from "@/i18n/server";
 
 // Unfinished payment attempts (failed, cancelled, abandoned) one player may start per hour. Each one
@@ -163,7 +163,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
         tranId,
         amount,
         // Gateways get plain ASCII (their pages and SMS may not show Bangla); the ground name may be Bangla, so only the slot.
-        productName: `Turf slot ${b.code}, ${shortDateAscii(b.bookingDate)}, ${time12Ascii(b.startTime)} to ${time12Ascii(b.endTime)}${b.people ? `, ${b.people} people` : ""}`,
+        productName: `Turf slot ${b.code}, ${shortDateLabel(b.bookingDate)}, ${time12(b.startTime)} to ${time12(b.endTime)}${b.people ? `, ${b.people} people` : ""}`,
         customer: { name: user.name, email: user.email, phone: user.phone },
         urls: {
             success: `${base}/api/payment/sslcommerz/success`,

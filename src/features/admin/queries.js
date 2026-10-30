@@ -6,7 +6,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, or, sql, gt, isNull }
 import { db } from "@/db";
 import { bookings, pitches, timeBlocks, user, heroSlides, coupons, siteSettings } from "@/db/schema";
 import { addDaysISO, dayStartOf, isAfterMidnight, isBlockPast, operatingMinutes, shortDateLabel, slotInterval } from "@/lib/time";
-import { blockingBooking, currentVenueDay, getActiveIntervals, getSheetDayStarts, getTimeBlocksForPitch } from "@/features/booking/queries";
+import { blockingBooking, currentVenueDay, getActiveIntervals, getSheetDayStarts, getTimeBlocksForPitch, intervalsOverlapAny, seatNeed, seatsLeft } from "@/features/booking/queries";
 import { time12 } from "@/lib/utils";
 import { BN } from "@/i18n/format";
 
@@ -117,25 +117,38 @@ export async function getTodayBoard() {
     for (const p of active) {
         const [blocks, activeIv] = await Promise.all([getTimeBlocksForPitch(p, today), getActiveIntervals(p.id, [today])]);
         const dayStart = dayStartOf(blocks);
+        const need = seatNeed(p, 1);
         rows.push({
             pitch: p.name,
             blocks: blocks.map((b) => {
                 total += 1;
+                const interval = slotInterval(today, b.startTime, b.endTime, dayStart);
                 // same overlap rule as the booking page (also catches last night's after-midnight bookings)
-                const t = blockingBooking(activeIv, slotInterval(today, b.startTime, b.endTime, dayStart));
+                const t = blockingBooking(activeIv, interval, need);
+                // per-person grounds: "১২/২০ জন" instead of a name; the slot counts as used once anyone booked it
+                const seats = need ? need.capacity - seatsLeft(activeIv, interval, need.capacity) : null;
+                const anyone = need ? intervalsOverlapAny(activeIv, interval) : null;
                 const past = isBlockPast(today, b.startTime, dayStart);
                 const at = operatingMinutes(b.startTime, dayStart);
                 let until = operatingMinutes(b.endTime, dayStart);
                 if (until <= at) until += 1440;
                 let status = "free";
-                if (t?.status === "confirmed") status = "confirmed";
-                else if (t?.status === "held") status = "held";
+                const hit = need ? anyone : t;
+                if (hit?.status === "confirmed") status = "confirmed";
+                else if (hit?.status === "held") status = "held";
                 else if (past) status = "past";
-                if (t) used += 1;
-                if (status === "free") freeCount += 1;
+                if (hit) used += 1;
+                if (!t && !past) freeCount += 1; // still bookable (per-person: places left)
                 if (minStart === null || at < minStart) minStart = at;
                 if (maxEnd === null || until > maxEnd) maxEnd = until;
-                return { start: b.startTime, end: b.endTime, at, until, status, who: t ? t.customerName || "খেলোয়াড়" : null };
+                const who = need
+                    ? hit
+                        ? `${BN.digits(seats)}/${BN.digits(need.capacity)} জন`
+                        : null
+                    : t
+                        ? t.customerName || "খেলোয়াড়"
+                        : null;
+                return { start: b.startTime, end: b.endTime, at, until, status, who };
             }),
         });
     }
@@ -188,6 +201,7 @@ function baseBookingQuery() {
             startTime: bookings.startTime,
             endTime: bookings.endTime,
             totalPrice: bookings.totalPrice,
+            people: bookings.people,
             status: bookings.status,
             paymentStatus: bookings.paymentStatus,
             source: bookings.source,
@@ -245,6 +259,7 @@ function toAdminBookingRow(r, dayStart) {
         isoDate: r.bookingDate,
         time: `${time12(r.startTime)} থেকে ${time12(r.endTime)}${isAfterMidnight(r.startTime, dayStart) ? ", রাত ১২টার পর" : ""}`,
         amount: Number(r.totalPrice),
+        people: r.people ?? null, // per-person grounds (swimming pool)
         status: displayStatus(r, dayStart),
         rawStatus: r.status,
         method:
@@ -360,6 +375,8 @@ function toPitchAdmin(p) {
         size: p.size ?? "",
         surface: p.surface ?? "",
         hourlyRate: Number(p.hourlyRate),
+        pricing: p.pricing === "per_person" ? "per_person" : "slot",
+        capacity: p.capacity ?? null,
         openHour: p.openHour,
         closeHour: p.closeHour,
         defaultSlotMinutes: p.defaultSlotMinutes,

@@ -49,8 +49,8 @@ function PricePill({ pitch, t, f }) {
         <p className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap rounded-full bg-white px-4 py-2.5 text-[15px] font-bold leading-none text-ink tnum">
             <span className="text-[12px] font-medium text-ink-3">{t("groundsPage.from")}</span>
             <span>
-                {f.taka(pitch.fromHourly)}
-                <span className="font-medium text-ink-3">{t("common.perHour")}</span>
+                {f.taka(pitch.perPerson ? pitch.fromPerPerson : pitch.fromHourly)}
+                <span className="font-medium text-ink-3">{pitch.perPerson ? t("common.perPerson") : t("common.perHour")}</span>
             </span>
         </p>
     );

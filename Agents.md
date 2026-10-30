@@ -63,6 +63,8 @@ grounds, open 6 am to 3 am, prices in BDT (৳).
   editor data, resend limit, match-day check-in, bKash slot check, security headers, robots.
 - **Bangla only + WhatsApp (29 Oct):** the whole site (player pages, admin panel, emails, ticket check) is in plain
   Bangla, one language. Run `npm run db:migrate` for **0008** (data only: sample content to Bangla, Contact link removed).
+- **Per-person pricing (29 Oct):** swimming pool (any ground set to "জনপ্রতি দাম") is priced per person and shared
+  up to a capacity. Run `npm run db:migrate` for **0009** (`pitches.pricing`, `pitches.capacity`, `bookings.people`).
 - **Next:** small pre-deploy fixes (`DEPLOY.md` for Brevo/`TICKET_SECRET`/`BKASH_*`, "Checked in" column), then deploy.
 
 ## 3. Stack in use
@@ -144,6 +146,17 @@ Env file: **`.env.local`** for everything (Next.js, drizzle-kit and the seed). T
   with `slotChanged` if the venue changed it meanwhile (default block ids are positional).
 - **Booking window:** `BOOKING_DAYS_AHEAD = 30` (one month) on /book, the home quick search, walk-ins and the server check.
 - My bookings and Admin, Bookings ("Any status") hide unpaid attempts that never became bookings.
+- **Per-person grounds (swimming pool, 29 Oct, migration 0009):** a ground has `pricing` = `slot` (one booking takes the
+whole slot at the slot price: football, cricket, badminton) or `per_person` (slot prices are per person; the player picks
+how many people, 1 to `MAX_PEOPLE_PER_BOOKING` = 10, and pays price x people; many bookings share a slot until
+`pitches.capacity` people are booked). `bookings.people` is null for whole-slot bookings and the head count for
+per-person ones; the unique index `bookings_active_slot_uq` only covers `people is null`, so per-person seats are checked
+under the ground's lock. Always pass the seat need to `blockingBooking(active, interval, need)`: `seatNeed(pitch, people)`
+for a new booking, `await seatNeedForBooking(row)` for an existing one (payment start/settle). `seatsLeft()` gives the
+places left; `getSlotBoard` returns `seatsLeft` per slot. Pure helpers in `features/booking/people.js`
+(`MAX_PEOPLE_PER_BOOKING`, `clampPeople`, `slotTotal(price, people)`); stepper `components/ui/PeoplePicker.jsx`. The
+admin sets the pricing type + capacity in the ground form (sport "সুইমিং পুল" picks per-person); the pricing type can't
+change while the ground has upcoming bookings. Coupons apply to price x people.
 - **Statuses:** `held`, `confirmed`, `cancelled`, `expired`, `completed` (shown when a confirmed booking's time has passed).
   `paymentStatus`: `unpaid`, `paid`, `refund_due`, `refunded`.
 
@@ -437,6 +450,7 @@ Still open:
   resend limit, match-day check-in, bKash slot check before execute, security headers, robots/noindex for verify pages.
 - [x] **Bangla only** (29 Oct): whole site and admin panel in plain Bangla (one language), WhatsApp button, Contact link
   removed, grounds alignment + design fixes (migration 0008, data only).
+- [x] **Per-person pricing** (29 Oct): swimming pool priced per person with a shared capacity (migration 0009).
 - [ ] **Confirm on the dev machine**: `payments.gateway` column exists; sandbox payment with bKash and SSLCommerz; method
   switches; sign-up phone check; `?next=` redirect stays on site.
 - [ ] **Pre-deploy fixes**: update `DEPLOY.md` (Brevo, `TICKET_SECRET`, `BKASH_*`, QR/receipt checks); "Checked in" column
@@ -489,6 +503,12 @@ Still open:
 | `column "gateway" does not exist` | `npm run db:generate` then `npm run db:migrate` (0004) |
 
 ## 10. Changelog
+- 2026-10-29 (d): Per-person pricing for the swimming pool. Ground form: "দাম কীভাবে ধরা হবে" (পুরো স্লটের দাম /
+  জনপ্রতি দাম) + "একটি স্লটে একসাথে সর্বোচ্চ কতজন"; choosing সুইমিং পুল switches to per-person. /book shows "কতজন আসবেন?"
+  (1 to 10), slot tiles show "৳২০০/জন" and the places left, total = price x people (coupons too); walk-ins take a head
+  count; tickets, receipt email, /verify and Admin, Bookings show "৩ জন"; the today board shows "২/২০ জন".
+  Migration **0009_per_person_pricing**: `pitches.pricing` (default `slot`), `pitches.capacity`, `bookings.people`, and
+  the unique slot index now ignores per-person bookings. Existing grounds stay whole-slot until the admin switches them.
 - 2026-10-29 (b): Docs: the control room (revenue display override, `/control-room/[slug]`) is a wanted feature, not
   declined; documented in section 6, CLAUDE.md and ai-context.md.
 - 2026-10-29 (c): Bangla only. The bilingual plan was dropped before it shipped: the site is one language, Bangla,

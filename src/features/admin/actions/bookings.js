@@ -10,7 +10,8 @@ import { db } from "@/db";
 import { withLockedTx } from "@/db/pool";
 import { bookings, payments } from "@/db/schema";
 import { isBlockPast, slotInterval } from "@/lib/time";
-import { blockingBooking, expireStaleHolds, getActiveIntervals, getPitchById, resolveBlock } from "@/features/booking/queries";
+import { blockingBooking, expireStaleHolds, getActiveIntervals, getPitchById, resolveBlock, seatNeed } from "@/features/booking/queries";
+import { MAX_PEOPLE_PER_BOOKING, slotTotal } from "@/features/booking/people";
 
 async function requireAdmin() {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -157,6 +158,8 @@ const walkInSchema = z.object({
         .trim()
         .regex(/^(\+?88)?01[3-9]\d{8}$/, "বাংলাদেশি মোবাইল নম্বর দিন, যেমন 01712345678।"),
     paidAtVenue: z.boolean().optional().default(false),
+    // Per-person grounds (swimming pool) only.
+    people: z.coerce.number().int().min(1, "কতজন লিখুন।").max(MAX_PEOPLE_PER_BOOKING, `একটি বুকিংয়ে সর্বোচ্চ ${MAX_PEOPLE_PER_BOOKING} জন।`).optional().default(1),
 });
 
 /** Admin books a slot for a player at the desk or on the phone. Confirmed immediately. */
@@ -179,14 +182,15 @@ export async function createWalkInBooking(input) {
 
         await expireStaleHolds({ pitchId: v.pitchId, date: v.date });
 
-        const price = String(block.price);
+        const need = seatNeed(pitch, v.people);
+        const price = String(slotTotal(block.price, need ? need.people : null));
         const interval = slotInterval(v.date, block.startTime, block.endTime, block.dayStart);
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
                 const row = await withLockedTx([`pitch:${v.pitchId}`], async (tx) => {
                     // Same rule as online holds: nothing active may overlap this slot's real time.
                     const active = await getActiveIntervals(v.pitchId, [v.date], { exec: tx });
-                    if (blockingBooking(active, interval)) return null;
+                    if (blockingBooking(active, interval, need)) return null;
                     const [inserted] = await tx
                         .insert(bookings)
                         .values({
@@ -199,6 +203,7 @@ export async function createWalkInBooking(input) {
                             bookingDate: v.date,
                             startTime: block.startTime,
                             endTime: block.endTime,
+                            people: need ? need.people : null,
                             subtotal: price,
                             discount: "0",
                             totalPrice: price,
@@ -209,7 +214,12 @@ export async function createWalkInBooking(input) {
                         .returning({ id: bookings.id, code: bookings.code });
                     return inserted;
                 });
-                if (!row) return { ok: false, error: "এই স্লটটি আগেই বুক হয়ে গেছে বা পেমেন্ট চলছে।" };
+                if (!row) {
+                    return {
+                        ok: false,
+                        error: need ? "এই স্লটে এতজনের জায়গা আর খালি নেই।" : "এই স্লটটি আগেই বুক হয়ে গেছে বা পেমেন্ট চলছে।",
+                    };
+                }
                 revalidateAll();
                 return { ok: true, data: row };
             } catch (err) {

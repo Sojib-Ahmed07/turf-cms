@@ -39,6 +39,7 @@ export default async function VerifyTicketPage({ params }) {
             endTime: bookings.endTime,
             totalPrice: bookings.totalPrice,
             discount: bookings.discount,
+            people: bookings.people,
             status: bookings.status,
             paymentStatus: bookings.paymentStatus,
             source: bookings.source,
@@ -77,6 +78,7 @@ export default async function VerifyTicketPage({ params }) {
         player: row.customerName || row.userName || "খেলোয়াড়",
         total: Number(row.totalPrice),
         discount: Number(row.discount ?? 0),
+        people: row.people ?? null,
         checkedInAt: row.checkedInAt ? row.checkedInAt.toISOString() : null,
         checkedInLabel: row.checkedInAt ? `${shortDateLabel(dhakaDate(row.checkedInAt))}, ${time12(dhakaTime(row.checkedInAt))}` : null,
     };

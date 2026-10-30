@@ -105,6 +105,7 @@ function Ticket({ booking: b, playerName, venue, onClose }) {
                 <Row label={t("ticket.date")} value={f.dateLong(playDate(b))} wide note={late ? t("ticket.nightOf", { date: f.date(b.date) }) : null} />
                 <Row label={t("ticket.time")} value={t("ticket.timeRange", { from: f.time(b.start), to: f.time(b.end) })} />
                 <Row label={t("ticket.player")} value={playerName || t("ticket.you")} />
+                {b.people ? <Row label={t("summary.people")} value={t("summary.peopleValue", { n: b.people })} /> : null}
                 <Row label={t("ticket.payment")} value={paid} note={b.discount > 0 ? t("ticket.savedAmount", { amount: f.taka(b.discount) }) : null} wide />
             </dl>
 

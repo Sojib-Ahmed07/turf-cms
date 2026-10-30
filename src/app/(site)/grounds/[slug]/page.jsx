@@ -48,8 +48,8 @@ export default async function GroundPage({ params }) {
                         <h1 className="display min-w-0 pb-[0.06em] text-[clamp(40px,6vw,72px)] text-white">{p.name}</h1>
                         <p className="self-start whitespace-nowrap rounded-full bg-white px-4 py-2 text-[16px] font-bold text-ink tnum sm:self-auto">
                             <span className="font-medium text-ink-3">{t("groundsPage.from")} </span>
-                            {f.taka(p.fromHourly)}
-                            <span className="font-medium text-ink-3">{t("common.perHour")}</span>
+                            {f.taka(p.perPerson ? p.fromPerPerson : p.fromHourly)}
+                            <span className="font-medium text-ink-3">{p.perPerson ? t("common.perPerson") : t("common.perHour")}</span>
                         </p>
                     </div>
                 </div>
@@ -110,6 +110,7 @@ export default async function GroundPage({ params }) {
                     <div className="sticky top-24 rounded-card bg-white p-6 ring-1 ring-line">
                         <dl className="space-y-4 text-[15px]">
                             {p.format && <Spec icon={Users} label={t("groundsPage.format")} value={p.format} />}
+                            {p.perPerson && <Spec icon={Users} label={t("groundsPage.pricing")} value={t("groundsPage.perPersonValue", { n: p.capacity })} />}
                             {p.size && <Spec icon={Ruler} label={t("grounds.size")} value={p.size} />}
                             {p.surface && <Spec icon={Layers} label={t("grounds.surface")} value={p.surface} />}
                             {p.opensAt && (

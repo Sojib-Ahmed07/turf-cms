@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, desc, eq, gt, inArray, lte, ne, or, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, pitches, timeBlocks } from "@/db/schema";
+import { clampPeople } from "./people";
 import { partsOf } from "./parts";
 import { addDaysISO, currentOperatingDay, dayStartOf, dhakaDate, hhmmToMinutes, intervalsOverlap, isAfterMidnight, isBlockPast, minutesToHHMM, nightEndOf, operatingMinutes, slotInterval } from "@/lib/time";
 import { time12 } from "@/lib/utils";
@@ -67,6 +68,39 @@ function fromHourlyOf(p) {
     return rates.length ? Math.round(Math.min(...rates)) : Number(p.hourlyRate);
 }
 
+/** Cheapest per-person slot price on the default schedule (per-person grounds), for "জনপ্রতি ৳X থেকে". */
+function fromPerPersonOf(p) {
+    const prices = (Array.isArray(p.defaultBlocks) ? p.defaultBlocks : []).map((b) => Number(b.price)).filter((n) => Number.isFinite(n) && n > 0);
+    return prices.length ? Math.min(...prices) : Number(p.hourlyRate);
+}
+
+/* -------------------------------------------------------------- */
+/* Per-person grounds (swimming pool)                              */
+/* -------------------------------------------------------------- */
+
+export const DEFAULT_CAPACITY = 20;
+
+export const isPerPerson = (p) => p?.pricing === "per_person";
+
+/** Most people in one slot of this ground at the same time. */
+export const capacityOf = (p) => Math.max(1, Number(p?.capacity) || DEFAULT_CAPACITY);
+
+/**
+ * What a new booking of `people` needs from blockingBooking(): { capacity, people } on a per-person ground,
+ * null (the whole slot) otherwise. `people` is clamped to 1..MAX_PEOPLE_PER_BOOKING.
+ */
+export function seatNeed(p, people = 1) {
+    if (!isPerPerson(p)) return null;
+    return { capacity: capacityOf(p), people: clampPeople(people) };
+}
+
+/** Same as seatNeed() for an existing booking row ({ pitchId, people }): reads the ground's capacity. */
+export async function seatNeedForBooking(b, exec = db) {
+    if (b?.people == null) return null;
+    const [p] = await exec.select({ capacity: pitches.capacity }).from(pitches).where(eq(pitches.id, b.pitchId)).limit(1);
+    return { capacity: Math.max(1, Number(p?.capacity) || DEFAULT_CAPACITY), people: Number(b.people) };
+}
+
 function hoursOf(p) {
     const sheet = defaultSheet(p);
     return sheet.length ? { opensAt: sheet[0].startTime, closesAt: sheet[sheet.length - 1].endTime } : { opensAt: null, closesAt: null };
@@ -84,6 +118,10 @@ export function toPitchView(p) {
         surface: p.surface ?? "",
         hourlyRate: Number(p.hourlyRate),
         fromHourly: fromHourlyOf(p),
+        // Per-person grounds (swimming pool): slot prices are per person; many bookings share a slot.
+        perPerson: isPerPerson(p),
+        capacity: isPerPerson(p) ? capacityOf(p) : null,
+        fromPerPerson: isPerPerson(p) ? fromPerPersonOf(p) : null,
         // Default schedule's first start and last end ("06:00", "03:00"), for "Hours" on the grounds pages.
         ...hoursOf(p),
         openHour: p.openHour,
@@ -264,6 +302,7 @@ export async function getActiveIntervals(pitchId, dates, { exec = db, excludeId 
             status: bookings.status,
             userId: bookings.userId,
             customerName: bookings.customerName,
+            people: bookings.people,
         })
         .from(bookings)
         .where(and(...where));
@@ -275,10 +314,32 @@ export async function getActiveIntervals(pitchId, dates, { exec = db, excludeId 
     }));
 }
 
-/** The active booking that blocks this slot (a confirmed one first), or null. */
-export function blockingBooking(active, interval) {
+/**
+ * The active booking that blocks this slot (a confirmed one first), or null.
+ * need (per-person grounds, from seatNeed / seatNeedForBooking): { capacity, people }. Then the slot is only blocked
+ * when a whole-slot booking overlaps it or the people already booked + `people` would be more than `capacity`.
+ * Without `need`, any overlapping booking blocks (a whole-slot booking).
+ */
+export function blockingBooking(active, interval, need = null) {
     const hits = active.filter((a) => intervalsOverlap(a.interval, interval));
-    return hits.find((h) => h.status === "confirmed") ?? hits[0] ?? null;
+    const first = () => hits.find((h) => h.status === "confirmed") ?? hits[0] ?? null;
+    if (!need) return first();
+    const whole = hits.find((h) => h.people == null);
+    if (whole) return whole;
+    const used = hits.reduce((n, h) => n + (Number(h.people) || 0), 0);
+    return used + need.people > need.capacity ? first() : null;
+}
+
+/** Any active booking overlapping this slot (a confirmed one first), or null; ignores seats. */
+export function intervalsOverlapAny(active, interval) {
+    return blockingBooking(active, interval, null);
+}
+
+/** Places still free in this slot of a per-person ground (0 when a whole-slot booking overlaps it). */
+export function seatsLeft(active, interval, capacity) {
+    const hits = active.filter((a) => intervalsOverlap(a.interval, interval));
+    if (hits.some((h) => h.people == null)) return 0;
+    return Math.max(0, capacity - hits.reduce((n, h) => n + (Number(h.people) || 0), 0));
 }
 
 export async function getSlotBoard(pitchId, date, viewerId = null) {
@@ -287,22 +348,27 @@ export async function getSlotBoard(pitchId, date, viewerId = null) {
 
     const [blocks, active] = await Promise.all([getTimeBlocksForPitch(pitch, date), getActiveIntervals(pitchId, [date])]);
     const dayStart = dayStartOf(blocks);
+    const need = seatNeed(pitch, 1);
 
     return blocks.map((b) => {
         // Taken = any active booking that overlaps this slot's real time (not just the same start time),
-        // including the neighbouring days' sheets.
-        const t = blockingBooking(active, slotInterval(date, b.startTime, b.endTime, dayStart));
+        // including the neighbouring days' sheets. Per-person grounds: taken once every place is booked.
+        const interval = slotInterval(date, b.startTime, b.endTime, dayStart);
+        const t = blockingBooking(active, interval, need);
         let state = "free";
         if (t?.status === "confirmed") state = "booked";
         else if (t?.status === "held") state = "held";
         else if (isBlockPast(date, b.startTime, dayStart)) state = "past";
+        const overlapping = active.filter((a) => intervalsOverlap(a.interval, interval));
         return {
             id: b.id,
             start: b.startTime,
             end: b.endTime,
             price: b.price,
             state,
-            mine: Boolean(t && viewerId && t.userId === viewerId),
+            // per-person grounds: places still free in this slot (null on whole-slot grounds)
+            seatsLeft: need ? seatsLeft(active, interval, need.capacity) : null,
+            mine: Boolean(viewerId && (need ? overlapping.some((a) => a.userId === viewerId) : t && t.userId === viewerId)),
             late: isAfterMidnight(b.startTime, dayStart),
         };
     });
@@ -320,11 +386,12 @@ export async function getGroundsToday() {
         rows.map(async (p) => {
             const [blocks, active] = await Promise.all([getTimeBlocksForPitch(p, date), getActiveIntervals(p.id, [date])]);
             const dayStart = dayStartOf(blocks);
+            const need = seatNeed(p, 1);
             const freeToday = blocks
                 .filter(
                     (b) =>
                         b.price > 0 &&
-                        !blockingBooking(active, slotInterval(date, b.startTime, b.endTime, dayStart)) &&
+                        !blockingBooking(active, slotInterval(date, b.startTime, b.endTime, dayStart), need) &&
                         !isBlockPast(date, b.startTime, dayStart)
                 )
                 .map((b) => b.startTime);
@@ -357,7 +424,7 @@ export async function getGroundDays(pitch, days = 7) {
                 (b) =>
                     b.price > 0 &&
                     !isBlockPast(date, b.startTime, dayStart) &&
-                    !blockingBooking(active, slotInterval(date, b.startTime, b.endTime, dayStart))
+                    !blockingBooking(active, slotInterval(date, b.startTime, b.endTime, dayStart), seatNeed(pitch, 1))
             )
             .map((b) => b.startTime);
         return { date, slots: blocks.length, free: times.length, times };
@@ -393,6 +460,7 @@ export async function getMyBookings(userId) {
             endTime: bookings.endTime,
             totalPrice: bookings.totalPrice,
             discount: bookings.discount,
+            people: bookings.people,
             status: bookings.status,
             paymentStatus: bookings.paymentStatus,
             holdExpiresAt: bookings.holdExpiresAt,
@@ -438,6 +506,7 @@ export async function getMyBookings(userId) {
                 dayStart,
                 total: Number(r.totalPrice),
                 discount: Number(r.discount ?? 0),
+                people: r.people ?? null,
                 status,
                 paidWith: r.paymentStatus === "paid" ? "Online" : null,
                 refundDue: r.paymentStatus === "refund_due",

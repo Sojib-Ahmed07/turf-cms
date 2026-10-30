@@ -2,7 +2,8 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Clock3, Hourglass, Lock, MapPin, Tag, X } from "lucide-react";
+import { CalendarDays, Clock3, Hourglass, Lock, MapPin, Tag, Users, X } from "lucide-react";
+import { slotTotal } from "@/features/booking/people";
 import Button from "@/components/ui/Button";
 import PayMethodPicker from "@/features/payment/components/PayMethodPicker";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
  *   onRemoveCoupon()               clear the code
  *   showCoupon                     show the promo code box (default on)
  *   methods / method / onMethodChange  payment methods [{ id, label, hint }] and the chosen one
+ *   people                         per-person grounds (swimming pool): how many people (price x people); null otherwise
  */
 export default function BookingSummary({
     pitch,
@@ -33,13 +35,14 @@ export default function BookingSummary({
     methods = [],
     method = "",
     onMethodChange,
+    people = null,
 }) {
     const { t, f } = useI18n();
     const [code, setCode] = useState("");
     const [checking, setChecking] = useState(false);
     const [codeError, setCodeError] = useState("");
 
-    const subtotal = Number(block?.price ?? 0);
+    const subtotal = block ? slotTotal(block.price, people) : 0;
     const discount = coupon ? coupon.discount : 0;
     const total = Math.max(0, subtotal - discount);
 
@@ -81,6 +84,7 @@ export default function BookingSummary({
                         value={block ? t("summary.timeRange", { start: f.time(block.start), end: f.time(block.end) }) : t("summary.chooseSlot")}
                         muted={!block}
                     />
+                    {people != null && <Line icon={Users} label={t("summary.people")} value={t("summary.peopleValue", { n: people })} />}
                     {venue && <Line icon={MapPin} label={t("summary.venue")} value={venue} />}
                 </dl>
 
@@ -123,7 +127,10 @@ export default function BookingSummary({
 
                 {/* Totals */}
                 <div className="space-y-2 border-t border-dashed border-line pt-5 text-[14px]">
-                    <Row label={t("summary.slotPrice")} value={f.taka(subtotal)} />
+                    <Row
+                        label={people != null && block ? t("summary.perPersonRow", { price: f.taka(block.price), n: people }) : t("summary.slotPrice")}
+                        value={f.taka(subtotal)}
+                    />
                     {discount > 0 && <Row label={t("summary.discount")} value={`−${f.taka(discount)}`} accent />}
                     <div className="flex items-end justify-between pt-2">
                         <span className="font-semibold text-ink">{t("summary.total")}</span>

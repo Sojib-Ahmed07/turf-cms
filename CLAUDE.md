@@ -67,7 +67,8 @@ src/
     auth/              AuthForms, AuthLayout, VerifyEmailForm
   features/
     auth/              emails.js (sendOtpEmail), ticket-email.js (receipt with QR)
-    booking/           queries.js (getMyBookings adds qrDataUrl), actions.js, actions-email.js (resendTicketEmail),
+    booking/           queries.js (getMyBookings adds qrDataUrl; seatNeed/seatsLeft), actions.js, actions-email.js,
+                       people.js (per-person pricing helpers),
                        slots.js (pure slot engine), calendar.js, parts.js, components/ (incl. TicketDialog)
     profile/           actions.js (updateProfile), components/ProfileClient.jsx
     admin/             queries.js, commerce-queries.js,
@@ -84,7 +85,7 @@ src/
                        bkash, cloudinary, brevo, ticket-token, qrcode, phone, env
   proxy.js             cookie check redirect for /admin, /bookings, /profile
   instrumentation.js   runs lib/env.js assertEnv() once at server start
-drizzle/               migrations 0000 to 0008 (0008 Bangla sample content, data only) (0002 check-in, 0003 map, 0004_next_fabian_cortez payments.gateway)
+drizzle/               migrations 0000 to 0009 (0008 Bangla sample content, data only; 0009 per-person pricing) (0002 check-in, 0003 map, 0004_next_fabian_cortez payments.gateway)
 next.config.mjs        image hosts + security headers (X-Frame-Options DENY, nosniff, Referrer-Policy, HSTS)
 ```
 
@@ -176,6 +177,18 @@ is data only: it deletes the old `/#visit` menu link and turns the sample/defaul
 banners, home sections, terms, settings, SEO) into Bangla when they still match exactly; text the admin wrote by hand is
 not touched (edit it in the admin panel). Don't add English UI text back; write new text in Bangla.
 
+**Per-person grounds (swimming pool, 29 Oct, migration 0009):** a ground has `pricing` = `slot` (one booking takes the
+whole slot at the slot price: football, cricket, badminton) or `per_person` (slot prices are per person; the player picks
+how many people, 1 to `MAX_PEOPLE_PER_BOOKING` = 10, and pays price x people; many bookings share a slot until
+`pitches.capacity` people are booked). `bookings.people` is null for whole-slot bookings and the head count for
+per-person ones; the unique index `bookings_active_slot_uq` only covers `people is null`, so per-person seats are checked
+under the ground's lock. Always pass the seat need to `blockingBooking(active, interval, need)`: `seatNeed(pitch, people)`
+for a new booking, `await seatNeedForBooking(row)` for an existing one (payment start/settle). `seatsLeft()` gives the
+places left; `getSlotBoard` returns `seatsLeft` per slot. Pure helpers in `features/booking/people.js`
+(`MAX_PEOPLE_PER_BOOKING`, `clampPeople`, `slotTotal(price, people)`); stepper `components/ui/PeoplePicker.jsx`. The
+admin sets the pricing type + capacity in the ground form (sport "সুইমিং পুল" picks per-person); the pricing type can't
+change while the ground has upcoming bookings. Coupons apply to price x people.
+
 **Control room (revenue display override):** `/control-room/<ADMIN_OVERRIDE_SLUG>` (404 for any other slug or when the
 env var is missing; signed-in admins only, then `ADMIN_OVERRIDE_PASSWORD`, unlock cookie `tz_override_auth` for 2 hours).
 The admin types the "today" and "this month" revenue figures to show; `saveOverride` stores the difference from the real
@@ -198,6 +211,8 @@ the layout. `/verify/[token]` is public; only `markTicketUsed` needs admin.
 ## Known gaps (as of 26 Oct 2026)
 
 - 29 Oct: run `npm run db:migrate` for **0008** (data only: sample English content to Bangla, Contact link removed).
+- 29 Oct (d): run `npm run db:migrate` for **0009** (per-person pricing columns). Then open the swimming pool in
+  Admin, মাঠ ও স্লট, choose "জনপ্রতি দাম", set the capacity and per-person prices.
 - Content the admin typed in English by hand before 29 Oct stays as written; retype it in Bangla in the admin panel.
 
 - `BLUEPRINT.md` is not in the repo. `ai-context.md` section 12 has the remaining plan; ask before

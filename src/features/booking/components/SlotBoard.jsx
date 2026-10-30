@@ -17,8 +17,11 @@ const minutes = (a, b) => {
     return d;
 };
 
-/** Time blocks grouped by part of day. state: free | booked | held | past; late = played after midnight */
-export default function SlotBoard({ blocks = [], selectedId, onSelect }) {
+/**
+ * Time blocks grouped by part of day. state: free | booked | held | past; late = played after midnight.
+ * perPerson (swimming pool): prices are per person, a slot shows the places left and "full" instead of "booked".
+ */
+export default function SlotBoard({ blocks = [], selectedId, onSelect, perPerson = false, people = 1 }) {
     const { t } = useI18n();
     return (
         <div>
@@ -26,7 +29,9 @@ export default function SlotBoard({ blocks = [], selectedId, onSelect }) {
                 <Legend className="bg-white ring-1 ring-line">{t("slots.free")}</Legend>
                 <Legend className="bg-pitch">{t("slots.selected")}</Legend>
                 <Legend className="bg-flare">{t("slots.onHold")}</Legend>
-                <Legend className="bg-[repeating-linear-gradient(135deg,var(--color-line)_0_3px,transparent_3px_6px)] ring-1 ring-line">{t("slots.booked")}</Legend>
+                <Legend className="bg-[repeating-linear-gradient(135deg,var(--color-line)_0_3px,transparent_3px_6px)] ring-1 ring-line">
+                    {perPerson ? t("slots.full") : t("slots.booked")}
+                </Legend>
             </div>
 
             <div className="space-y-8">
@@ -48,7 +53,7 @@ export default function SlotBoard({ blocks = [], selectedId, onSelect }) {
                             </header>
                             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
                                 {items.map((b) => (
-                                    <SlotTile key={b.id} block={b} selected={b.id === selectedId} onSelect={onSelect} />
+                                    <SlotTile key={b.id} block={b} selected={b.id === selectedId} onSelect={onSelect} perPerson={perPerson} people={people} />
                                 ))}
                             </div>
                         </section>
@@ -59,9 +64,11 @@ export default function SlotBoard({ blocks = [], selectedId, onSelect }) {
     );
 }
 
-function SlotTile({ block, selected, onSelect }) {
+function SlotTile({ block, selected, onSelect, perPerson, people }) {
     const { t, f } = useI18n();
-    const disabled = block.state !== "free";
+    // per-person grounds: a slot with fewer places left than the people picked can't be chosen
+    const tooFew = perPerson && !selected && block.state === "free" && block.seatsLeft != null && block.seatsLeft < people;
+    const disabled = block.state !== "free" || tooFew;
     const mins = minutes(block.start, block.end);
 
     return (
@@ -72,7 +79,8 @@ function SlotTile({ block, selected, onSelect }) {
             onClick={() => onSelect?.(block.id)}
             className={cn(
                 "group relative flex flex-col items-start rounded-[16px] p-3.5 text-left transition-[box-shadow,background-color,transform] duration-200",
-                block.state === "free" && !selected && "bg-white ring-1 ring-line hover:-translate-y-0.5 hover:ring-2 hover:ring-brand",
+                block.state === "free" && !selected && !tooFew && "bg-white ring-1 ring-line hover:-translate-y-0.5 hover:ring-2 hover:ring-brand",
+                tooFew && "cursor-not-allowed bg-white opacity-50 ring-1 ring-line",
                 selected && "bg-pitch text-white shadow-[0_14px_30px_-14px_rgb(11_59_44/0.8)]",
                 block.state === "booked" &&
                 "cursor-not-allowed bg-[repeating-linear-gradient(135deg,rgb(15_31_25/0.04)_0_6px,transparent_6px_12px)] ring-1 ring-line",
@@ -86,6 +94,11 @@ function SlotTile({ block, selected, onSelect }) {
             <span className={cn("text-[13px] tnum", selected ? "text-white/65" : "text-ink-3")}>
                 {t("slots.until", { time: f.time(block.end), minutes: mins })}
             </span>
+            {perPerson && block.state === "free" && block.seatsLeft != null && (
+                <span className={cn("mt-1 text-[12px] font-medium tnum", selected ? "text-white/80" : "text-brand-deep")}>
+                    {t("slots.placesLeft", { n: block.seatsLeft })}
+                </span>
+            )}
             <span className="mt-3 flex w-full items-center justify-between">
                 <span
                     className={cn(
@@ -94,12 +107,16 @@ function SlotTile({ block, selected, onSelect }) {
                     )}
                 >
                     {block.state === "booked"
-                        ? t("slots.booked")
+                        ? perPerson
+                            ? t("slots.full")
+                            : t("slots.booked")
                         : block.state === "held"
                             ? t("slots.onHold")
                             : block.state === "past"
                                 ? t("slots.passed")
-                                : f.taka(block.price)}
+                                : perPerson
+                                    ? t("slots.perPerson", { price: f.taka(block.price) })
+                                    : f.taka(block.price)}
                 </span>
                 {selected && (
                     <span className="grid h-5 w-5 place-items-center rounded-full bg-brand text-white">

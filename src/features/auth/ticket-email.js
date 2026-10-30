@@ -10,6 +10,7 @@ import { getSiteSettings } from "@/features/cms/queries";
 import { longDateLabel, playDate, isAfterMidnight } from "@/features/booking/calendar";
 import { dhakaDate, shortDateLabel } from "@/lib/time";
 import { taka, time12 } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 function escapeHtml(s) {
     return String(s ?? "")
@@ -56,6 +57,7 @@ export async function sendTicketEmail({ email, booking, site }) {
                 <tr><td style="padding:8px 0;color:#555;">তারিখ</td><td style="padding:8px 0;text-align:right;font-weight:700;">${escapeHtml(dateLabel)}</td></tr>
                 <tr><td style="padding:8px 0;color:#555;">সময়</td><td style="padding:8px 0;text-align:right;font-weight:700;">${escapeHtml(timeLabel)}</td></tr>
                 <tr><td style="padding:8px 0;color:#555;">খেলোয়াড়</td><td style="padding:8px 0;text-align:right;font-weight:700;">${escapeHtml(booking.player || "")}</td></tr>
+                ${booking.people ? `<tr><td style="padding:8px 0;color:#555;">কতজন</td><td style="padding:8px 0;text-align:right;font-weight:700;">${escapeHtml(BN.digits(booking.people))} জন</td></tr>` : ""}
                 <tr><td style="padding:8px 0;color:#555;">পেমেন্ট</td><td style="padding:8px 0;text-align:right;font-weight:700;">${escapeHtml(paid)}</td></tr>
             </table>
 
@@ -77,6 +79,7 @@ export async function sendTicketEmail({ email, booking, site }) {
         `তারিখ: ${dateLabel}`,
         `সময়: ${timeLabel}`,
         `খেলোয়াড়: ${booking.player || ""}`,
+        booking.people ? `কতজন: ${BN.digits(booking.people)} জন` : "",
         `পেমেন্ট: ${paid}`,
         "",
         "গেটে QR কোডটি দেখান (এই ইমেইলের HTML সংস্করণে আছে)।",
@@ -108,6 +111,7 @@ export async function sendBookingReceiptByBookingId(bookingId) {
                 totalPrice: bookings.totalPrice,
                 discount: bookings.discount,
                 paymentStatus: bookings.paymentStatus,
+                people: bookings.people,
                 customerName: bookings.customerName,
                 createdAt: bookings.createdAt,
                 pitchName: pitches.name,
@@ -142,6 +146,7 @@ export async function sendBookingReceiptByBookingId(bookingId) {
                 dayStart,
                 total: Number(row.totalPrice),
                 discount: Number(row.discount ?? 0),
+                people: row.people ?? null,
                 paidWith: row.paymentStatus === "paid" ? "Online" : null,
                 player: row.customerName || userRow.name || "",
                 createdAtISO: row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),

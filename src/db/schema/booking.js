@@ -14,6 +14,11 @@ import {
 
 export const SPORTS = ["football", "cricket", "badminton", "swimming_pool"];
 
+// How a ground is sold: "slot" = one booking takes the whole slot at the slot's price (football, cricket,
+// badminton); "per_person" = the slot price is per person and many bookings share the slot until `capacity`
+// people are booked (swimming pool).
+export const PRICINGS = ["slot", "per_person"];
+
 export const pitches = pgTable("pitches", {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
@@ -24,6 +29,8 @@ export const pitches = pgTable("pitches", {
     size: text("size"),
     surface: text("surface"),
     hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }).notNull(),
+    pricing: text("pricing").notNull().default("slot"), // slot | per_person (see PRICINGS)
+    capacity: integer("capacity"), // per_person only: most people in one slot at the same time
     openHour: integer("open_hour").notNull().default(6),
     closeHour: integer("close_hour").notNull().default(3),
     defaultSlotMinutes: integer("default_slot_minutes").notNull().default(90),

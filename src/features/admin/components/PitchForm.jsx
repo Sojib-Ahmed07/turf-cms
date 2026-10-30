@@ -8,7 +8,7 @@ import Button from "@/components/ui/Button";
 import Switch from "@/components/ui/Switch";
 import { Label } from "@/components/admin/Kit";
 import ImageUploader from "@/components/admin/ImageUploader";
-import { TextInput, Select, CharInput } from "@/components/ui/Inputs";
+import { TextInput, Select, CharInput, Segmented } from "@/components/ui/Inputs";
 import { upsertPitch } from "@/features/admin/actions/pitches";
 import { generateDefaultBlocks, hourOptions } from "@/features/booking/slots";
 import { hhmmToMinutes } from "@/lib/time";
@@ -20,6 +20,11 @@ const SPORTS = [
     { value: "cricket", label: "ক্রিকেট" },
     { value: "badminton", label: "ব্যাডমিন্টন" },
     { value: "swimming_pool", label: "সুইমিং পুল" },
+];
+
+const PRICINGS = [
+    { value: "slot", label: "পুরো স্লটের দাম" },
+    { value: "per_person", label: "জনপ্রতি দাম" },
 ];
 
 // Quick picks under the typeable slot length. Any whole number from MIN_LEN to MAX_LEN works.
@@ -50,6 +55,8 @@ export const EMPTY_PITCH = {
     size: "",
     surface: "",
     hourlyRate: "",
+    pricing: "slot",
+    capacity: "",
     openHour: 6,
     closeHour: 3,
     defaultSlotMinutes: 90,
@@ -74,12 +81,29 @@ export default function PitchForm({ pitch, onClose }) {
     if (pitch !== lastPitch) {
         setLastPitch(pitch);
         if (pitch) {
-            setForm({ ...EMPTY_PITCH, ...pitch, hourlyRate: pitch.hourlyRate === "" ? "" : String(pitch.hourlyRate) });
+            setForm({
+                ...EMPTY_PITCH,
+                ...pitch,
+                hourlyRate: pitch.hourlyRate === "" ? "" : String(pitch.hourlyRate),
+                capacity: pitch.capacity == null ? "" : String(pitch.capacity),
+            });
             setError("");
         }
     }
 
     const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
+    const perPerson = form.pricing === "per_person";
+
+    // A swimming pool is usually sold per person: switch the pricing with the sport (the admin can change it back).
+    function setSport(e) {
+        const sport = e.target.value;
+        setForm((f) => ({
+            ...f,
+            sport,
+            pricing: sport === "swimming_pool" ? "per_person" : f.sport === "swimming_pool" ? "slot" : f.pricing,
+            capacity: sport === "swimming_pool" && !f.capacity ? "20" : f.capacity,
+        }));
+    }
 
     const slotLen = Number(form.defaultSlotMinutes);
     const slotLenOk = String(form.defaultSlotMinutes).trim() !== "" && Number.isInteger(slotLen) && slotLen >= MIN_LEN && slotLen <= MAX_LEN;
@@ -111,6 +135,7 @@ export default function PitchForm({ pitch, onClose }) {
                 openHour: Number(form.openHour),
                 closeHour: Number(form.closeHour),
                 defaultSlotMinutes: Number(form.defaultSlotMinutes),
+                capacity: perPerson ? form.capacity : "",
             });
             if (!res.ok) {
                 setError(res.error);
@@ -151,8 +176,27 @@ export default function PitchForm({ pitch, onClose }) {
                     </div>
                     <div>
                         <Label htmlFor="p-sport">খেলা</Label>
-                        <Select id="p-sport" value={form.sport} onChange={set("sport")} options={SPORTS} />
+                        <Select id="p-sport" value={form.sport} onChange={setSport} options={SPORTS} />
                     </div>
+                </div>
+
+                <div className="rounded-ctl bg-chalk p-4">
+                    <Label>দাম কীভাবে ধরা হবে</Label>
+                    <Segmented options={PRICINGS} value={form.pricing} onChange={(v) => setForm((f) => ({ ...f, pricing: v, capacity: v === "per_person" && !f.capacity ? "20" : f.capacity }))} />
+                    <p className="mt-2 text-[12px] text-ink-3">
+                        {perPerson
+                            ? "স্লটের দাম জনপ্রতি। খেলোয়াড় কতজন আসবেন তা সিলেক্ট করবেন, দাম হবে জনপ্রতি দাম × জন। জায়গা থাকা পর্যন্ত একই স্লট অনেকে আলাদা আলাদা বুক করতে পারবেন (যেমন সুইমিং পুল)।"
+                            : "একটি বুকিংয়ে পুরো স্লট বুক হয়, যতজনই খেলুক (যেমন ফুটবল, ক্রিকেট, ব্যাডমিন্টন)।"}
+                    </p>
+                    {perPerson && (
+                        <div className="mt-3 max-w-[220px]">
+                            <Label htmlFor="p-cap">একটি স্লটে একসাথে সর্বোচ্চ কতজন</Label>
+                            <div className="relative">
+                                <TextInput id="p-cap" type="number" inputMode="numeric" min={1} max={500} step={1} value={form.capacity} onChange={set("capacity")} placeholder="20" className="pr-12" />
+                                <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] font-medium text-ink-3">জন</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div>
@@ -177,7 +221,7 @@ export default function PitchForm({ pitch, onClose }) {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                        <Label htmlFor="p-rate">প্রতি ঘণ্টার দাম</Label>
+                        <Label htmlFor="p-rate">{perPerson ? "জনপ্রতি প্রতি ঘণ্টার দাম" : "প্রতি ঘণ্টার দাম"}</Label>
                         <TextInput
                             id="p-rate"
                             type="number"
@@ -185,7 +229,7 @@ export default function PitchForm({ pitch, onClose }) {
                             prefix="৳"
                             value={form.hourlyRate}
                             onChange={set("hourlyRate")}
-                            placeholder="1600"
+                            placeholder={perPerson ? "200" : "1600"}
                         />
                     </div>
                     <div>

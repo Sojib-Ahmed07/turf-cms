@@ -10,6 +10,7 @@ import { and, count, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, couponRedemptions, coupons } from "@/db/schema";
 import { evaluateCoupon, normalizeCode } from "./rules";
+import { i18nSync } from "@/i18n/server";
 
 export async function getCouponByCode(code, exec = db) {
     const c = normalizeCode(code);
@@ -53,12 +54,13 @@ export async function couponUses(coupon, userId, exec = db) {
  * i18n (optional): { t, f } from getI18n(), so the player sees the reason in their language.
  * exec (optional): a transaction (withLockedTx) so the use count can't change before the hold is saved.
  */
-export async function checkCouponForSlot({ code, pitchId, block, date, userId, i18n = null, exec = db }) {
+export async function checkCouponForSlot({ code, pitchId, block, date, userId, i18n = null, exec = db, subtotal = null }) {
     const coupon = await getCouponByCode(code, exec);
-    if (!coupon) return { ok: false, error: i18n ? i18n.t("coupon.invalid") : "That code isn't valid. Check the spelling." };
+    if (!coupon) return { ok: false, error: (i18n ?? i18nSync()).t("coupon.invalid") };
     const uses = await couponUses(coupon, userId, exec);
     const r = evaluateCoupon(coupon, {
-        subtotal: Number(block.price),
+        // per-person grounds pass price x people; otherwise the slot price
+        subtotal: subtotal ?? Number(block.price),
         pitchId,
         date,
         startTime: block.startTime,

@@ -7,13 +7,15 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { withLockedTx } from "@/db/pool";
 import { conflictError, conflictsForDate, conflictsForDefault } from "@/features/admin/schedule-guard";
-import { pitches, timeBlocks, SPORTS } from "@/db/schema";
+import { bookings, pitches, timeBlocks, PRICINGS, SPORTS } from "@/db/schema";
+import { currentVenueDay } from "@/features/booking/queries";
+import { addDaysISO } from "@/lib/time";
 import { generateDefaultBlocks, validateBlocks, deriveHours, cloneAsTemplate } from "@/features/booking/slots";
 
 /* -------------------------------------------------------------- */
@@ -105,6 +107,12 @@ const pitchSchema = z.object({
     size: z.string().trim().max(30).optional().default(""),
     surface: z.string().trim().max(40).optional().default(""),
     hourlyRate: z.coerce.number().min(1, "ঘণ্টাপ্রতি দাম লিখুন।").max(1_000_000),
+    // "slot" = one booking takes the whole slot; "per_person" = price per person, slot shared up to `capacity`.
+    pricing: z.enum(PRICINGS).optional().default("slot"),
+    capacity: z.preprocess(
+        (v) => (v === "" || v == null ? null : v),
+        z.coerce.number().int().min(1, "একসাথে কতজন থাকতে পারবে লিখুন।").max(500, "সর্বোচ্চ ৫০০ জন।").nullable()
+    ).optional().default(null),
     openHour: z.coerce.number().int().min(0).max(23),
     closeHour: z.coerce.number().int().min(0).max(23),
     defaultSlotMinutes: z.coerce.number().int().min(15, "একটি স্লট কমপক্ষে ১৫ মিনিটের হতে হবে।").max(240, "একটি স্লট সর্বোচ্চ ৪ ঘণ্টার হতে পারে।"),
@@ -149,6 +157,7 @@ export async function upsertPitch(input) {
         }
         const v = parsed.data;
         if (v.openHour === v.closeHour) return { ok: false, error: "খোলা ও বন্ধের সময় এক হতে পারে না।" };
+        if (v.pricing === "per_person" && !v.capacity) return { ok: false, error: "একটি স্লটে একসাথে কতজন থাকতে পারবে লিখুন।" };
 
         const values = {
             name: v.name,
@@ -158,6 +167,8 @@ export async function upsertPitch(input) {
             size: v.size || null,
             surface: v.surface || null,
             hourlyRate: String(v.hourlyRate),
+            pricing: v.pricing,
+            capacity: v.pricing === "per_person" ? v.capacity : null,
             openHour: v.openHour,
             closeHour: v.closeHour,
             defaultSlotMinutes: v.defaultSlotMinutes,
@@ -168,11 +179,25 @@ export async function upsertPitch(input) {
 
         if (v.id) {
             const [old] = await db
-                .select({ openHour: pitches.openHour, closeHour: pitches.closeHour, defaultSlotMinutes: pitches.defaultSlotMinutes, defaultBlocks: pitches.defaultBlocks })
+                .select({
+                    openHour: pitches.openHour,
+                    closeHour: pitches.closeHour,
+                    defaultSlotMinutes: pitches.defaultSlotMinutes,
+                    defaultBlocks: pitches.defaultBlocks,
+                    pricing: pitches.pricing,
+                })
                 .from(pitches)
                 .where(eq(pitches.id, v.id))
                 .limit(1);
             if (!old) return { ok: false, error: "মাঠটি পাওয়া যায়নি।" };
+
+            // Switching between whole-slot and per-person pricing would change what existing bookings mean.
+            if ((old.pricing ?? "slot") !== v.pricing && (await hasUpcomingBookings(v.id))) {
+                return {
+                    ok: false,
+                    error: "এই মাঠে সামনের বুকিং আছে, তাই দামের ধরন এখন বদলানো যাবে না। বুকিংগুলো শেষ হলে বা ক্যানসেল করলে আবার চেষ্টা করুন।",
+                };
+            }
 
             const rebuilt =
                 old.openHour !== v.openHour || old.closeHour !== v.closeHour || old.defaultSlotMinutes !== v.defaultSlotMinutes;
@@ -215,6 +240,17 @@ export async function upsertPitch(input) {
     } catch (err) {
         return fail(err, "মাঠ সেভ হয়নি। আবার চেষ্টা করুন।");
     }
+}
+
+/** Any active (held or confirmed) booking from yesterday's sheet on (yesterday: after-midnight slots). */
+async function hasUpcomingBookings(pitchId) {
+    const { date: today } = await currentVenueDay();
+    const [row] = await db
+        .select({ id: bookings.id })
+        .from(bookings)
+        .where(and(eq(bookings.pitchId, pitchId), inArray(bookings.status, ["held", "confirmed"]), gte(bookings.bookingDate, addDaysISO(today, -1))))
+        .limit(1);
+    return Boolean(row);
 }
 
 /** Open or close a ground for booking. */

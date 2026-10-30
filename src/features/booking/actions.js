@@ -11,7 +11,8 @@ import { db } from "@/db";
 import { withLockedTx } from "@/db/pool";
 import { bookings } from "@/db/schema";
 import { isBlockPast, slotInterval } from "@/lib/time";
-import { PRE_PAYMENT_LOCK_MINUTES, blockingBooking, currentVenueDay, expireStaleHolds, getActiveIntervals, getPitchById, resolveBlock } from "./queries";
+import { PRE_PAYMENT_LOCK_MINUTES, blockingBooking, currentVenueDay, expireStaleHolds, getActiveIntervals, getPitchById, resolveBlock, seatNeed } from "./queries";
+import { MAX_PEOPLE_PER_BOOKING, slotTotal } from "./people";
 import { BOOKING_DAYS_AHEAD, isRealDate } from "./calendar";
 import { addDaysISO } from "@/lib/time";
 import { getI18n } from "@/i18n/server";
@@ -36,6 +37,8 @@ const holdSchema = z.object({
     // point at another time or price, so these must still match (sent by the booking page).
     startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     price: z.coerce.number().nonnegative().optional(),
+    // Per-person grounds (swimming pool): how many people. Ignored on whole-slot grounds.
+    people: z.coerce.number().int().min(1).max(MAX_PEOPLE_PER_BOOKING).optional().default(1),
 });
 
 /** The block the player picked is still the one they saw (same start time and price). */
@@ -91,7 +94,9 @@ export async function previewCoupon(input) {
         if (!block) return { ok: false, error: t("errors.pickSlotFirst") };
         if (!sameAsSeen(block, parsed.data)) return { ok: false, slotChanged: true, error: t("errors.slotChanged") };
 
-        const r = await checkCouponForSlot({ code: couponCode, pitchId, block, date, userId: user?.id ?? null, i18n });
+        const need = seatNeed(pitch, parsed.data.people);
+        const subtotal = slotTotal(block.price, need ? need.people : null);
+        const r = await checkCouponForSlot({ code: couponCode, pitchId, block, date, userId: user?.id ?? null, i18n, subtotal });
         if (!r.ok) return r;
         return { ok: true, data: { code: r.coupon.code, discount: r.discount, total: r.total } };
     } catch (err) {
@@ -152,6 +157,9 @@ export async function bookAndPay(input) {
         await expireStaleHolds({ pitchId, date });
 
         const interval = slotInterval(date, block.startTime, block.endTime, block.dayStart);
+        // Per-person grounds: price x people, and the slot is shared until it's full.
+        const need = seatNeed(pitch, parsed.data.people);
+        const subtotal = slotTotal(block.price, need ? need.people : null);
         const code = couponCode ? normalizeCode(couponCode) : "";
         // Locks: the ground (overlap check), the player (attempt limit) and the code (usage limits).
         const lockKeys = [`pitch:${pitchId}`, `user:${user.id}`];
@@ -188,17 +196,19 @@ export async function bookAndPay(input) {
                     // Any active booking (paid, or someone else on the payment page right now) whose real time
                     // overlaps this slot blocks it, including yesterday's/tomorrow's after-midnight slots.
                     const active = await getActiveIntervals(pitchId, [date], { exec: tx });
-                    if (blockingBooking(active, interval)) throw new Refused({ ok: false, error: t("errors.slotTaken") });
+                    if (blockingBooking(active, interval, need)) {
+                        throw new Refused({ ok: false, error: need ? t("errors.notEnoughPlaces") : t("errors.slotTaken") });
+                    }
 
                     let couponId = null;
                     let discount = 0;
                     if (code) {
-                        const c = await checkCouponForSlot({ code, pitchId, block, date, userId: user.id, i18n, exec: tx });
+                        const c = await checkCouponForSlot({ code, pitchId, block, date, userId: user.id, i18n, exec: tx, subtotal });
                         if (!c.ok) throw new Refused({ ok: false, couponError: true, error: c.error });
                         couponId = c.coupon.id;
                         discount = c.discount;
                     }
-                    const total = Math.max(0, Number(block.price) - discount);
+                    const total = Math.max(0, subtotal - discount);
                     const free = total === 0;
                     if (!free && payRefusal) throw new Refused(payRefusal);
 
@@ -214,7 +224,8 @@ export async function bookAndPay(input) {
                             bookingDate: date,
                             startTime: block.startTime,
                             endTime: block.endTime,
-                            subtotal: String(block.price),
+                            people: need ? need.people : null,
+                            subtotal: String(subtotal),
                             discount: String(discount),
                             totalPrice: String(total),
                             couponId,

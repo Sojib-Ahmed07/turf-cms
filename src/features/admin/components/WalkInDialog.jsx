@@ -7,10 +7,13 @@ import Button from "@/components/ui/Button";
 import Switch from "@/components/ui/Switch";
 import { Label } from "@/components/admin/Kit";
 import { Select, TextInput } from "@/components/ui/Inputs";
+import PeoplePicker from "@/components/ui/PeoplePicker";
 import { createWalkInBooking } from "@/features/admin/actions/bookings";
 import { addDaysISO, shortDateLabel } from "@/lib/time";
 import { BOOKING_DAYS_AHEAD } from "@/features/booking/calendar";
 import { cn, taka, time12 } from "@/lib/utils";
+import { BN } from "@/i18n/format";
+import { MAX_PEOPLE_PER_BOOKING, slotTotal } from "@/features/booking/people";
 
 /** Book a slot for a player at the desk or on the phone. Uses the same live slots as /book. */
 export default function WalkInDialog({ open, onClose, pitches = [], startDate, onCreated }) {
@@ -21,6 +24,7 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
     const [paid, setPaid] = useState(false);
+    const [people, setPeople] = useState(1);
     const [error, setError] = useState("");
     const [isPending, startTransition] = useTransition();
 
@@ -56,6 +60,7 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
         setName("");
         setPhone("");
         setPaid(false);
+        setPeople(1);
         setError("");
     }
 
@@ -71,6 +76,7 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
                 customerName: name,
                 customerPhone: phone,
                 paidAtVenue: paid,
+                people: perPerson ? people : undefined,
             });
             if (!res.ok) {
                 setError(res.error);
@@ -83,6 +89,11 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
     }
 
     const block = blocks.find((b) => b.id === blockId);
+    // Per-person grounds (swimming pool): price x people, and only as many people as there are places left.
+    const pitch = pitches.find((p) => p.id === pitchId);
+    const perPerson = pitch?.pricing === "per_person";
+    const maxPeople = Math.max(1, Math.min(MAX_PEOPLE_PER_BOOKING, block?.seatsLeft ?? MAX_PEOPLE_PER_BOOKING));
+    const total = block ? slotTotal(block.price, perPerson ? Math.min(people, maxPeople) : null) : 0;
 
     return (
         <Dialog
@@ -97,7 +108,11 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
                         বাদ দিন
                     </Button>
                     <Button onClick={submit} disabled={isPending || !block || !name || !phone}>
-                        {isPending ? "বুক হচ্ছে…" : block ? `${time12(block.start)} বুক করুন, ${taka(block.price)}` : "একটি স্লট সিলেক্ট করুন"}
+                        {isPending
+                            ? "বুক হচ্ছে…"
+                            : block
+                                ? `${time12(block.start)} বুক করুন, ${taka(total)}${perPerson ? ` (${BN.digits(Math.min(people, maxPeople))} জন)` : ""}`
+                                : "একটি স্লট সিলেক্ট করুন"}
                     </Button>
                 </>
             }
@@ -144,14 +159,34 @@ export default function WalkInDialog({ open, onClose, pitches = [], startDate, o
                                     >
                                         <span className="block text-[14px] font-bold tnum">{time12(b.start)}</span>
                                         <span className={cn("block text-[12px] tnum", selected ? "text-white/70" : "text-ink-3")}>
-                                            {free ? taka(b.price) : b.state === "past" ? "সময় শেষ" : b.state === "held" ? "পেমেন্ট চলছে" : "বুক হয়ে গেছে"}
+                                            {free
+                                                ? perPerson
+                                                    ? `${taka(b.price)}/জন`
+                                                    : taka(b.price)
+                                                : b.state === "past"
+                                                    ? "সময় শেষ"
+                                                    : b.state === "held"
+                                                        ? "পেমেন্ট চলছে"
+                                                        : perPerson
+                                                            ? "জায়গা নেই"
+                                                            : "বুক হয়ে গেছে"}
                                         </span>
+                                        {perPerson && free && b.seatsLeft != null && (
+                                            <span className={cn("block text-[11px] tnum", selected ? "text-white/70" : "text-ink-4")}>{BN.digits(b.seatsLeft)} জনের জায়গা খালি</span>
+                                        )}
                                     </button>
                                 );
                             })}
                         </div>
                     )}
                 </div>
+
+                {perPerson && (
+                    <div>
+                        <Label>কতজন</Label>
+                        <PeoplePicker value={Math.min(people, maxPeople)} max={maxPeople} onChange={setPeople} />
+                    </div>
+                )}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>

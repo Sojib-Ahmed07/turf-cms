@@ -48,6 +48,9 @@ export const bookings = pgTable(
         bookingDate: text("booking_date").notNull(),
         startTime: text("start_time").notNull(),
         endTime: text("end_time").notNull(),
+        // Per-person grounds (swimming pool): how many people this booking is for; subtotal = slot price x people.
+        // null = the booking takes the whole slot (football, cricket, badminton).
+        people: integer("people"),
         subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
         discount: decimal("discount", { precision: 10, scale: 2 }).notNull().default("0"),
         totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
@@ -65,10 +68,11 @@ export const bookings = pgTable(
         updatedAt: timestamp("updated_at").notNull().defaultNow(),
     },
     (t) => [
-        // One active booking per pitch + date + start time. Cancelled/expired rows don't block the slot.
+        // One active whole-slot booking per pitch + date + start time. Cancelled/expired rows don't block the slot.
+        // Per-person bookings (people not null) share a slot; their seat limit is checked under the ground's lock.
         uniqueIndex("bookings_active_slot_uq")
             .on(t.pitchId, t.bookingDate, t.startTime)
-            .where(sql`${t.status} in ('held', 'confirmed')`),
+            .where(sql`${t.status} in ('held', 'confirmed') and ${t.people} is null`),
         index("bookings_pitch_date_idx").on(t.pitchId, t.bookingDate),
         index("bookings_user_idx").on(t.userId),
         index("bookings_hold_expiry_idx").on(t.status, t.holdExpiresAt),

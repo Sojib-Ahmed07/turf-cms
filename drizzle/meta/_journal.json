@@ -64,6 +64,13 @@
       "when": 1793245201092,
       "tag": "0008_bangla_content",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793256614876,
+      "tag": "0009_per_person_pricing",
+      "breakpoints": true
     }
   ]
 }

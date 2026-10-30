@@ -86,7 +86,11 @@ export default function GroundsList({ pitches = [] }) {
                             </div>
 
                             <dl className="grid grid-cols-3 divide-x divide-line border-b border-line text-center">
-                                <Stat label="প্রতি ঘণ্টার দাম" value={`${taka(p.hourlyRate)}/ঘণ্টা`} />
+                                {p.pricing === "per_person" ? (
+                                    <Stat label={`জনপ্রতি, সর্বোচ্চ ${BN.digits(p.capacity ?? 20)} জন`} value={`${taka(p.hourlyRate)}/ঘণ্টা`} />
+                                ) : (
+                                    <Stat label="প্রতি ঘণ্টার দাম" value={`${taka(p.hourlyRate)}/ঘণ্টা`} />
+                                )}
                                 <Stat label="দিনে স্লট" value={BN.digits(p.blockCount)} />
                                 <Stat label="প্রতি স্লট" value={`${BN.digits(p.defaultSlotMinutes)} মিনিট`} />
                             </dl>

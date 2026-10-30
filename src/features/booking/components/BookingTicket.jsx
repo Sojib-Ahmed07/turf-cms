@@ -75,7 +75,7 @@ export default function BookingTicket({ booking, onCancel, onPay, onShow, onEmai
                     <p className="mt-1 text-[15px] text-ink-2 tnum">
                         {t("ticket.timeRange", { from: f.time(booking.start), to: f.time(booking.end) })}
                         <span className="text-ink-4">
-                            {booking.format && `, ${booking.format}`}
+                            {booking.people ? `, ${t("summary.peopleValue", { n: booking.people })}` : booking.format && `, ${booking.format}`}
                             {late && `, ${t("ticket.afterMidnight")}`}
                         </span>
                     </p>

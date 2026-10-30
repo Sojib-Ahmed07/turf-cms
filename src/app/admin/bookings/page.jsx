@@ -31,7 +31,7 @@ export default async function AdminBookingsPage({ searchParams }) {
         <Suspense>
             <BookingsTable
                 data={data}
-                pitches={pitches.map((p) => ({ id: p.id, name: p.name, isActive: p.isActive }))}
+                pitches={pitches.map((p) => ({ id: p.id, name: p.name, isActive: p.isActive, pricing: p.pricing, capacity: p.capacity }))}
                 filters={filters}
                 startDate={startDate}
                 initialWalkIn={sp?.walkin === "1"}

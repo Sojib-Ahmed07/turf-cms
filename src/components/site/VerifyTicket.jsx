@@ -7,6 +7,7 @@ import { AlertTriangle, CheckCircle2, Clock, XCircle } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { markTicketUsed } from "@/features/admin/actions/checkin";
 import { cn, taka } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 const toneFor = (site) => ({
     valid: { bg: "bg-brand-soft", ring: "ring-brand/50", icon: CheckCircle2, iconClass: "text-brand-deep", title: "টিকিটটি সঠিক", subtitle: `${site} নিশ্চিত করছে যে এটি পেমেন্ট করা আসল বুকিং।` },
@@ -69,6 +70,7 @@ export default function VerifyTicket({ state, booking, canCheckIn = false, wrong
                         <Row label="তারিখ" value={booking.playDateLabel} note={booking.nightOf ? `${booking.nightOf}-এর রাত` : null} />
                         <Row label="সময়" value={booking.timeLabel} />
                         <Row label="খেলোয়াড়" value={booking.player} />
+                        {booking.people ? <Row label="কতজন" value={`${BN.digits(booking.people)} জন`} /> : null}
                         <Row label="পরিমাণ" value={taka(booking.total) + (booking.discount > 0 ? ` (${taka(booking.discount)} ছাড়)` : "")} />
                         {booking.checkedInAt && <Row label="প্রবেশ করেছেন" value={booking.checkedInLabel} />}
                     </div>

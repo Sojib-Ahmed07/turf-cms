@@ -16,6 +16,8 @@ import MethodOffDialog from "@/features/payment/components/MethodOffDialog";
 import { addDaysISO } from "@/lib/time";
 import { partOf } from "@/features/booking/parts";
 import { BOOKING_DAYS_AHEAD } from "@/features/booking/calendar";
+import { MAX_PEOPLE_PER_BOOKING, slotTotal } from "@/features/booking/people";
+import PeoplePicker from "@/components/ui/PeoplePicker";
 import { useI18n } from "@/i18n/I18nProvider";
 
 const DAYS_AHEAD = BOOKING_DAYS_AHEAD;
@@ -88,6 +90,7 @@ export default function BookingClient({
     const [payMethod, setPayMethod] = useState(enabledMethods[0]?.id ?? payMethods[0]?.id ?? "");
     // "This method is off" dialog: { off, alternatives, bookingId?, code? } (bookingId when the slot is already held)
     const [offDialog, setOffDialog] = useState(null);
+    const [people, setPeople] = useState(1); // per-person grounds (swimming pool)
     const [couponCode, setCouponCode] = useState(null); // code the player applied (kept when they change slot)
     const [coupon, setCoupon] = useState(null); // { code, discount, total, key } as last checked
     const [reloadKey, setReloadKey] = useState(0);
@@ -103,6 +106,10 @@ export default function BookingClient({
     const loadError = board.key === boardKey ? board.error : "";
     const block = blocks.find((b) => b.id === blockId && b.state === "free") ?? null;
     const startAsDate = useMemo(() => new Date(`${startDate}T00:00:00`), [startDate]);
+    // Per-person grounds: price x people, and no more people than the slot has places left.
+    const perPerson = Boolean(pitch?.perPerson);
+    const maxPeople = Math.max(1, Math.min(MAX_PEOPLE_PER_BOOKING, block?.seatsLeft ?? MAX_PEOPLE_PER_BOOKING));
+    const peopleN = perPerson ? Math.min(people, maxPeople) : null;
 
     // Unverified signed-in player: verify first, come back to this ground/date.
     const needsVerify = isSignedIn && !emailVerified;
@@ -152,14 +159,14 @@ export default function BookingClient({
 
     // A discount depends on the slot (price, time, ground), so a checked coupon only counts for the slot
     // it was checked against (slotKey). When the slot changes, the code is checked again for the new one.
-    const slotKey = block && pitch ? `${pitch.id}|${block.id}|${date}|${block.start}|${block.price}` : "";
+    const slotKey = block && pitch ? `${pitch.id}|${block.id}|${date}|${block.start}|${block.price}|${peopleN ?? ""}` : "";
     const activeCoupon = couponCode && coupon && coupon.key === slotKey ? coupon : null;
 
     useEffect(() => {
         if (!couponCode || !slotKey) return;
         let cancelled = false;
-        const [pId, bId, d, start, price] = slotKey.split("|");
-        previewCoupon({ pitchId: pId, blockId: bId, date: d, couponCode, startTime: start, price: Number(price) }).then((res) => {
+        const [pId, bId, d, start, price, n] = slotKey.split("|");
+        previewCoupon({ pitchId: pId, blockId: bId, date: d, couponCode, startTime: start, price: Number(price), people: n ? Number(n) : 1 }).then((res) => {
             if (cancelled) return;
             if (res.ok) setCoupon({ ...res.data, key: slotKey });
             else {
@@ -176,7 +183,15 @@ export default function BookingClient({
     async function applyCoupon(code) {
         if (!block || !pitch) return { ok: false, error: t("book.pickSlotFirst") };
         setPayError("");
-        const res = await previewCoupon({ pitchId: pitch.id, blockId: block.id, date, couponCode: code, startTime: block.start, price: block.price });
+        const res = await previewCoupon({
+            pitchId: pitch.id,
+            blockId: block.id,
+            date,
+            couponCode: code,
+            startTime: block.start,
+            price: block.price,
+            people: peopleN ?? 1,
+        });
         if (res.slotChanged) reload();
         if (res.ok) {
             setCoupon({ ...res.data, key: slotKey });
@@ -190,7 +205,7 @@ export default function BookingClient({
         setCouponCode(null);
     }
 
-    const total = activeCoupon ? activeCoupon.total : Number(block?.price ?? 0);
+    const total = activeCoupon ? activeCoupon.total : block ? slotTotal(block.price, peopleN) : 0;
 
     /** Picker change: a switched-off method opens the dialog instead of being selected. */
     function chooseMethod(id) {
@@ -248,6 +263,7 @@ export default function BookingClient({
                 // what the player saw: the server refuses if the venue changed this slot meanwhile
                 startTime: block.start,
                 price: block.price,
+                people: peopleN ?? 1,
                 method: total > 0 ? method : "",
             });
             if (res.ok && res.data.url) {
@@ -331,6 +347,20 @@ export default function BookingClient({
                     <Step n={f.digits(3)} title={t("book.stepTime")}>
                         {banner && <PromoBanner banner={banner} variant="inline" className="mb-6" />}
 
+                        {perPerson && (
+                            <div className="mb-6 flex flex-col gap-3 rounded-card bg-white p-5 ring-1 ring-line sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-[15px] font-semibold text-ink">{t("book.howMany")}</p>
+                                    <p className="mt-1 text-[13px] text-ink-3">
+                                        {block
+                                            ? t("book.peopleNote", { price: f.taka(block.price), left: block.seatsLeft ?? maxPeople })
+                                            : t("book.peopleHint", { max: MAX_PEOPLE_PER_BOOKING })}
+                                    </p>
+                                </div>
+                                <PeoplePicker value={peopleN} max={maxPeople} onChange={setPeople} disabled={busy} className="shrink-0" />
+                            </div>
+                        )}
+
                         {loading ? (
                             <SlotSkeleton label={t("book.loadingSlots")} />
                         ) : loadError ? (
@@ -350,8 +380,9 @@ export default function BookingClient({
                                 <p className="mt-2 text-[14px] text-ink-3">{t("book.noSlotsBody")}</p>
                             </div>
                         ) : (
-                            <SlotBoard blocks={blocks} selectedId={block?.id} onSelect={setBlockId} />
+                            <SlotBoard blocks={blocks} selectedId={block?.id} onSelect={setBlockId} perPerson={perPerson} people={peopleN ?? 1} />
                         )}
+
                     </Step>
                 </div>
 
@@ -372,6 +403,7 @@ export default function BookingClient({
                             methods={payMethods}
                             method={payMethod}
                             onMethodChange={chooseMethod}
+                            people={peopleN}
                         />
                     </div>
                 </div>
@@ -395,7 +427,9 @@ export default function BookingClient({
                 <div className="mx-auto flex max-w-xl items-center gap-4">
                     <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] text-ink-3">
-                            {block ? `${pitch?.name}, ${dateLabel}, ${f.time(block.start)}` : t("book.noSlot")}
+                            {block
+                                ? `${pitch?.name}, ${dateLabel}, ${f.time(block.start)}${peopleN ? `, ${t("summary.peopleValue", { n: peopleN })}` : ""}`
+                                : t("book.noSlot")}
                         </p>
                         <p className="display text-[24px] text-ink tnum">
                             {f.taka(total)}

@@ -8,11 +8,12 @@ import { bookings, payments, pitches } from "@/db/schema";
 import { initSession, queryTransaction, validateOrder } from "@/lib/sslcommerz";
 import { createPayment as bkashCreate, executePayment as bkashExecute, queryPayment as bkashQuery } from "@/lib/bkash";
 import { GATEWAYS, isGatewayConfigured } from "./methods";
-import { PAYMENT_LOCK_MINUTES, blockingBooking, getActiveIntervals, getSheetDayStarts } from "@/features/booking/queries";
+import { PAYMENT_LOCK_MINUTES, blockingBooking, getActiveIntervals, getSheetDayStarts, seatNeedForBooking } from "@/features/booking/queries";
 import { redeemCoupon } from "@/features/coupons/service";
 import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
-import { isBlockEnded, isBlockPast, shortDateLabel, slotInterval } from "@/lib/time";
-import { time12 } from "@/lib/utils";
+import { isBlockEnded, isBlockPast, shortDateAscii, slotInterval } from "@/lib/time";
+import { time12Ascii } from "@/lib/utils";
+import { i18nSync } from "@/i18n/server";
 
 // Unfinished payment attempts (failed, cancelled, abandoned) one player may start per hour. Each one
 // locks a slot for a few minutes, so this stops anyone keeping a slot blocked by retrying over and over.
@@ -53,9 +54,9 @@ const sameAmount = (a, b) => Math.abs(Number(a) - Number(b)) < 0.01;
  * i18n (optional): { t } from getI18n(), for messages in the player's language (English without it).
  */
 export async function startPayment(bookingId, user, method = "sslcommerz", i18n = null) {
-    const msg = (key, english) => (i18n ? i18n.t(`errors.${key}`) : english);
+    const msg = (key) => (i18n ?? i18nSync()).t(`errors.${key}`); // Bangla dictionary
     const gateway = GATEWAYS.includes(method) ? method : "sslcommerz";
-    if (!isGatewayConfigured(gateway)) return { ok: false, error: msg("methodUnavailable", "That payment method isn't available right now. Pick another.") };
+    if (!isGatewayConfigured(gateway)) return { ok: false, error: msg("methodUnavailable") };
 
     const [b] = await db
         .select({
@@ -70,6 +71,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
             bookingDate: bookings.bookingDate,
             startTime: bookings.startTime,
             endTime: bookings.endTime,
+            people: bookings.people,
             pitchId: bookings.pitchId,
             pitchName: pitches.name,
         })
@@ -78,17 +80,17 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
         .where(and(eq(bookings.id, bookingId), eq(bookings.userId, user.id)))
         .limit(1);
 
-    if (!b) return { ok: false, error: msg("bookingNotFound", "Booking not found.") };
-    if (b.status === "confirmed") return { ok: false, error: msg("alreadyPaid", "This booking is already paid.") };
+    if (!b) return { ok: false, error: msg("bookingNotFound") };
+    if (b.status === "confirmed") return { ok: false, error: msg("alreadyPaid") };
     // held = locked for a payment now; expired = released unpaid (a retry may lock it again). Cancelled = no.
     if (b.status !== "held" && !(b.status === "expired" && b.paymentStatus === "unpaid")) {
-        return { ok: false, error: msg("cantPay", "This booking can't be paid any more. Pick the slot again.") };
+        return { ok: false, error: msg("cantPay") };
     }
-    if (!(Number(b.totalPrice) > 0)) return { ok: false, error: msg("nothingToPay", "This booking has nothing to pay.") };
+    if (!(Number(b.totalPrice) > 0)) return { ok: false, error: msg("nothingToPay") };
 
     const dayStart = (await getSheetDayStarts([{ pitchId: b.pitchId, date: b.bookingDate }])).get(`${b.pitchId}|${b.bookingDate}`);
     if (isBlockPast(b.bookingDate, b.startTime, dayStart)) {
-        return { ok: false, error: msg("slotStarted", "That slot has already started. Pick a later time.") };
+        return { ok: false, error: msg("slotStarted") };
     }
 
     const [{ n: tries }] = await db
@@ -103,7 +105,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
             )
         );
     if (Number(tries) >= MAX_UNPAID_PAYMENTS_PER_HOUR) {
-        return { ok: false, error: msg("tooManyRecentHolds", "You've started too many payments in the last hour without finishing one. Try again later.") };
+        return { ok: false, error: msg("tooManyRecentHolds") };
     }
 
     // Lock the slot for this payment. Under the ground's lock: if the booking was released (or its lock ran
@@ -113,7 +115,8 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
     try {
         locked = await withLockedTx([`pitch:${b.pitchId}`], async (tx) => {
             const active = await getActiveIntervals(b.pitchId, [b.bookingDate], { exec: tx, excludeId: b.id });
-            if (blockingBooking(active, slotInterval(b.bookingDate, b.startTime, b.endTime, dayStart))) return [];
+            const need = await seatNeedForBooking(b, tx);
+            if (blockingBooking(active, slotInterval(b.bookingDate, b.startTime, b.endTime, dayStart), need)) return [];
             return tx
                 .update(bookings)
                 .set({ status: "held", holdExpiresAt: lockUntil, updatedAt: new Date() })
@@ -125,7 +128,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
         locked = [];
     }
     if (!locked.length) {
-        return { ok: false, expired: true, error: msg("slotTaken", "Someone just booked this slot. Pick another time.") };
+        return { ok: false, expired: true, error: msg("slotTaken") };
     }
 
     const tranId = newTranId(b.code);
@@ -159,7 +162,8 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
     const session = await initSession({
         tranId,
         amount,
-        productName: `${b.pitchName}, ${shortDateLabel(b.bookingDate)}, ${time12(b.startTime)} to ${time12(b.endTime)}`,
+        // Gateways get plain ASCII (their pages and SMS may not show Bangla); the ground name may be Bangla, so only the slot.
+        productName: `Turf slot ${b.code}, ${shortDateAscii(b.bookingDate)}, ${time12Ascii(b.startTime)} to ${time12Ascii(b.endTime)}${b.people ? `, ${b.people} people` : ""}`,
         customer: { name: user.name, email: user.email, phone: user.phone },
         urls: {
             success: `${base}/api/payment/sslcommerz/success`,
@@ -321,6 +325,7 @@ async function bookingStillPayable(bookingId) {
             date: bookings.bookingDate,
             start: bookings.startTime,
             end: bookings.endTime,
+            people: bookings.people,
         })
         .from(bookings)
         .where(eq(bookings.id, bookingId))
@@ -331,7 +336,7 @@ async function bookingStillPayable(bookingId) {
     if (b.status === "held" && !lockLapsed(b)) return !isBlockEnded(b.date, b.start, b.end, dayStart);
     if (isBlockPast(b.date, b.start, dayStart)) return false;
     const active = await getActiveIntervals(b.pitchId, [b.date], { excludeId: bookingId });
-    return !blockingBooking(active, slotInterval(b.date, b.start, b.end, dayStart));
+    return !blockingBooking(active, slotInterval(b.date, b.start, b.end, dayStart), await seatNeedForBooking(b));
 }
 
 /** Player cancelled or bKash failed it on their side: close the attempt and release the slot at once. */
@@ -430,6 +435,7 @@ async function settleBooking(paymentId, bookingId) {
             date: bookings.bookingDate,
             start: bookings.startTime,
             end: bookings.endTime,
+            people: bookings.people,
         })
         .from(bookings)
         .where(eq(bookings.id, bookingId))
@@ -457,7 +463,8 @@ async function settleBooking(paymentId, bookingId) {
                     if (released) {
                         // Reviving a released slot: nobody else may hold or have booked any part of its time.
                         const active = await getActiveIntervals(b.pitchId, [b.date], { exec, excludeId: bookingId });
-                        if (blockingBooking(active, slotInterval(b.date, b.start, b.end, dayStart))) return [];
+                        const need = await seatNeedForBooking(b, exec);
+                        if (blockingBooking(active, slotInterval(b.date, b.start, b.end, dayStart), need)) return [];
                     }
                     return exec
                         .update(bookings)

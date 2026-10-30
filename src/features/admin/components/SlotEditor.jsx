@@ -40,6 +40,7 @@ import { BN } from "@/i18n/format";
  */
 export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days: initialDays }) {
     const router = useRouter();
+    const perPerson = pitch.pricing === "per_person";
     const [isPending, startTransition] = useTransition();
     const [tab, setTab] = useState("default"); // "default" or a date
     const [defaultBlocks, setDefaultBlocks] = useState(initialDefault);
@@ -236,7 +237,7 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                             onClick={() =>
                                 setConfirm({
                                     title: "মাঠের খোলার সময় থেকে নতুন করে বানাবেন?",
-                                    body: `প্রতিদিনের স্লটগুলো মুছে মাঠ খোলা থেকে বন্ধ হওয়া পর্যন্ত ${BN.digits(pitch.defaultSlotMinutes)} মিনিটের স্লট বানানো হবে, দাম ঘণ্টায় ${taka(pitch.hourlyRate)} হিসেবে। প্রতিদিনের স্লটে নিজে যা বদলেছিলেন তা মুছে যাবে।`,
+                                    body: `প্রতিদিনের স্লটগুলো মুছে মাঠ খোলা থেকে বন্ধ হওয়া পর্যন্ত ${BN.digits(pitch.defaultSlotMinutes)} মিনিটের স্লট বানানো হবে, দাম ঘণ্টায় ${taka(pitch.hourlyRate)}${perPerson ? " জনপ্রতি" : ""} হিসেবে। প্রতিদিনের স্লটে নিজে যা বদলেছিলেন তা মুছে যাবে।`,
                                     label: "নতুন করে বানান",
                                     danger: true,
                                     action: () => run(() => regenerateDefaultBlocks(pitch.id), () => setNote("প্রতিদিনের স্লট নতুন করে বানানো হয়েছে।")),
@@ -340,9 +341,10 @@ export default function SlotEditor({ pitch, defaultBlocks: initialDefault, days:
                                             value={b.price}
                                             disabled={locked}
                                             onChange={(e) => updatePrice(i, e.target.value)}
-                                            aria-label={`${time12(b.startTime)}-এর দাম`}
+                                            aria-label={`${time12(b.startTime)}-এর ${perPerson ? "জনপ্রতি " : ""}দাম`}
                                             className="h-full w-24 bg-transparent px-3 text-[14px] font-semibold text-ink outline-none tnum disabled:text-ink-4"
                                         />
+                                        {perPerson && <span className="grid h-full place-items-center border-l border-line bg-chalk px-2.5 text-[12px] text-ink-3">/জন</span>}
                                     </label>
 
                                     <div className="ml-auto flex flex-wrap items-center gap-1.5">

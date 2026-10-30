@@ -209,7 +209,10 @@ export default function BookingsTable({ data, pitches = [], filters, startDate, 
                                         <p className="font-semibold text-ink">{b.customer}</p>
                                         <p className="text-[12px] text-ink-3 tnum">{b.phone || b.email}</p>
                                     </Td>
-                                    <Td>{b.pitch}</Td>
+                                    <Td>
+                                        {b.pitch}
+                                        {b.people ? <span className="block text-[12px] text-ink-3 tnum">{BN.digits(b.people)} জন</span> : null}
+                                    </Td>
                                     <Td>
                                         <p className="text-ink">{b.date}</p>
                                         <p className="text-[12px] text-ink-3">{b.time}</p>

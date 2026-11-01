@@ -17,13 +17,14 @@ import PromoBanner from "@/components/site/PromoBanner";
 import { deleteBanner, moveBanner, saveBanner, setBannerActive } from "@/features/cms/actions/banners";
 import { shortDateLabel } from "@/lib/time";
 import { canOptimize, cn } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 const PLACEMENTS = [
-    { key: "top_bar", label: "Top strip", where: "Thin bar above the menu on every page", variant: null, image: false },
-    { key: "home_after_hero", label: "Under the hero", where: "First thing after the big banner on the home page", variant: "ticket", image: true },
-    { key: "home_mid", label: "Mid page", where: "Between the steps and the venue section", variant: "band", image: false },
-    { key: "booking_page", label: "Booking page", where: "Above the time slots on the booking page", variant: "inline", image: false },
-    { key: "popup", label: "Popup", where: "Opens once per visitor, 2.5 seconds after they arrive", variant: null, image: true },
+    { key: "top_bar", label: "ওপরের সরু পট্টি", where: "সব পেজে মেনুর ওপরের সরু পট্টি", variant: null, image: false },
+    { key: "home_after_hero", label: "হিরোর নিচে", where: "হোম পেজে বড় ব্যানারের ঠিক পরে", variant: "ticket", image: true },
+    { key: "home_mid", label: "পেজের মাঝে", where: "ধাপগুলো আর ঠিকানা অংশের মাঝে", variant: "band", image: false },
+    { key: "booking_page", label: "বুকিং পেজ", where: "বুকিং পেজে সময়ের স্লটগুলোর ওপরে", variant: "inline", image: false },
+    { key: "popup", label: "পপআপ", where: "প্রতিজন ভিজিটরের কাছে একবার, সাইটে আসার ২.৫ সেকেন্ড পরে খোলে", variant: null, image: true },
 ];
 
 const EMPTY = {
@@ -73,7 +74,7 @@ export default function BannersEditor({ initial }) {
         setError("");
         setDraft((d) => ({ ...d, ...patch }));
     };
-    const confirmLeave = () => !dirty || window.confirm("Discard your unsaved changes to this banner?");
+    const confirmLeave = () => !dirty || window.confirm("এই ব্যানারে যা বদলেছেন তা সেভ হয়নি। বাদ দেবেন?");
 
     function openPlacement(p) {
         if (p === placement || !confirmLeave()) return;
@@ -102,7 +103,7 @@ export default function BannersEditor({ initial }) {
             if (draft.placement !== placement) setPlacement(draft.placement);
             setSelectedId(res.data.id);
             setDraft((d) => ({ ...d, id: res.data.id }));
-            showToast(draft.id ? "Banner saved" : "Banner added");
+            showToast(draft.id ? "ব্যানার সেভ হয়েছে" : "ব্যানার যোগ হয়েছে");
             router.refresh();
         });
     }
@@ -115,7 +116,7 @@ export default function BannersEditor({ initial }) {
             const rest = list.filter((b) => b.id !== draft.id);
             setSelectedId(rest[0]?.id ?? "new");
             setDraft(toDraft(rest[0] ?? null, placement));
-            showToast("Banner deleted");
+            showToast("ব্যানার মুছে ফেলা হয়েছে");
             router.refresh();
         });
     }
@@ -138,23 +139,23 @@ export default function BannersEditor({ initial }) {
         id: draft.id ?? "draft",
         imageUrl: draftPlacement.image ? (draft.image?.url ?? null) : null,
         badge: draft.badge || null,
-        title: draft.title || "Your banner title",
+        title: draft.title || "আপনার ব্যানারের শিরোনাম",
         body: draft.body || null,
         ctaLabel: draft.ctaLabel || null,
         ctaHref: draft.ctaHref || null,
         code: coupon?.isActive ? coupon.code : null,
-        endsAt: draft.endDate ? `Ends ${shortDateLabel(draft.endDate).replace(/^\w+ /, "")}` : null,
+        endsAt: draft.endDate ? `${BN.dayMonth(draft.endDate)} পর্যন্ত` : null,
     };
 
     return (
         <div className="mx-auto max-w-[1280px]">
             <PageHeader
-                title="Offer banners"
-                description="Discount and announcement banners. Pick where a banner shows, attach a promo code, and set the dates it runs."
+                title="অফার ব্যানার"
+                description="ছাড় আর ঘোষণার ব্যানার। ব্যানার কোথায় দেখাবে সিলেক্ট করুন, প্রোমো কোড যুক্ত করুন, আর কবে থেকে কবে পর্যন্ত চলবে ঠিক করুন।"
                 actions={
                     <Button variant="ink" onClick={() => select("new")}>
                         <Plus className="h-4 w-4" />
-                        New banner
+                        নতুন ব্যানার
                     </Button>
                 }
             />
@@ -174,7 +175,7 @@ export default function BannersEditor({ initial }) {
                             )}
                         >
                             {p.label}
-                            <span className={cn("rounded-full px-1.5 text-[11px] tnum", placement === p.key ? "bg-white/20" : "bg-ink/5")}>{n}</span>
+                            <span className={cn("rounded-full px-1.5 text-[11px] tnum", placement === p.key ? "bg-white/20" : "bg-ink/5")}>{BN.digits(n)}</span>
                         </button>
                     );
                 })}
@@ -183,7 +184,7 @@ export default function BannersEditor({ initial }) {
             <div className="grid gap-6 xl:grid-cols-12">
                 <div className="space-y-6 xl:col-span-7">
                     {/* Preview of the banner being edited */}
-                    <Panel title="How it looks" description={draftPlacement.where} bodyClassName="bg-chalk/60 overflow-hidden">
+                    <Panel title="যেমন দেখাবে" description={draftPlacement.where} bodyClassName="bg-chalk/60 overflow-hidden">
                         {draftPlacement.variant ? (
                             <div className="pointer-events-none overflow-hidden">
                                 <div style={{ zoom: 0.62 }}>
@@ -196,7 +197,7 @@ export default function BannersEditor({ initial }) {
                                 {(preview.code || preview.badge) && (
                                     <span className="rounded border border-dashed border-flare px-1.5 font-bold text-flare">{preview.code ?? preview.badge}</span>
                                 )}
-                                {preview.ctaHref && <span className="font-semibold text-white underline underline-offset-4">{preview.ctaLabel || "Book now"}</span>}
+                                {preview.ctaHref && <span className="font-semibold text-white underline underline-offset-4">{preview.ctaLabel || "এখনই বুক করুন"}</span>}
                             </div>
                         ) : (
                             <PopupPreview banner={preview} />
@@ -205,11 +206,11 @@ export default function BannersEditor({ initial }) {
 
                     {/* List */}
                     <Panel
-                        title={`Banners in "${current.label}"`}
+                        title={`“${current.label}”-এর ব্যানার`}
                         description={
                             showingNow
-                                ? `Showing now: "${showingNow.title}". Only the first live banner shows; use the arrows to change which.`
-                                : "Nothing is showing here right now."
+                                ? `এখন দেখাচ্ছে: “${showingNow.title}”। শুধু তালিকার প্রথম চালু ব্যানারটি দেখায়; কোনটি দেখাবে বদলাতে তীর চিহ্ন ব্যবহার করুন।`
+                                : "এখানে এখন কিছু দেখাচ্ছে না।"
                         }
                         bodyClassName="p-3"
                     >
@@ -232,14 +233,14 @@ export default function BannersEditor({ initial }) {
                                         first={i === 0}
                                         last={i === list.length - 1}
                                         disabled={pending}
-                                        label="banner"
+                                        label="ব্যানার"
                                     />
                                     <span className="min-w-0 flex-1">
                                         <span className="block truncate text-[14px] font-semibold text-ink">{b.title}</span>
                                         <span className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-ink-3">
                                             <StatusBadge status={b.status} />
                                             {b.couponId && <span className="font-bold tracking-wider tnum">{coupons.find((c) => c.id === b.couponId)?.code}</span>}
-                                            {b.endDate && <span>Until {shortDateLabel(b.endDate)}</span>}
+                                            {b.endDate && <span>{shortDateLabel(b.endDate)} পর্যন্ত</span>}
                                         </span>
                                     </span>
                                     <span onClick={(e) => e.stopPropagation()}>
@@ -247,14 +248,14 @@ export default function BannersEditor({ initial }) {
                                             size="sm"
                                             checked={b.isActive}
                                             onChange={(v) => rowAction(b.id, () => setBannerActive({ id: b.id, isActive: v }))}
-                                            label={`Show ${b.title}`}
+                                            label={`${b.title} দেখাবে`}
                                         />
                                     </span>
                                 </li>
                             ))}
                             {selectedId === "new" && (
                                 <li className="flex items-center gap-3 rounded-[14px] bg-chalk p-3 ring-2 ring-ink">
-                                    <span className="truncate text-[14px] font-semibold text-ink">{draft.title || "New banner"}</span>
+                                    <span className="truncate text-[14px] font-semibold text-ink">{draft.title || "নতুন ব্যানার"}</span>
                                 </li>
                             )}
                         </ul>
@@ -264,7 +265,7 @@ export default function BannersEditor({ initial }) {
                                 onClick={() => select("new")}
                                 className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border-2 border-dashed border-line py-4 text-[14px] font-semibold text-ink-3 hover:text-ink"
                             >
-                                <Plus className="h-4 w-4" /> Add a banner here
+                                <Plus className="h-4 w-4" /> এখানে ব্যানার যোগ করুন
                             </button>
                         )}
                     </Panel>
@@ -273,12 +274,12 @@ export default function BannersEditor({ initial }) {
                 {/* Editor */}
                 <Panel
                     className="xl:col-span-5"
-                    title={draft.id ? "Edit banner" : "New banner"}
+                    title={draft.id ? "ব্যানার বদলান" : "নতুন ব্যানার"}
                     actions={
                         draft.id && (
                             <Button variant="ghost" size="sm" className="text-danger hover:bg-danger-soft hover:text-danger" onClick={() => setConfirmDelete(true)}>
                                 <Trash2 className="h-3.5 w-3.5" />
-                                Delete
+                                মুছে ফেলুন
                             </Button>
                         )
                     }
@@ -291,7 +292,7 @@ export default function BannersEditor({ initial }) {
                         }}
                     >
                         <div>
-                            <Label htmlFor="b-place">Placement</Label>
+                            <Label htmlFor="b-place">কোথায় দেখাবে</Label>
                             <Select
                                 id="b-place"
                                 value={draft.placement}
@@ -301,7 +302,7 @@ export default function BannersEditor({ initial }) {
                         </div>
                         {draftPlacement.image && (
                             <div>
-                                <Label optional>Image</Label>
+                                <Label optional>ছবি</Label>
                                 <ImageUploader
                                     value={draft.image}
                                     onChange={(v) => set({ image: v })}
@@ -313,46 +314,46 @@ export default function BannersEditor({ initial }) {
                         )}
                         <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
                             <div>
-                                <Label optional>Badge</Label>
-                                <CharInput max={12} value={draft.badge} onChange={(e) => set({ badge: e.target.value })} placeholder="20% off" />
+                                <Label optional>ব্যাজ</Label>
+                                <CharInput max={12} value={draft.badge} onChange={(e) => set({ badge: e.target.value })} placeholder="২০% ছাড়" />
                             </div>
                             <div>
-                                <Label>Title</Label>
+                                <Label>শিরোনাম</Label>
                                 <CharInput max={50} value={draft.title} onChange={(e) => set({ title: e.target.value })} />
                             </div>
                         </div>
                         {draft.placement !== "top_bar" && draft.placement !== "booking_page" && (
                             <div>
-                                <Label optional>Text</Label>
+                                <Label optional>লেখা</Label>
                                 <CharInput max={140} multiline value={draft.body} onChange={(e) => set({ body: e.target.value })} />
                             </div>
                         )}
                         <div>
                             <Label htmlFor="b-code" optional>
-                                Promo code
+                                প্রোমো কোড
                             </Label>
                             <Select
                                 id="b-code"
                                 value={draft.couponId}
                                 onChange={(e) => set({ couponId: e.target.value })}
                                 options={[
-                                    { value: "", label: "No code" },
+                                    { value: "", label: "কোনো কোড নেই" },
                                     ...coupons.map((c) => ({
                                         value: c.id,
-                                        label: `${c.code}  (${c.type === "percent" ? `${c.value}% off` : `৳${c.value} off`})${c.isActive ? "" : ", switched off"}`,
+                                        label: `${c.code}  (${c.type === "percent" ? `${BN.digits(c.value)}% ছাড়` : `${BN.taka(c.value)} ছাড়`})${c.isActive ? "" : ", বন্ধ আছে"}`,
                                     })),
                                 ]}
                             />
-                            <p className="mt-1.5 text-[12px] text-ink-3">The code only shows while the coupon is switched on. Coupons are managed under Coupons.</p>
+                            <p className="mt-1.5 text-[12px] text-ink-3">কুপন চালু থাকলেই কেবল কোডটি দেখাবে। কুপন বদলাতে “কুপন” পেজে যান।</p>
                         </div>
                         {draft.placement !== "booking_page" && (
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <div>
-                                    <Label optional>Button text</Label>
+                                    <Label optional>বাটনের লেখা</Label>
                                     <CharInput max={22} value={draft.ctaLabel} onChange={(e) => set({ ctaLabel: e.target.value })} />
                                 </div>
                                 <div>
-                                    <Label optional>Button link</Label>
+                                    <Label optional>বাটনের লিংক</Label>
                                     <TextInput value={draft.ctaHref} onChange={(e) => set({ ctaHref: e.target.value })} placeholder="/book" />
                                 </div>
                             </div>
@@ -360,13 +361,13 @@ export default function BannersEditor({ initial }) {
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div>
                                 <Label htmlFor="b-start" optional>
-                                    Starts
+                                    শুরু
                                 </Label>
                                 <TextInput id="b-start" type="date" value={draft.startDate} onChange={(e) => set({ startDate: e.target.value })} />
                             </div>
                             <div>
                                 <Label htmlFor="b-end" optional>
-                                    Ends after
+                                    শেষ দিন
                                 </Label>
                                 <TextInput id="b-end" type="date" value={draft.endDate} onChange={(e) => set({ endDate: e.target.value })} />
                             </div>
@@ -383,10 +384,10 @@ export default function BannersEditor({ initial }) {
                                     setError("");
                                 }}
                             >
-                                Discard
+                                বাদ দিন
                             </Button>
                             <Button type="submit" disabled={pending || (!dirty && Boolean(draft.id))}>
-                                {pending ? "Saving…" : draft.id ? "Save banner" : "Add banner"}
+                                {pending ? "সেভ হচ্ছে…" : draft.id ? "ব্যানার সেভ করুন" : "ব্যানার যোগ করুন"}
                             </Button>
                         </div>
                     </form>
@@ -397,15 +398,15 @@ export default function BannersEditor({ initial }) {
                 open={confirmDelete}
                 onClose={() => setConfirmDelete(false)}
                 size="sm"
-                title="Delete this banner?"
-                description="It disappears from the website. The promo code itself is not deleted."
+                title="ব্যানারটি মুছে ফেলবেন?"
+                description="ওয়েবসাইট থেকে সরে যাবে। প্রোমো কোডটি মুছবে না।"
                 footer={
                     <>
                         <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-                            Keep it
+                            রেখে দিন
                         </Button>
                         <Button variant="ink" className="bg-danger hover:bg-danger" disabled={pending} onClick={remove}>
-                            Delete banner
+                            ব্যানার মুছুন
                         </Button>
                     </>
                 }
@@ -427,7 +428,7 @@ function PopupPreview({ banner }) {
                 <p className="display text-[22px] leading-none text-ink">{banner.title}</p>
                 {banner.body && <p className="mt-2 text-[12px] leading-relaxed text-ink-3">{banner.body}</p>}
                 {banner.code && <p className="mt-3 inline-flex rounded-md border border-dashed border-flare px-2 py-1 text-[12px] font-bold tracking-wider text-flare-deep">{banner.code}</p>}
-                {banner.ctaHref && <p className="mt-3 rounded-full bg-brand py-2 text-center text-[12px] font-semibold text-brand-ink">{banner.ctaLabel || "Book now"}</p>}
+                {banner.ctaHref && <p className="mt-3 rounded-full bg-brand py-2 text-center text-[12px] font-semibold text-brand-ink">{banner.ctaLabel || "এখনই বুক করুন"}</p>}
             </div>
         </div>
     );

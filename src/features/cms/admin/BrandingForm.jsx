@@ -43,19 +43,24 @@ export default function BrandingForm({ initial }) {
                 setError(res.error);
                 return;
             }
-            setSaved(form);
-            showToast("Branding saved. The website shows it now.");
+            let next = form;
+            if (res.data?.renamed) {
+                next = { ...form, tagline: res.data.tagline ?? "", map: { ...form.map, label: res.data.mapLabel ?? "" } };
+                setForm(next);
+            }
+            setSaved(next);
+            showToast(res.data?.renamed ? "সেভ হয়েছে। সব লেখায় নতুন নাম বসানো হয়েছে।" : "সেভ হয়েছে। ওয়েবসাইটে এখনই দেখা যাচ্ছে।");
             router.refresh();
         });
     }
 
     return (
         <div className="mx-auto max-w-[1080px]" style={validHex ? { "--brand": form.brandColor } : undefined}>
-            <PageHeader title="Branding" description="Your logo, name, brand colour and map location. Changes show on every page of the website." />
+            <PageHeader title="লোগো ও রং" description="আপনার লোগো, নাম, রং আর ম্যাপে মাঠের লোকেশন। এখানে যা বদলাবেন, ওয়েবসাইটের সব পেজে দেখা যাবে।" />
 
             {/* Live preview */}
             <div className="mb-6 overflow-hidden rounded-card bg-chalk ring-1 ring-line">
-                <p className="border-b border-line bg-white px-5 py-2.5 text-[12px] font-medium text-ink-3">Live preview</p>
+                <p className="border-b border-line bg-white px-5 py-2.5 text-[12px] font-medium text-ink-3">যেমন দেখাবে</p>
                 <div className="flex flex-wrap items-center gap-4 px-5 py-4">
                     <span className="flex items-center gap-2.5">
                         {form.logoLight?.url ? (
@@ -65,39 +70,39 @@ export default function BrandingForm({ initial }) {
                         ) : (
                             <>
                                 <Mark className="h-9 w-9" />
-                                <span className="display text-[20px] text-ink">{form.siteName || "Site name"}</span>
+                                <span className="display text-[20px] text-ink">{form.siteName || "সাইটের নাম"}</span>
                             </>
                         )}
                     </span>
                     <span className="ml-auto hidden items-center gap-5 text-[14px] text-ink-3 md:flex">
                         <span className="relative font-medium text-ink">
-                            Home
+                            হোম
                             <span className="absolute inset-x-0 -bottom-[17px] h-[3px] rounded-t-full bg-brand" />
                         </span>
-                        <span>Book a slot</span>
-                        <span>Grounds</span>
+                        <span>স্লট বুক করুন</span>
+                        <span>মাঠ</span>
                     </span>
                     <span className="hidden items-center gap-1.5 text-[14px] text-ink-2 sm:flex">
-                        <Ticket className="h-4 w-4" /> My bookings
+                        <Ticket className="h-4 w-4" /> আমার বুকিং
                     </span>
-                    <Button size="sm">{initial.menuButtonLabel || "Book a slot"}</Button>
+                    <Button size="sm">{initial.menuButtonLabel || "স্লট বুক করুন"}</Button>
                 </div>
             </div>
 
             <div className="space-y-6">
-                <Panel title="Logo" description="PNG or SVG with a transparent background works best. Without a logo, the site name and a small pitch icon are shown.">
-                    <SettingRow label="For light backgrounds" hint="Used in the menu bar.">
+                <Panel title="লোগো" description="স্বচ্ছ ব্যাকগ্রাউন্ডের PNG বা SVG সবচেয়ে ভালো। লোগো না দিলে সাইটের নাম আর ছোট একটি মাঠের আইকন দেখাবে।">
+                    <SettingRow label="সাদা/হালকা ব্যাকগ্রাউন্ডের জন্য" hint="ওপরের মেনুতে দেখাবে।">
                         <ImageUploader
                             value={form.logoLight}
                             onChange={(v) => set({ logoLight: v })}
                             folder="branding"
                             fit="contain"
                             ratio="3/1"
-                            hint="At least 480 × 160 px"
+                            hint="কমপক্ষে ৪৮০ × ১৬০ পিক্সেল"
                             className="max-w-sm"
                         />
                     </SettingRow>
-                    <SettingRow label="For dark backgrounds" hint="Used in the footer and mobile menu.">
+                    <SettingRow label="গাঢ় ব্যাকগ্রাউন্ডের জন্য" hint="ফুটার আর মোবাইল মেনুতে দেখাবে।">
                         <ImageUploader
                             value={form.logoDark}
                             onChange={(v) => set({ logoDark: v })}
@@ -105,32 +110,32 @@ export default function BrandingForm({ initial }) {
                             fit="contain"
                             dark
                             ratio="3/1"
-                            hint="White or light version, at least 480 × 160 px. Previewed on the dark footer colour."
+                            hint="সাদা বা হালকা রঙের লোগো, কমপক্ষে ৪৮০ × ১৬০ পিক্সেল। ফুটারের গাঢ় রঙের ওপর দেখানো হচ্ছে।"
                             className="max-w-sm"
                         />
                     </SettingRow>
-                    <SettingRow label="Browser tab icon" hint="Square, 512 × 512 px. PNG or ICO.">
+                    <SettingRow label="ব্রাউজার ট্যাবের আইকন" hint="বর্গাকার, ৫১২ × ৫১২ পিক্সেল। PNG বা ICO।">
                         <ImageUploader value={form.favicon} onChange={(v) => set({ favicon: v })} folder="branding" fit="contain" ratio="1/1" className="w-36" />
                     </SettingRow>
                 </Panel>
 
-                <Panel title="Name and tagline">
-                    <SettingRow label="Site name" hint="Shown next to the logo when no logo is uploaded, and in page titles.">
+                <Panel title="নাম ও ট্যাগলাইন">
+                    <SettingRow label="সাইটের নাম" hint="লোগো না থাকলে লোগোর জায়গায় দেখাবে, আর ব্রাউজারের ট্যাবে পেজের নামের সাথে থাকবে। নাম বদলালে গুগলের শিরোনাম, ম্যাপের নাম, অফার, হোম পেজ, মাঠের বিবরণ আর বুকিংয়ের নিয়মে পুরনো নামটিও নিজে থেকে নতুন নাম হয়ে যাবে।">
                         <CharInput max={24} value={form.siteName} onChange={(e) => set({ siteName: e.target.value })} className="max-w-sm" />
                     </SettingRow>
-                    <SettingRow label="Tagline" hint="One line under the logo in the footer.">
+                    <SettingRow label="ট্যাগলাইন" hint="ফুটারে লোগোর নিচে এক লাইনের লেখা।">
                         <CharInput max={60} value={form.tagline} onChange={(e) => set({ tagline: e.target.value })} className="max-w-lg" />
                     </SettingRow>
                 </Panel>
 
-                <Panel title="Brand colour" description="Used for buttons, links and highlights. Offers always stay amber.">
+                <Panel title="মূল রং" description="বাটন, লিংক আর হাইলাইটে এই রং ব্যবহার হবে। অফারগুলো সবসময় কমলা থাকবে।">
                     <div className="flex flex-wrap items-center gap-3">
                         {PRESETS.map((c) => (
                             <button
                                 key={c}
                                 type="button"
                                 onClick={() => set({ brandColor: c })}
-                                aria-label={`Use ${c}`}
+                                aria-label={`${c} রং নিন`}
                                 className={cn(
                                     "grid h-11 w-11 place-items-center rounded-full ring-offset-2 transition",
                                     form.brandColor.toLowerCase() === c ? "ring-2 ring-ink" : "hover:scale-105"
@@ -146,26 +151,26 @@ export default function BrandingForm({ initial }) {
                                 type="color"
                                 value={validHex ? form.brandColor : "#18a058"}
                                 onChange={(e) => set({ brandColor: e.target.value })}
-                                aria-label="Pick any colour"
+                                aria-label="যেকোনো রং বেছে নিন"
                                 className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0"
                             />
                             <input
                                 value={form.brandColor}
                                 onChange={(e) => set({ brandColor: e.target.value.trim() })}
                                 maxLength={7}
-                                aria-label="Colour code"
+                                aria-label="রঙের কোড"
                                 className="w-20 bg-transparent text-[14px] font-semibold uppercase text-ink outline-none tnum"
                             />
                         </label>
                     </div>
-                    {!validHex && <p className="mt-3 text-[13px] font-medium text-danger">Type the colour as # and six characters, for example #18A058.</p>}
+                    {!validHex && <p className="mt-3 text-[13px] font-medium text-danger">রঙের কোড # এবং ছয়টি অক্ষর দিয়ে লিখুন, যেমন #18A058।</p>}
                 </Panel>
 
                 <Panel
-                    title="Map location"
-                    description="Shown on the home page in the Find us section. Get coordinates from Google Maps: right-click the spot, then click the numbers to copy. Leave latitude and longitude empty to show the illustrated map instead."
+                    title="ম্যাপে লোকেশন"
+                    description="হোম পেজের “ঠিকানা” অংশে ম্যাপে দেখাবে। Google Maps থেকে লোকেশন নিন: জায়গাটির ওপর রাইট-ক্লিক করুন, তারপর সংখ্যাগুলোতে ক্লিক করলে কপি হয়ে যাবে। ল্যাটিচিউড আর লঞ্জিচিউড খালি রাখলে ম্যাপের জায়গায় একটি আঁকা ছবি দেখাবে।"
                 >
-                    <SettingRow label="Latitude" hint="For example 23.8223 (between −90 and 90).">
+                    <SettingRow label="ল্যাটিচিউড" hint="যেমন 23.8223 (−90 থেকে 90-এর মধ্যে)।">
                         <TextInput
                             value={form.map.lat}
                             onChange={(e) => setMap({ lat: e.target.value })}
@@ -174,7 +179,7 @@ export default function BrandingForm({ initial }) {
                             className="max-w-xs tnum"
                         />
                     </SettingRow>
-                    <SettingRow label="Longitude" hint="For example 90.3654 (between −180 and 180).">
+                    <SettingRow label="লঞ্জিচিউড" hint="যেমন 90.3654 (−180 থেকে 180-এর মধ্যে)।">
                         <TextInput
                             value={form.map.lng}
                             onChange={(e) => setMap({ lng: e.target.value })}
@@ -183,7 +188,7 @@ export default function BrandingForm({ initial }) {
                             className="max-w-xs tnum"
                         />
                     </SettingRow>
-                    <SettingRow label="Zoom" hint="2 (whole world) to 19 (street level). Leave empty for 16.">
+                    <SettingRow label="জুম" hint="২ (পুরো পৃথিবী) থেকে ১৯ (রাস্তা পর্যন্ত)। খালি রাখলে ১৬।">
                         <TextInput
                             value={form.map.zoom}
                             onChange={(e) => setMap({ zoom: e.target.value })}
@@ -192,13 +197,13 @@ export default function BrandingForm({ initial }) {
                             className="max-w-[120px] tnum"
                         />
                     </SettingRow>
-                    <SettingRow label="Marker label" hint="Shown in the popup when the marker is clicked. Empty uses the site name.">
-                        <CharInput max={40} value={form.map.label} onChange={(e) => setMap({ label: e.target.value })} placeholder="TurfZone, Mirpur 12" className="max-w-md" />
+                    <SettingRow label="পিনের নাম" hint="ম্যাপের পিনে চাপ দিলে দেখাবে। খালি রাখলে সাইটের নাম দেখাবে।">
+                        <CharInput max={40} value={form.map.label} onChange={(e) => setMap({ label: e.target.value })} placeholder={`${form.siteName || "সাইটের নাম"}, মিরপুর ১২`} className="max-w-md" />
                     </SettingRow>
-                    <SettingRow label="Marker address" hint="Optional second line in the popup.">
-                        <CharInput max={120} value={form.map.address} onChange={(e) => setMap({ address: e.target.value })} placeholder="Road 7, Mirpur 12, Dhaka" className="max-w-lg" />
+                    <SettingRow label="পিনের ঠিকানা" hint="পিনে চাপ দিলে নামের নিচে দেখাবে (ঐচ্ছিক)।">
+                        <CharInput max={120} value={form.map.address} onChange={(e) => setMap({ address: e.target.value })} placeholder="রোড ৭, মিরপুর ১২, ঢাকা" className="max-w-lg" />
                     </SettingRow>
-                    <SettingRow label="Find coordinates" hint="Opens Google Maps in a new tab. Nothing is saved from there.">
+                    <SettingRow label="লোকেশন খুঁজুন" hint="নতুন ট্যাবে Google Maps খুলবে। সেখান থেকে কিছু সেভ হয় না।">
                         <Button
                             href="https://www.google.com/maps"
                             variant="outline"
@@ -207,7 +212,7 @@ export default function BrandingForm({ initial }) {
                             rel="noreferrer"
                         >
                             <MapPin className="h-4 w-4" />
-                            Open Google Maps
+                            Google Maps খুলুন
                         </Button>
                     </SettingRow>
                 </Panel>
@@ -224,10 +229,10 @@ export default function BrandingForm({ initial }) {
                             setError("");
                         }}
                     >
-                        Discard
+                        বাদ দিন
                     </Button>
                     <Button size="sm" disabled={pending || !validHex} onClick={save}>
-                        {pending ? "Saving…" : "Save changes"}
+                        {pending ? "সেভ হচ্ছে…" : "সেভ করুন"}
                     </Button>
                 </SaveBar>
             )}

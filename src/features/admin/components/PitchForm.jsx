@@ -14,6 +14,7 @@ import { generateDefaultBlocks, hourOptions } from "@/features/booking/slots";
 import { hhmmToMinutes } from "@/lib/time";
 import { cn, time12 } from "@/lib/utils";
 import { BN } from "@/i18n/format";
+import { startNavProgress } from "@/lib/nav-progress";
 
 const SPORTS = [
     { value: "football", label: "ফুটবল" },
@@ -142,8 +143,10 @@ export default function PitchForm({ pitch, onClose }) {
                 return;
             }
             onClose?.();
-            if (isNew) router.push(`/admin/pitches/${res.data.pitchId}`);
-            else router.refresh();
+            if (isNew) {
+                startNavProgress();
+                router.push(`/admin/pitches/${res.data.pitchId}`);
+            } else router.refresh();
         });
     }
 

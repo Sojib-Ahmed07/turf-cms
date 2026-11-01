@@ -12,7 +12,7 @@ import { CONTENT_ROLES, DENIED, requireRoles } from "../server-utils";
 
 /** Folders inside CLOUDINARY_FOLDER (default "turfzone"). The media library filters by these. */
 const FOLDERS = ["branding", "hero", "banners", "pitches", "seo", "misc"];
-const NOT_SET_UP = { ok: false, error: "Image uploads aren't set up yet. Add the Cloudinary keys to .env.local." };
+const NOT_SET_UP = { ok: false, error: "ছবি আপলোড এখনো চালু হয়নি। .env.local ফাইলে Cloudinary-র কী (key) দিন।" };
 
 /**
  * Step 1 of an upload: a short-lived signature so the browser can send the file
@@ -26,7 +26,7 @@ export async function getUploadSignature(folder) {
         return { ok: true, data: createUploadSignature(f) };
     } catch (err) {
         console.error("[getUploadSignature]", err);
-        return { ok: false, error: "Couldn't start the upload. Try again." };
+        return { ok: false, error: "আপলোড শুরু করা যায়নি। আবার চেষ্টা করুন।" };
     }
 }
 
@@ -53,7 +53,7 @@ export async function saveMedia({ result, folder }) {
         if (!user) return DENIED;
         const parsed = resultSchema.safeParse(result);
         if (!parsed.success || !verifyUploadResult(parsed.data)) {
-            return { ok: false, error: "The upload couldn't be verified. Try again." };
+            return { ok: false, error: "আপলোড যাচাই করা যায়নি। আবার চেষ্টা করুন।" };
         }
         const r = parsed.data;
         const values = {
@@ -91,7 +91,7 @@ export async function saveMedia({ result, folder }) {
         };
     } catch (err) {
         console.error("[saveMedia]", err);
-        return { ok: false, error: "The image uploaded but couldn't be saved. Try again." };
+        return { ok: false, error: "ছবি আপলোড হয়েছে, কিন্তু সেভ হয়নি। আবার চেষ্টা করুন।" };
     }
 }
 
@@ -102,21 +102,21 @@ export async function listMediaForPicker() {
         return { ok: true, data: await getMediaPickerItems() };
     } catch (err) {
         console.error("[listMediaForPicker]", err);
-        return { ok: false, error: "Couldn't load the media library." };
+        return { ok: false, error: "ছবির লাইব্রেরি লোড হয়নি।" };
     }
 }
 
 export async function updateMediaAlt({ id, alt }) {
     try {
         if (!(await requireRoles(CONTENT_ROLES))) return DENIED;
-        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Image not found." };
+        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "ছবিটি পাওয়া যায়নি।" };
         const clean = String(alt ?? "").trim().slice(0, 160);
         await db.update(media).set({ alt: clean || null }).where(eq(media.id, id));
         revalidatePath("/admin/media");
         return { ok: true };
     } catch (err) {
         console.error("[updateMediaAlt]", err);
-        return { ok: false, error: "Couldn't save the description." };
+        return { ok: false, error: "বর্ণনা সেভ হয়নি।" };
     }
 }
 
@@ -124,24 +124,24 @@ export async function updateMediaAlt({ id, alt }) {
 export async function deleteMedia(id) {
     try {
         if (!(await requireRoles(CONTENT_ROLES))) return DENIED;
-        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Image not found." };
+        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "ছবিটি পাওয়া যায়নি।" };
         const [row] = await db.select().from(media).where(eq(media.id, id)).limit(1);
-        if (!row) return { ok: false, error: "Image not found." };
+        if (!row) return { ok: false, error: "ছবিটি পাওয়া যায়নি।" };
 
         const usedIn = (await getMediaUsage()).get(row.url) ?? [];
         if (usedIn.length) {
-            return { ok: false, error: `Still used in ${usedIn.join(", ")}. Replace it there first.` };
+            return { ok: false, error: `ছবিটি এখনো ব্যবহার হচ্ছে: ${usedIn.join(", ")}। আগে সেখান থেকে বদলান।` };
         }
 
         if (isCloudinaryConfigured()) {
             const gone = await destroyImage(row.publicId);
-            if (!gone) return { ok: false, error: "Cloudinary didn't delete the image. Try again in a minute." };
+            if (!gone) return { ok: false, error: "Cloudinary ছবিটি মোছেনি। এক মিনিট পরে আবার চেষ্টা করুন।" };
         }
         await db.delete(media).where(eq(media.id, id));
         revalidatePath("/admin/media");
         return { ok: true };
     } catch (err) {
         console.error("[deleteMedia]", err);
-        return { ok: false, error: "Couldn't delete the image. Try again." };
+        return { ok: false, error: "ছবি মোছা যায়নি। আবার চেষ্টা করুন।" };
     }
 }

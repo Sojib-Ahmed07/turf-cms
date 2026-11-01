@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { addDaysISO } from "@/lib/time";
+import { BN } from "@/i18n/format";
 
 /** Returns the signed-in user if their role is in `roles`, otherwise null. */
 export async function requireRoles(roles) {
@@ -16,10 +17,10 @@ export async function requireRoles(roles) {
 export const ADMIN_ONLY = ["admin"];
 // Website content is admin only too (the editor role was removed); kept as a name so callers stay readable.
 export const CONTENT_ROLES = ["admin"];
-export const DENIED = { ok: false, error: "You don't have access to change this." };
+export const DENIED = { ok: false, error: "এটি বদলানোর অনুমতি আপনার নেই।" };
 
 /** First Zod issue as a sentence for the form. */
-export function firstIssue(parsed, fallback = "Check the form and try again.") {
+export function firstIssue(parsed, fallback = "ফর্মটি দেখে আবার চেষ্টা করুন।") {
     const i = parsed.error?.issues?.[0];
     return i?.message && !i.message.startsWith("Invalid") && !i.message.startsWith("Too") ? i.message : fallback;
 }
@@ -27,28 +28,28 @@ export function firstIssue(parsed, fallback = "Check the form and try again.") {
 /* ---------------- Zod pieces ---------------- */
 
 /** Text field: trimmed, max length, empty string allowed. */
-export const text = (max, label = "This field") =>
-    z.string().trim().max(max, `${label} can be at most ${max} characters.`).default("");
+export const text = (max, label = "এই ঘর") =>
+    z.string().trim().max(max, `${label} সর্বোচ্চ ${BN.digits(max)} অক্ষরের হতে পারে।`).default("");
 
 /** Required text field. */
 export const requiredText = (max, label) =>
-    z.string().trim().min(1, `${label} can't be empty.`).max(max, `${label} can be at most ${max} characters.`);
+    z.string().trim().min(1, `${label} খালি রাখা যাবে না।`).max(max, `${label} সর্বোচ্চ ${BN.digits(max)} অক্ষরের হতে পারে।`);
 
 /** A link on the site ("/book", "/#visit") or an https address. Empty allowed. */
-export const link = (label = "Link") =>
+export const link = (label = "লিংক") =>
     z
         .string()
         .trim()
         .max(300)
         .default("")
         .refine((v) => v === "" || /^\/(?![\/\\])/.test(v) || /^https:\/\/[^\s]+$/.test(v) || /^(tel|mailto):[^\s]+$/.test(v), {
-            message: `${label} must start with / (a page on this site) or https://`,
+            message: `${label} / দিয়ে (এই সাইটের কোনো পেজ) অথবা https:// দিয়ে শুরু হতে হবে।`,
         });
 
 /** Image picked in ImageUploader: { url, publicId? } or null. Only https URLs. */
 export const image = z
     .object({
-        url: z.string().trim().url().refine((v) => v.startsWith("https://"), "Images must use https."),
+        url: z.string().trim().url().refine((v) => v.startsWith("https://"), "ছবির লিংক https:// দিয়ে শুরু হতে হবে।"),
         publicId: z.string().trim().max(300).nullish(),
     })
     .nullish();
@@ -56,14 +57,14 @@ export const image = z
 export const hexColor = z
     .string()
     .trim()
-    .regex(/^#[0-9a-fA-F]{6}$/, "Pick a colour or type it as #RRGGBB.");
+    .regex(/^#[0-9a-fA-F]{6}$/, "একটি রং সিলেক্ট করুন, অথবা #RRGGBB আকারে লিখুন।");
 
 /** "YYYY-MM-DD" or empty. */
 export const isoDate = z
     .string()
     .trim()
     .default("")
-    .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "Use a valid date.");
+    .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "সঠিক তারিখ দিন।");
 
 /* ---------------- Schedules (dates are Dhaka calendar days) ---------------- */
 

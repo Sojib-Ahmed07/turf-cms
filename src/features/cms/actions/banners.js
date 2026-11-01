@@ -35,19 +35,19 @@ const bannerSchema = z
         id: z.string().uuid().nullish(),
         placement: z.enum(PLACEMENTS),
         image: image,
-        badge: text(12, "Badge"),
-        title: requiredText(50, "Title"),
-        body: text(140, "Text"),
-        ctaLabel: text(22, "Button text"),
-        ctaHref: link("Button link"),
+        badge: text(12, "ব্যাজ"),
+        title: requiredText(50, "শিরোনাম"),
+        body: text(140, "লেখা"),
+        ctaLabel: text(22, "বাটনের লেখা"),
+        ctaHref: link("বাটনের লিংক"),
         couponId: z.string().uuid().or(z.literal("")).nullish(),
         isActive: z.boolean().default(true),
         startDate: isoDate,
         endDate: isoDate,
     })
-    .refine((v) => !(v.ctaLabel && !v.ctaHref), { message: "Add a link for the button, or clear the button text." })
+    .refine((v) => !(v.ctaLabel && !v.ctaHref), { message: "বাটনের জন্য একটি লিংক দিন, অথবা বাটনের লেখা মুছে দিন।" })
     .refine((v) => !(v.startDate && v.endDate && v.endDate < v.startDate), {
-        message: "The end date must be on or after the start date.",
+        message: "শেষ তারিখ শুরুর তারিখের দিন বা পরে হতে হবে।",
     });
 
 /** Create (no id) or update a banner. Returns { ok, data: { id } }. */
@@ -61,7 +61,7 @@ export async function saveBanner(input) {
         const couponId = v.couponId || null;
         if (couponId) {
             const [c] = await db.select({ id: coupons.id }).from(coupons).where(eq(coupons.id, couponId)).limit(1);
-            if (!c) return { ok: false, error: "That promo code no longer exists. Pick another." };
+            if (!c) return { ok: false, error: "এই প্রোমো কোডটি আর নেই। অন্য একটি সিলেক্ট করুন।" };
         }
 
         const values = {
@@ -82,7 +82,7 @@ export async function saveBanner(input) {
         let id = v.id;
         if (id) {
             const [old] = await db.select({ placement: promoBanners.placement }).from(promoBanners).where(eq(promoBanners.id, id)).limit(1);
-            if (!old) return { ok: false, error: "This banner was deleted. Reload the page." };
+            if (!old) return { ok: false, error: "ব্যানারটি মুছে ফেলা হয়েছে। পেজটি রিলোড করুন।" };
             const moved = old.placement !== v.placement;
             await db
                 .update(promoBanners)
@@ -99,7 +99,7 @@ export async function saveBanner(input) {
         return { ok: true, data: { id } };
     } catch (err) {
         console.error("[saveBanner]", err);
-        return { ok: false, error: "Couldn't save the banner. Try again." };
+        return { ok: false, error: "ব্যানার সেভ হয়নি। আবার চেষ্টা করুন।" };
     }
 }
 
@@ -114,26 +114,26 @@ async function nextOrder(placement) {
 export async function setBannerActive({ id, isActive }) {
     try {
         if (!(await requireRoles(CONTENT_ROLES))) return DENIED;
-        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Banner not found." };
+        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "ব্যানারটি পাওয়া যায়নি।" };
         await db.update(promoBanners).set({ isActive: Boolean(isActive) }).where(eq(promoBanners.id, id));
         refresh();
         return { ok: true };
     } catch (err) {
         console.error("[setBannerActive]", err);
-        return { ok: false, error: "Couldn't update the banner." };
+        return { ok: false, error: "ব্যানার আপডেট হয়নি।" };
     }
 }
 
 export async function deleteBanner(id) {
     try {
         if (!(await requireRoles(CONTENT_ROLES))) return DENIED;
-        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Banner not found." };
+        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "ব্যানারটি পাওয়া যায়নি।" };
         await db.delete(promoBanners).where(eq(promoBanners.id, id));
         refresh();
         return { ok: true };
     } catch (err) {
         console.error("[deleteBanner]", err);
-        return { ok: false, error: "Couldn't delete the banner." };
+        return { ok: false, error: "ব্যানার মোছা যায়নি।" };
     }
 }
 
@@ -141,9 +141,9 @@ export async function deleteBanner(id) {
 export async function moveBanner({ id, direction }) {
     try {
         if (!(await requireRoles(CONTENT_ROLES))) return DENIED;
-        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Banner not found." };
+        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "ব্যানারটি পাওয়া যায়নি।" };
         const [b] = await db.select({ placement: promoBanners.placement }).from(promoBanners).where(eq(promoBanners.id, id)).limit(1);
-        if (!b) return { ok: false, error: "Banner not found." };
+        if (!b) return { ok: false, error: "ব্যানারটি পাওয়া যায়নি।" };
         const rows = await db
             .select({ id: promoBanners.id })
             .from(promoBanners)
@@ -161,6 +161,6 @@ export async function moveBanner({ id, direction }) {
         return { ok: true };
     } catch (err) {
         console.error("[moveBanner]", err);
-        return { ok: false, error: "Couldn't change the order." };
+        return { ok: false, error: "ক্রম বদলানো যায়নি।" };
     }
 }

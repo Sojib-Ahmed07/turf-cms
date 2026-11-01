@@ -9,8 +9,10 @@ import { Field, Input } from "@/components/ui/Field";
 import { authClient, signOut, useSession } from "@/lib/auth-client";
 import { updateProfile } from "@/features/profile/actions";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
+import { startNavProgress } from "@/lib/nav-progress";
 
-const ROLE_LABEL = { admin: "Admin" };
+const ROLE_LABEL = { admin: "profile.admin" };
 
 /**
  * props:
@@ -20,6 +22,7 @@ const ROLE_LABEL = { admin: "Admin" };
  *   counts      { upcoming, played }
  */
 export default function ProfileClient({ user, hasPassword, hasGoogle, counts }) {
+    const { t, f } = useI18n();
     const router = useRouter();
     const { refetch } = useSession();
     const [details, setDetails] = useState({ name: user.name, phone: user.phone });
@@ -45,7 +48,7 @@ export default function ProfileClient({ user, hasPassword, hasGoogle, counts }) 
             const next = { name: res.data.name, phone: res.data.phone };
             setDetails(next);
             setSaved(next);
-            setDetailsMsg({ ok: true, text: "Saved" });
+            setDetailsMsg({ ok: true, text: t("profile.saved") });
             refetch?.(); // the navbar shows the new name
             router.refresh();
         });
@@ -56,6 +59,7 @@ export default function ProfileClient({ user, hasPassword, hasGoogle, counts }) 
         await signOut({
             fetchOptions: {
                 onSuccess: () => {
+                    startNavProgress();
                     router.push("/");
                     router.refresh();
                 },
@@ -78,13 +82,13 @@ export default function ProfileClient({ user, hasPassword, hasGoogle, counts }) 
                     )}
                 </span>
                 <div className="min-w-0">
-                    <h1 className="display truncate text-[clamp(32px,5vw,56px)] text-ink">{saved.name || "Your profile"}</h1>
+                    <h1 className="display truncate text-[clamp(32px,5vw,56px)] text-ink">{saved.name || t("profile.title")}</h1>
                     <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-ink-3">
-                        <span>Member since {user.joined}</span>
+                        <span>{t("profile.memberSince", { date: f.monthYear(user.joinedIso) })}</span>
                         {ROLE_LABEL[user.role] && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-0.5 text-[12px] font-semibold text-white">
                                 <ShieldCheck className="h-3 w-3" />
-                                {ROLE_LABEL[user.role]}
+                                {t(ROLE_LABEL[user.role])}
                             </span>
                         )}
                     </p>
@@ -94,13 +98,13 @@ export default function ProfileClient({ user, hasPassword, hasGoogle, counts }) 
             <div className="mt-10 grid gap-6 lg:grid-cols-12">
                 {/* Details */}
                 <section className="rounded-card bg-white p-6 ring-1 ring-line sm:p-8 lg:col-span-7">
-                    <h2 className="text-[19px] font-semibold text-ink">Your details</h2>
-                    <p className="mt-1 text-[14px] text-ink-3">We use these on your tickets and to reach you about a booking.</p>
+                    <h2 className="text-[19px] font-semibold text-ink">{t("profile.details")}</h2>
+                    <p className="mt-1 text-[14px] text-ink-3">{t("profile.detailsHint")}</p>
                     <form onSubmit={saveDetails} className="mt-6 space-y-4">
-                        <Field label="Name" htmlFor="p-name">
+                        <Field label={t("profile.name")} htmlFor="p-name">
                             <Input id="p-name" icon={UserIcon} required maxLength={60} autoComplete="name" value={details.name} onChange={set("name")} />
                         </Field>
-                        <Field label="Mobile" htmlFor="p-phone" hint="Bangladeshi number, e.g. 01712345678.">
+                        <Field label={t("profile.mobile")} htmlFor="p-phone" hint={t("profile.mobileHint")}>
                             <Input
                                 id="p-phone"
                                 icon={Phone}
@@ -112,12 +116,12 @@ export default function ProfileClient({ user, hasPassword, hasGoogle, counts }) 
                                 placeholder="01XXXXXXXXX"
                             />
                         </Field>
-                        <Field label="Email" htmlFor="p-email" hint="Your email is your sign-in, so it can't be changed here.">
+                        <Field label={t("profile.email")} htmlFor="p-email" hint={t("profile.emailHint")}>
                             <Input id="p-email" icon={Mail} value={user.email} readOnly disabled className="bg-chalk text-ink-3" />
                         </Field>
                         <div className="flex flex-wrap items-center gap-3 pt-2">
                             <Button type="submit" disabled={!dirty || pending}>
-                                {pending ? "Saving…" : "Save details"}
+                                {pending ? t("profile.saving") : t("profile.save")}
                             </Button>
                             {dirty && !pending && (
                                 <Button
@@ -127,7 +131,7 @@ export default function ProfileClient({ user, hasPassword, hasGoogle, counts }) 
                                         setDetailsMsg(null);
                                     }}
                                 >
-                                    Discard
+                                    {t("profile.discard")}
                                 </Button>
                             )}
                             {detailsMsg && (
@@ -150,19 +154,19 @@ export default function ProfileClient({ user, hasPassword, hasGoogle, counts }) 
                 <div className="space-y-6 lg:col-span-5">
                     <section className="rounded-card bg-pitch p-6 text-white sm:p-8">
                         <div className="grid grid-cols-2 gap-4">
-                            <Stat icon={CalendarCheck} value={counts.upcoming} label={counts.upcoming === 1 ? "Upcoming game" : "Upcoming games"} />
-                            <Stat icon={Trophy} value={counts.played} label={counts.played === 1 ? "Game played" : "Games played"} />
+                            <Stat icon={CalendarCheck} value={f.digits(counts.upcoming)} label={t("profile.upcoming", { count: counts.upcoming })} />
+                            <Stat icon={Trophy} value={f.digits(counts.played)} label={t("profile.played", { count: counts.played })} />
                         </div>
                         <div className="mt-6 flex flex-wrap gap-2">
                             <Button href="/bookings" variant="white" size="sm">
-                                My bookings
+                                {t("common.myBookings")}
                             </Button>
                             <Button href="/book" variant="outline-light" size="sm">
-                                Book a slot
+                                {t("common.bookSlot")}
                             </Button>
                             {ROLE_LABEL[user.role] && (
                                 <Button href="/admin" variant="outline-light" size="sm">
-                                    Admin panel
+                                    {t("common.adminPanel")}
                                 </Button>
                             )}
                         </div>
@@ -172,7 +176,7 @@ export default function ProfileClient({ user, hasPassword, hasGoogle, counts }) 
 
                     <Button variant="outline" className="w-full" disabled={signingOut} onClick={onSignOut}>
                         <LogOut className="h-4 w-4" />
-                        {signingOut ? "Signing out…" : "Sign out"}
+                        {signingOut ? t("profile.signingOut") : t("common.signOut")}
                     </Button>
                 </div>
             </div>
@@ -191,12 +195,13 @@ function Stat({ icon: Icon, value, label }) {
 }
 
 const PASSWORD_ERRORS = {
-    INVALID_PASSWORD: "Your current password isn't right.",
-    PASSWORD_TOO_SHORT: "Use at least 8 characters for the new password.",
-    PASSWORD_TOO_LONG: "That password is too long.",
+    INVALID_PASSWORD: "profile.wrongCurrent",
+    PASSWORD_TOO_SHORT: "profile.tooShort",
+    PASSWORD_TOO_LONG: "profile.tooLong",
 };
 
 function PasswordCard({ hasPassword, hasGoogle }) {
+    const { t } = useI18n();
     const [form, setForm] = useState({ current: "", next: "", confirm: "" });
     const [msg, setMsg] = useState(null); // { ok, text }
     const [busy, setBusy] = useState(false);
@@ -204,10 +209,8 @@ function PasswordCard({ hasPassword, hasGoogle }) {
     if (!hasPassword) {
         return (
             <section className="rounded-card bg-white p-6 ring-1 ring-line sm:p-8">
-                <h2 className="text-[19px] font-semibold text-ink">Password</h2>
-                <p className="mt-2 text-[14px] text-ink-3">
-                    {hasGoogle ? "You sign in with Google, so there's no password to change here." : "Your account has no password."}
-                </p>
+                <h2 className="text-[19px] font-semibold text-ink">{t("profile.password")}</h2>
+                <p className="mt-2 text-[14px] text-ink-3">{hasGoogle ? t("profile.googleOnly") : t("profile.noPassword")}</p>
             </section>
         );
     }
@@ -219,8 +222,8 @@ function PasswordCard({ hasPassword, hasGoogle }) {
 
     async function submit(e) {
         e.preventDefault();
-        if (form.next.length < 8) return setMsg({ ok: false, text: PASSWORD_ERRORS.PASSWORD_TOO_SHORT });
-        if (form.next !== form.confirm) return setMsg({ ok: false, text: "The new passwords don't match." });
+        if (form.next.length < 8) return setMsg({ ok: false, text: t(PASSWORD_ERRORS.PASSWORD_TOO_SHORT) });
+        if (form.next !== form.confirm) return setMsg({ ok: false, text: t("profile.noMatch") });
         setBusy(true);
         const { error } = await authClient.changePassword({
             currentPassword: form.current,
@@ -229,24 +232,24 @@ function PasswordCard({ hasPassword, hasGoogle }) {
         });
         setBusy(false);
         if (error) {
-            setMsg({ ok: false, text: PASSWORD_ERRORS[error.code] ?? error.message ?? "Couldn't change the password. Try again." });
+            setMsg({ ok: false, text: PASSWORD_ERRORS[error.code] ? t(PASSWORD_ERRORS[error.code]) : t("profile.changeFailed") });
             return;
         }
         setForm({ current: "", next: "", confirm: "" });
-        setMsg({ ok: true, text: "Password changed. Other devices were signed out." });
+        setMsg({ ok: true, text: t("profile.changed") });
     }
 
     return (
         <section className="rounded-card bg-white p-6 ring-1 ring-line sm:p-8">
-            <h2 className="text-[19px] font-semibold text-ink">Change password</h2>
+            <h2 className="text-[19px] font-semibold text-ink">{t("profile.changePassword")}</h2>
             <form onSubmit={submit} className="mt-5 space-y-4">
-                <Field label="Current password" htmlFor="pw-current">
+                <Field label={t("profile.current")} htmlFor="pw-current">
                     <Input id="pw-current" type="password" icon={Lock} required autoComplete="current-password" value={form.current} onChange={set("current")} />
                 </Field>
-                <Field label="New password" htmlFor="pw-new" hint="At least 8 characters.">
+                <Field label={t("profile.newPassword")} htmlFor="pw-new" hint={t("auth.passwordHint")}>
                     <Input id="pw-new" type="password" icon={Lock} required autoComplete="new-password" value={form.next} onChange={set("next")} />
                 </Field>
-                <Field label="Repeat new password" htmlFor="pw-confirm">
+                <Field label={t("profile.repeat")} htmlFor="pw-confirm">
                     <Input id="pw-confirm" type="password" icon={Lock} required autoComplete="new-password" value={form.confirm} onChange={set("confirm")} />
                 </Field>
                 {msg && (
@@ -255,7 +258,7 @@ function PasswordCard({ hasPassword, hasGoogle }) {
                     </p>
                 )}
                 <Button type="submit" variant="ink" disabled={busy || !form.current || !form.next}>
-                    {busy ? "Changing…" : "Change password"}
+                    {busy ? t("profile.changing") : t("profile.changePassword")}
                 </Button>
             </form>
         </section>

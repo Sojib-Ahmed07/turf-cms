@@ -53,7 +53,7 @@ export default function SectionsEditor({ initial }) {
                 return;
             }
             setSaved(form);
-            showToast("Home sections saved");
+            showToast("হোম পেজের অংশ সেভ হয়েছে");
             router.refresh();
         });
     }
@@ -61,50 +61,50 @@ export default function SectionsEditor({ initial }) {
     return (
         <div className="mx-auto max-w-[920px]">
             <PageHeader
-                title="Home sections"
-                description="Edit the text of each section on the home page, or hide a section. The layout stays the same."
+                title="হোম পেজের অংশ"
+                description="হোম পেজের প্রতিটি অংশের লেখা বদলান, অথবা কোনো অংশ লুকিয়ে রাখুন। ডিজাইন একই থাকবে।"
             />
 
             <div className="space-y-6">
                 <SectionCard
-                    order="After the offer banner"
-                    title="Grounds open today"
+                    order="অফার ব্যানারের পরে"
+                    title="আজ খালি মাঠ"
                     visible={form.live_grounds.isVisible}
                     onVisible={(v) => set("live_grounds", { isVisible: v })}
                 >
                     <div>
-                        <Label>Heading</Label>
+                        <Label>শিরোনাম</Label>
                         <CharInput max={40} value={form.live_grounds.heading} onChange={(e) => set("live_grounds", { heading: e.target.value })} />
                     </div>
                     <div>
-                        <Label optional>Text</Label>
+                        <Label optional>লেখা</Label>
                         <CharInput max={140} multiline rows={2} value={form.live_grounds.body} onChange={(e) => set("live_grounds", { body: e.target.value })} />
                     </div>
-                    <p className="text-[13px] text-ink-3">Grounds, prices and free times come from Grounds &amp; slots.</p>
+                    <p className="text-[13px] text-ink-3">মাঠ, দাম আর খালি সময় আসে “মাঠ ও স্লট” পেজ থেকে।</p>
                 </SectionCard>
 
                 <SectionCard
-                    order="After the grounds"
-                    title="How it works"
+                    order="মাঠের অংশের পরে"
+                    title="কীভাবে বুক করবেন"
                     visible={form.how_it_works.isVisible}
                     onVisible={(v) => set("how_it_works", { isVisible: v })}
                 >
                     <div>
-                        <Label>Heading</Label>
+                        <Label>শিরোনাম</Label>
                         <CharInput max={60} value={form.how_it_works.heading} onChange={(e) => set("how_it_works", { heading: e.target.value })} />
                     </div>
                     <div className="space-y-3">
-                        <Label>Steps</Label>
+                        <Label>ধাপগুলো</Label>
                         {form.how_it_works.steps.map((s, i) => (
                             <div key={i} className="grid gap-3 rounded-ctl bg-chalk p-4 sm:grid-cols-[28px_1fr_36px]">
                                 <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-[12px] font-bold text-white tnum">{i + 1}</span>
                                 <div className="space-y-2.5">
-                                    <CharInput max={24} value={s.title} onChange={(e) => setStep(i, { title: e.target.value })} aria-label={`Step ${i + 1} title`} />
-                                    <CharInput max={120} multiline rows={2} value={s.body} onChange={(e) => setStep(i, { body: e.target.value })} aria-label={`Step ${i + 1} text`} />
+                                    <CharInput max={24} value={s.title} onChange={(e) => setStep(i, { title: e.target.value })} aria-label={`ধাপ ${i + 1}-এর শিরোনাম`} />
+                                    <CharInput max={120} multiline rows={2} value={s.body} onChange={(e) => setStep(i, { body: e.target.value })} aria-label={`ধাপ ${i + 1}-এর লেখা`} />
                                 </div>
                                 <button
                                     type="button"
-                                    aria-label={`Remove step ${i + 1}`}
+                                    aria-label={`ধাপ ${i + 1} সরান`}
                                     disabled={form.how_it_works.steps.length <= 1}
                                     onClick={() => set("how_it_works", { steps: form.how_it_works.steps.filter((_, j) => j !== i) })}
                                     className="grid h-9 w-9 place-items-center rounded-ctl text-ink-3 hover:bg-danger-soft hover:text-danger disabled:pointer-events-none disabled:opacity-30"
@@ -119,30 +119,30 @@ export default function SectionsEditor({ initial }) {
                                 onClick={() => set("how_it_works", { steps: [...form.how_it_works.steps, { title: "", body: "" }] })}
                                 className="flex w-full items-center justify-center gap-2 rounded-ctl border-2 border-dashed border-line py-3 text-[13px] font-semibold text-ink-3 hover:text-ink"
                             >
-                                <Plus className="h-4 w-4" /> Add a step
+                                <Plus className="h-4 w-4" /> একটি ধাপ যোগ করুন
                             </button>
                         )}
                     </div>
                 </SectionCard>
 
-                <SectionCard order="Before the footer" title="Find us" visible={form.visit.isVisible} onVisible={(v) => set("visit", { isVisible: v })}>
+                <SectionCard order="ফুটারের আগে" title="ঠিকানা" visible={form.visit.isVisible} onVisible={(v) => set("visit", { isVisible: v })}>
                     <div>
-                        <Label>Heading</Label>
+                        <Label>শিরোনাম</Label>
                         <CharInput max={40} value={form.visit.heading} onChange={(e) => set("visit", { heading: e.target.value })} />
                     </div>
                     <div>
-                        <Label optional>Text</Label>
+                        <Label optional>লেখা</Label>
                         <CharInput max={140} multiline rows={2} value={form.visit.body} onChange={(e) => set("visit", { body: e.target.value })} />
                     </div>
                     <div>
-                        <Label optional>Facilities</Label>
+                        <Label optional>সুবিধাসমূহ</Label>
                         <div className="flex flex-wrap gap-2 rounded-ctl border border-line bg-white p-2.5">
                             {form.visit.facilities.map((f) => (
                                 <span key={f} className="inline-flex items-center gap-1 rounded-full bg-brand-soft py-1 pl-3 pr-1 text-[13px] font-semibold text-brand-deep">
                                     {f}
                                     <button
                                         type="button"
-                                        aria-label={`Remove ${f}`}
+                                        aria-label={`${f} সরান`}
                                         onClick={() => set("visit", { facilities: form.visit.facilities.filter((x) => x !== f) })}
                                         className="grid h-5 w-5 place-items-center rounded-full hover:bg-white/70"
                                     >
@@ -162,19 +162,19 @@ export default function SectionsEditor({ initial }) {
                                     }}
                                     onBlur={addFacility}
                                     maxLength={30}
-                                    placeholder="Add and press Enter"
-                                    aria-label="Add a facility"
+                                    placeholder="লিখে Enter চাপুন"
+                                    aria-label="সুবিধা যোগ করুন"
                                     className="min-w-[160px] flex-1 bg-transparent px-2 text-[13px] outline-none placeholder:text-ink-4"
                                 />
                             )}
                         </div>
-                        <p className="mt-2 text-[12px] text-ink-3">Address, hours and phone come from Footer &amp; SEO.</p>
+                        <p className="mt-2 text-[12px] text-ink-3">ঠিকানা, খোলার সময় আর ফোন নম্বর আসে “যোগাযোগ, ফুটার ও SEO” পেজ থেকে।</p>
                     </div>
                 </SectionCard>
 
                 <p className="flex w-full items-center justify-center gap-2 rounded-card border-2 border-dashed border-line py-5 text-[13px] font-semibold text-ink-4">
                     <Plus className="h-4 w-4" />
-                    New section types are added by your developer
+                    নতুন ধরনের অংশ ডেভেলপার যোগ করবেন
                 </p>
             </div>
 
@@ -189,10 +189,10 @@ export default function SectionsEditor({ initial }) {
                             setError("");
                         }}
                     >
-                        Discard
+                        বাদ দিন
                     </Button>
                     <Button size="sm" disabled={pending} onClick={save}>
-                        {pending ? "Saving…" : "Save sections"}
+                        {pending ? "সেভ হচ্ছে…" : "সেভ করুন"}
                     </Button>
                 </SaveBar>
             )}
@@ -205,11 +205,11 @@ function SectionCard({ order, title, visible, onVisible, children }) {
     return (
         <Panel
             title={title}
-            description={visible ? order : `${order}. Hidden on the website.`}
+            description={visible ? order : `${order}। ওয়েবসাইটে লুকানো আছে।`}
             actions={
                 <label className="flex items-center gap-2.5 text-[13px] font-semibold text-ink-2">
-                    Visible
-                    <Switch checked={visible} onChange={onVisible} label={`Show ${title}`} />
+                    দেখাবে
+                    <Switch checked={visible} onChange={onVisible} label={`${title} দেখাবে`} />
                 </label>
             }
         >

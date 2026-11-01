@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { navItems, siteSettings } from "@/db/schema";
 import { TAGS } from "@/lib/cache-tags";
+import { renameEverywhere } from "../rename";
 import { ADMIN_ONLY, CONTENT_ROLES, DENIED, firstIssue, hexColor, image, link, requireRoles, requiredText, text } from "../server-utils";
 
 /** Update the single settings row (creates it if the seed never ran). */
@@ -34,26 +35,26 @@ const coord = (min, max, label) =>
         .transform((v) => (typeof v === "string" ? v.trim() : String(v)))
         .transform((v) => (v === "" ? null : Number(v)))
         .refine((v) => v === null || (Number.isFinite(v) && v >= min && v <= max), {
-            message: `${label} must be a number between ${min} and ${max}, or left empty.`,
+            message: `${label} ${min} থেকে ${max}-এর মধ্যে একটি সংখ্যা হতে হবে, অথবা খালি রাখুন।`,
         });
 
 const mapSchema = z.object({
-    lat: coord(-90, 90, "Latitude"),
-    lng: coord(-180, 180, "Longitude"),
+    lat: coord(-90, 90, "ল্যাটিচিউড"),
+    lng: coord(-180, 180, "লঞ্জিচিউড"),
     zoom: z
         .union([z.string(), z.number()])
         .transform((v) => (typeof v === "string" ? v.trim() : String(v)))
         .transform((v) => (v === "" ? null : Number(v)))
         .refine((v) => v === null || (Number.isInteger(v) && v >= 2 && v <= 19), {
-            message: "Zoom must be a whole number from 2 to 19, or left empty.",
+            message: "জুম ২ থেকে ১৯-এর মধ্যে একটি পূর্ণ সংখ্যা হতে হবে, অথবা খালি রাখুন।",
         }),
-    label: text(40, "Map label"),
-    address: text(120, "Map address"),
+    label: text(40, "ম্যাপের লেবেল"),
+    address: text(120, "ম্যাপের ঠিকানা"),
 });
 
 const brandingSchema = z.object({
-    siteName: requiredText(24, "Site name"),
-    tagline: text(60, "Tagline"),
+    siteName: requiredText(24, "সাইটের নাম"),
+    tagline: text(60, "ট্যাগলাইন"),
     brandColor: hexColor,
     logoLight: image,
     logoDark: image,
@@ -68,6 +69,7 @@ export async function saveBranding(input) {
         const parsed = brandingSchema.safeParse(input);
         if (!parsed.success) return { ok: false, error: firstIssue(parsed) };
         const v = parsed.data;
+        const before = await currentRow();
 
         await writeSettings(
             {
@@ -88,12 +90,27 @@ export async function saveBranding(input) {
             },
             user.id
         );
+        // The name is part of some texts (Google title, map pin, offers, home sections, terms...): put the new name
+        // there too, and replace the starter content's sample name. Runs on every save, so saving once also cleans up
+        // texts that still carry an old name. A failure here never undoes the branding save.
+        let renamed = 0;
+        try {
+            renamed = await renameEverywhere(before?.siteName, v.siteName);
+        } catch (err) {
+            console.error("[saveBranding:rename]", err);
+        }
         updateTag(TAGS.settings);
+        if (renamed) {
+            for (const tag of [TAGS.sections, TAGS.hero, TAGS.banners, TAGS.pitches]) updateTag(tag);
+            revalidatePath("/", "layout");
+        }
         revalidatePath("/admin/branding");
-        return { ok: true };
+        const after = renamed ? await currentRow() : null;
+        // the form shows these too: hand back the renamed values so it doesn't save the old name again
+        return { ok: true, data: { renamed, tagline: after?.tagline ?? null, mapLabel: after?.mapLabel ?? null } };
     } catch (err) {
         console.error("[saveBranding]", err);
-        return { ok: false, error: "Couldn't save the branding. Try again." };
+        return { ok: false, error: "সেভ হয়নি। আবার চেষ্টা করুন।" };
     }
 }
 
@@ -106,12 +123,12 @@ const menuSchema = z.object({
         .array(
             z.object({
                 id: z.string().uuid(),
-                label: requiredText(18, "Menu label"),
+                label: requiredText(18, "মেনুর নাম"),
                 isVisible: z.boolean(),
             })
         )
         .max(12),
-    menuButtonLabel: requiredText(16, "Button text"),
+    menuButtonLabel: requiredText(16, "বাটনের লেখা"),
     showMyBookings: z.boolean(),
 });
 
@@ -130,9 +147,9 @@ export async function saveMenu(input) {
         const existing = await db.select({ id: navItems.id }).from(navItems).orderBy(asc(navItems.sortOrder));
         const known = new Set(existing.map((r) => r.id));
         if (v.items.some((i) => !known.has(i.id))) {
-            return { ok: false, error: "The menu changed in another tab. Reload the page and try again." };
+            return { ok: false, error: "অন্য একটি ট্যাবে মেনু বদলানো হয়েছে। পেজটি রিলোড করে আবার চেষ্টা করুন।" };
         }
-        if (!v.items.some((i) => i.isVisible)) return { ok: false, error: "Keep at least one menu link visible." };
+        if (!v.items.some((i) => i.isVisible)) return { ok: false, error: "মেনুতে অন্তত একটি লিংক চালু রাখুন।" };
 
         // neon-http has no interactive transactions; these are independent small updates.
         for (const [i, item] of v.items.entries()) {
@@ -149,7 +166,7 @@ export async function saveMenu(input) {
         return { ok: true };
     } catch (err) {
         console.error("[saveMenu]", err);
-        return { ok: false, error: "Couldn't save the menu. Try again." };
+        return { ok: false, error: "মেনু সেভ হয়নি। আবার চেষ্টা করুন।" };
     }
 }
 
@@ -161,16 +178,26 @@ const PLATFORMS = ["facebook", "instagram", "youtube", "tiktok", "whatsapp", "x"
 
 const footerSeoSchema = z.object({
     contact: z.object({
-        phone: text(30, "Phone"),
+        phone: text(30, "ফোন"),
+        // Number for the floating WhatsApp button (empty = the phone number is used).
+        whatsapp: z
+            .string()
+            .trim()
+            .max(30)
+            .default("")
+            .refine(
+                (v) => v === "" || (v.replace(/\D/g, "").length >= 10 && /^[+\d\s()-]+$/.test(v)),
+                "হোয়াটসঅ্যাপ নম্বরটি দেশের কোডসহ দিন, যেমন +8801700000000।"
+            ),
         email: z
             .string()
             .trim()
             .max(80)
             .default("")
-            .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid email address."),
-        address: text(100, "Address"),
-        hours: text(60, "Opening hours"),
-        mapUrl: link("Google Maps link"),
+            .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "সঠিক ইমেইল ঠিকানা দিন।"),
+        address: text(100, "ঠিকানা"),
+        hours: text(60, "খোলার সময়"),
+        mapUrl: link("Google Maps লিংক"),
     }),
     socials: z
         .array(
@@ -180,13 +207,13 @@ const footerSeoSchema = z.object({
                     .string()
                     .trim()
                     .max(300)
-                    .refine((v) => /^https:\/\/[^\s]+$/.test(v), "Social links must start with https://"),
+                    .refine((v) => /^https:\/\/[^\s]+$/.test(v), "সোশ্যাল লিংক https:// দিয়ে শুরু হতে হবে"),
             })
         )
         .max(8),
     seo: z.object({
-        title: text(60, "Page title"),
-        description: text(160, "Description"),
+        title: text(60, "পেজের শিরোনাম"),
+        description: text(160, "বিবরণ"),
         ogImage: image,
     }),
 });
@@ -217,7 +244,7 @@ export async function saveFooterSeo(input) {
         return { ok: true };
     } catch (err) {
         console.error("[saveFooterSeo]", err);
-        return { ok: false, error: "Couldn't save. Try again." };
+        return { ok: false, error: "সেভ হয়নি। আবার চেষ্টা করুন।" };
     }
 }
 
@@ -235,7 +262,7 @@ export async function saveSliderSettings(input) {
         const user = await requireRoles(CONTENT_ROLES);
         if (!user) return DENIED;
         const parsed = sliderSchema.safeParse(input);
-        if (!parsed.success) return { ok: false, error: "Pick a time per slide." };
+        if (!parsed.success) return { ok: false, error: "প্রতি স্লাইডের সময় সিলেক্ট করুন।" };
         const row = await currentRow();
         const slider = { ...(row?.slider ?? {}), ...parsed.data };
         await writeSettings({ slider }, user.id);
@@ -244,6 +271,6 @@ export async function saveSliderSettings(input) {
         return { ok: true };
     } catch (err) {
         console.error("[saveSliderSettings]", err);
-        return { ok: false, error: "Couldn't save the slider settings." };
+        return { ok: false, error: "স্লাইডারের সেটিং সেভ হয়নি।" };
     }
 }

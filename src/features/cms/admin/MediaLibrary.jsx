@@ -13,20 +13,21 @@ import { TextInput } from "@/components/ui/Inputs";
 import { deleteMedia, updateMediaAlt } from "@/features/cms/actions/media";
 import { uploadImage } from "@/features/cms/upload-client";
 import { canOptimize, cn } from "@/lib/utils";
+import { BN } from "@/i18n/format";
 
 const FOLDERS = [
-    { key: "all", label: "All" },
-    { key: "hero", label: "Hero" },
-    { key: "banners", label: "Banners" },
-    { key: "branding", label: "Branding" },
-    { key: "pitches", label: "Grounds" },
-    { key: "seo", label: "Sharing" },
-    { key: "misc", label: "Other" },
+    { key: "all", label: "সব" },
+    { key: "hero", label: "হিরো" },
+    { key: "banners", label: "ব্যানার" },
+    { key: "branding", label: "লোগো" },
+    { key: "pitches", label: "মাঠ" },
+    { key: "seo", label: "শেয়ার" },
+    { key: "misc", label: "অন্যান্য" },
 ];
 
 function fileSize(bytes) {
     if (!bytes) return "–";
-    return bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+    return BN.digits(bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`);
 }
 
 /** items: from getMediaAdmin() */
@@ -69,7 +70,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
         }
         if (inputRef.current) inputRef.current.value = "";
         if (done) {
-            showToast(done === 1 ? "Image uploaded" : `${done} images uploaded`);
+            showToast(`${BN.digits(done)}টি ছবি আপলোড হয়েছে`);
             router.refresh();
         }
     }
@@ -79,7 +80,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
         startTransition(async () => {
             const res = await updateMediaAlt({ id: item.id, alt });
             if (!res.ok) return showToast(res.error, "error");
-            showToast("Description saved");
+            showToast("বর্ণনা সেভ হয়েছে");
             router.refresh();
         });
     }
@@ -90,7 +91,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
             setConfirmDelete(false);
             if (!res.ok) return showToast(res.error, "error");
             setSelected(null);
-            showToast("Image deleted");
+            showToast("ছবি মুছে ফেলা হয়েছে");
             router.refresh();
         });
     }
@@ -98,22 +99,22 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
     async function copyLink() {
         try {
             await navigator.clipboard.writeText(item.url);
-            showToast("Link copied");
+            showToast("লিংক কপি হয়েছে");
         } catch {
-            showToast("Couldn't copy. Select the link and copy it by hand.", "error");
+            showToast("কপি হয়নি। লিংকটি সিলেক্ট করে নিজে কপি করুন।", "error");
         }
     }
 
     return (
         <div className="mx-auto max-w-[1280px]">
             <PageHeader
-                title="Media"
-                description="Every image uploaded to the website. Images are stored on Cloudinary and resized automatically."
+                title="ছবির লাইব্রেরি"
+                description="ওয়েবসাইটে আপলোড করা সব ছবি। ছবিগুলো Cloudinary-তে রাখা হয় এবং নিজে থেকেই ছোট-বড় করে নেওয়া হয়।"
                 actions={
                     uploadsReady && (
                         <Button variant="ink" onClick={() => inputRef.current?.click()}>
                             <CloudUpload className="h-4 w-4" />
-                            Upload images
+                            ছবি আপলোড করুন
                         </Button>
                     )
                 }
@@ -121,7 +122,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
 
             {!uploadsReady && (
                 <p className="mb-6 rounded-card bg-flare-soft px-5 py-4 text-[14px] font-medium text-flare-deep ring-1 ring-flare/40">
-                    Image uploads aren&apos;t set up yet. Add the Cloudinary keys to the environment settings, then restart the site.
+                    ছবি আপলোড এখনো চালু হয়নি। এনভায়রনমেন্ট সেটিংসে Cloudinary-র কী যোগ করে সাইটটি আবার চালু করুন।
                 </p>
             )}
 
@@ -132,7 +133,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                     <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center">
                         <div className="relative sm:w-64">
                             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
-                            <TextInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by file name" className="pl-10" />
+                            <TextInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="ফাইলের নাম দিয়ে খুঁজুন" className="pl-10" />
                         </div>
                         <div className="no-scrollbar flex gap-1 overflow-x-auto sm:ml-auto">
                             {FOLDERS.map((f) => (
@@ -159,7 +160,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                                     {u.error ? (
                                         <>
                                             <span className="max-w-[60%] truncate text-danger">{u.error}</span>
-                                            <button type="button" aria-label="Dismiss" onClick={() => setUploads((x) => x.filter((y) => y.key !== u.key))} className="text-ink-3 hover:text-ink">
+                                            <button type="button" aria-label="বন্ধ করুন" onClick={() => setUploads((x) => x.filter((y) => y.key !== u.key))} className="text-ink-3 hover:text-ink">
                                                 <X className="h-4 w-4" />
                                             </button>
                                         </>
@@ -185,8 +186,8 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                             >
                                 <input type="file" multiple accept="image/*" className="sr-only" onChange={(e) => handleFiles(e.target.files)} />
                                 <CloudUpload className="h-6 w-6" />
-                                <span className="px-2 text-[13px] font-semibold">Drop files here</span>
-                                <span className="px-2 text-[11px]">Saved to {folder === "all" ? "Other" : FOLDERS.find((f) => f.key === folder)?.label}</span>
+                                <span className="px-2 text-[13px] font-semibold">ফাইল এখানে ছেড়ে দিন</span>
+                                <span className="px-2 text-[11px]">সেভ হবে: {folder === "all" ? "অন্যান্য" : FOLDERS.find((f) => f.key === folder)?.label}</span>
                             </label>
                         )}
                         {list.map((m) => (
@@ -202,7 +203,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                                 <Image src={m.url} alt={m.alt} fill sizes="240px" unoptimized={!canOptimize(m.url)} className="object-cover transition-transform duration-500 group-hover:scale-105" />
                                 {m.usedIn.length > 0 && (
                                     <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-ink">
-                                        <Check className="h-3 w-3" /> In use
+                                        <Check className="h-3 w-3" /> ব্যবহার হচ্ছে
                                     </span>
                                 )}
                                 <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent px-3 pb-2.5 pt-8">
@@ -214,7 +215,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                     </div>
                     {list.length === 0 && (
                         <p className="px-4 pb-8 text-center text-[14px] text-ink-3">
-                            {items.length === 0 ? "No images yet. Upload your first one." : "No images match."}
+                            {items.length === 0 ? "এখনো কোনো ছবি নেই। প্রথম ছবিটি আপলোড করুন।" : "এই নামে কোনো ছবি নেই।"}
                         </p>
                     )}
                 </div>
@@ -224,7 +225,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                     <aside className="h-fit rounded-card bg-white ring-1 ring-line xl:sticky xl:top-10">
                         <div className="flex items-center justify-between border-b border-line px-5 py-4">
                             <p className="truncate text-[14px] font-semibold text-ink">{item.name}</p>
-                            <button type="button" aria-label="Close details" onClick={() => setSelected(null)} className="grid h-8 w-8 place-items-center rounded-full text-ink-3 hover:bg-chalk">
+                            <button type="button" aria-label="বিস্তারিত বন্ধ করুন" onClick={() => setSelected(null)} className="grid h-8 w-8 place-items-center rounded-full text-ink-3 hover:bg-chalk">
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
@@ -233,10 +234,10 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                                 <Image src={item.url} alt={item.alt} fill sizes="340px" unoptimized={!canOptimize(item.url)} className="object-contain" />
                             </div>
                             <dl className="grid grid-cols-2 gap-3 text-[13px]">
-                                <Meta label="Size" value={item.width && item.height ? `${item.width} × ${item.height}` : "–"} />
-                                <Meta label="File" value={`${fileSize(item.bytes)}${item.format ? `, ${item.format.toUpperCase()}` : ""}`} />
-                                <Meta label="Folder" value={FOLDERS.find((f) => f.key === item.folder)?.label ?? item.folder} />
-                                <Meta label="Used in" value={item.usedIn.length ? `${item.usedIn.length} place${item.usedIn.length > 1 ? "s" : ""}` : "Not used"} />
+                                <Meta label="মাপ" value={item.width && item.height ? BN.digits(`${item.width} × ${item.height}`) : "–"} />
+                                <Meta label="ফাইল" value={`${fileSize(item.bytes)}${item.format ? `, ${item.format.toUpperCase()}` : ""}`} />
+                                <Meta label="ফোল্ডার" value={FOLDERS.find((f) => f.key === item.folder)?.label ?? item.folder} />
+                                <Meta label="কোথায় আছে" value={item.usedIn.length ? `${BN.digits(item.usedIn.length)} জায়গায়` : "কোথাও নেই"} />
                             </dl>
                             {item.usedIn.length > 0 && (
                                 <ul className="space-y-1 rounded-[12px] bg-chalk px-3 py-2.5 text-[12px] text-ink-2">
@@ -249,7 +250,7 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                             )}
                             <div>
                                 <Label htmlFor="m-alt" optional>
-                                    Description
+                                    বর্ণনা
                                 </Label>
                                 <TextInput
                                     id="m-alt"
@@ -258,13 +259,13 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                                     onBlur={saveAlt}
                                     onKeyDown={(e) => e.key === "Enter" && saveAlt()}
                                     maxLength={160}
-                                    placeholder="Describe the image for screen readers"
+                                    placeholder="ছবিতে কী আছে লিখুন (দৃষ্টি প্রতিবন্ধীদের স্ক্রিন রিডারের জন্য)"
                                 />
                             </div>
                             <div className="flex gap-2">
                                 <Button variant="outline" size="sm" className="flex-1" onClick={copyLink}>
                                     <Copy className="h-3.5 w-3.5" />
-                                    Copy link
+                                    লিংক কপি করুন
                                 </Button>
                                 <Button
                                     variant="ghost"
@@ -273,19 +274,19 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                                     disabled={pending}
                                     onClick={() =>
                                         item.usedIn.length
-                                            ? showToast(`Still used in ${item.usedIn[0]}${item.usedIn.length > 1 ? " and more" : ""}. Replace it there first.`, "error")
+                                            ? showToast(`ছবিটি এখনো ব্যবহার হচ্ছে: ${item.usedIn[0]}${item.usedIn.length > 1 ? " ও আরও জায়গায়" : ""}। আগে সেখান থেকে বদলান।`, "error")
                                             : setConfirmDelete(true)
                                     }
                                 >
                                     <Trash2 className="h-3.5 w-3.5" />
-                                    Delete
+                                    মুছে ফেলুন
                                 </Button>
                             </div>
                         </div>
                     </aside>
                 ) : (
                     <aside className="hidden h-fit rounded-card border-2 border-dashed border-line p-8 text-center text-[14px] text-ink-3 xl:block">
-                        Select an image to see its details.
+                        বিস্তারিত দেখতে একটি ছবি সিলেক্ট করুন।
                     </aside>
                 )}
             </div>
@@ -294,15 +295,15 @@ export default function MediaLibrary({ items = [], uploadsReady = true }) {
                 open={confirmDelete}
                 onClose={() => setConfirmDelete(false)}
                 size="sm"
-                title="Delete this image?"
-                description="It is removed from Cloudinary and the media library. This can't be undone."
+                title="ছবিটি মুছে ফেলবেন?"
+                description="Cloudinary আর ছবির লাইব্রেরি থেকে মুছে যাবে। এটি আর ফেরানো যাবে না।"
                 footer={
                     <>
                         <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-                            Keep it
+                            রেখে দিন
                         </Button>
                         <Button variant="ink" className="bg-danger hover:bg-danger" disabled={pending} onClick={remove}>
-                            Delete image
+                            ছবি মুছুন
                         </Button>
                     </>
                 }

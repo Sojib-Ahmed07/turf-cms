@@ -3,6 +3,8 @@ import { Anek_Bangla, Archivo } from "next/font/google";
 import { brandInk, getSiteSettings } from "@/features/cms/queries";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { getDictionary } from "@/i18n/server";
+import { Suspense } from "react";
+import NavProgress from "@/components/NavProgress";
 import "./globals.css";
 
 // Archivo is variable in weight AND width: the width axis gives the
@@ -62,6 +64,10 @@ export default async function RootLayout({ children }) {
       <body className="min-h-svh antialiased">
         {/* The site is Bangla only; scripts/check-i18n.mjs checks every key used in code exists in bn.js. */}
         <I18nProvider dict={getDictionary()}>
+          {/* thin loading bar at the top on every page change */}
+          <Suspense fallback={null}>
+            <NavProgress />
+          </Suspense>
           {children}
         </I18nProvider>
       </body>

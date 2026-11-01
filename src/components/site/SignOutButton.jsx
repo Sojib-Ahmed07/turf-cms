@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 import { useI18n } from "@/i18n/I18nProvider";
+import { startNavProgress } from "@/lib/nav-progress";
 
 export default function SignOutButton({ className }) {
     const router = useRouter();
@@ -13,6 +14,7 @@ export default function SignOutButton({ className }) {
             className={className}
             onClick={async () => {
                 await signOut();
+                startNavProgress();
                 router.push("/");
                 router.refresh();
             }}

@@ -185,17 +185,17 @@ export async function getMediaUsage() {
         map.get(url).push(label);
     };
     if (row) {
-        add(row.logoLightUrl, "Logo for light backgrounds");
-        add(row.logoDarkUrl, "Logo for dark backgrounds");
-        add(row.faviconUrl, "Browser tab icon");
-        add(row.seo?.ogImageUrl, "Share image");
+        add(row.logoLightUrl, "হালকা ব্যাকগ্রাউন্ডের লোগো");
+        add(row.logoDarkUrl, "গাঢ় ব্যাকগ্রাউন্ডের লোগো");
+        add(row.faviconUrl, "ব্রাউজার ট্যাবের আইকন");
+        add(row.seo?.ogImageUrl, "শেয়ারের ছবি");
     }
     for (const s of slides) {
-        add(s.a, `Hero slide: ${s.heading}`);
-        add(s.b, `Hero slide (mobile): ${s.heading}`);
+        add(s.a, `হিরো স্লাইড: ${s.heading}`);
+        add(s.b, `হিরো স্লাইড (মোবাইল): ${s.heading}`);
     }
-    for (const b of banners) add(b.a, `Offer banner: ${b.title}`);
-    for (const g of grounds) add(g.a, `Ground: ${g.name}`);
+    for (const b of banners) add(b.a, `অফার ব্যানার: ${b.title}`);
+    for (const g of grounds) add(g.a, `মাঠ: ${g.name}`);
     return map;
 }
 

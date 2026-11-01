@@ -3,8 +3,9 @@
 
 Turf-booking site + CMS for one venue in Dhaka (Next.js 16.4.3 App Router, React 19.3, Tailwind v4,
 Drizzle + Neon Postgres, Better Auth + email OTP, Zod 4, SSLCommerz + direct bKash, Cloudinary, Brevo
-email, `qrcode`, Leaflet). **JavaScript only, no TypeScript.** Last synced with the code: 26 Oct 2026
-(Steps 0 to 8b done, security review done; direct Nagad dropped). Next.js **16.4.3** is a security patch: don't downgrade.
+email, `qrcode`, Leaflet). **JavaScript only, no TypeScript.** Last synced with the code: 1 Nov 2026
+(Steps 0 to 8b, security review, Bangla-only site, per-person pricing, live-site audit fixes, dynamic site name and
+page-change loading done; direct Nagad dropped). Next.js **16.4.3** is a security patch: don't downgrade.
 
 @Agents.md
 
@@ -29,7 +30,7 @@ Exception: before using a Next.js API you are unsure about, read the matching gu
 ```
 npm run dev           # next dev --webpack (Turbopack crashes here; keep --webpack)
 npm run build         # next build; run this to check a change compiles
-npm run lint          # eslint . (0 errors as of 26 Oct 2026; 2 accepted no-img-element warnings on QR images)
+npm run lint          # eslint . (0 errors as of 1 Nov 2026; 2 accepted no-img-element warnings on QR images)
 npm ci                # clean install; package.json and package-lock.json must change together
 npm run start         # serve the production build
 npm run db:generate   # after editing src/db/schema/*, then:
@@ -47,23 +48,29 @@ Ask before running migrations or the seed against the database (it is a shared N
 ```
 src/
   app/
-    (site)/            public pages: /, /book, /bookings, /profile, /terms, /payment/* (+ loading, error),
-                       /verify/[token] (QR ticket check; public, admin sees "Mark as used")
-    (auth)/            /login, /register, /verify-email (6-digit code)
-    admin/             CMS + booking admin (layout guards with requireRole admin|editor; + loading, error)
+    layout.jsx         root: font, brand colour + SEO from settings, <NavProgress /> in <Suspense>
+    (site)/            public pages: /, /book, /grounds, /grounds/[slug], /bookings, /profile, /terms, /payment/*,
+                       /verify/[token] (QR ticket check; public, admin sees "Mark as used"); error.jsx
+    (auth)/            /login, /register, /verify-email (6-digit code), /forgot-password
+    admin/             CMS + booking admin (layout guards with requireRole(["admin"]); title "%s | অ্যাডমিন")
+                       every route above has a loading.jsx with a page-shaped skeleton
     not-found.jsx, global-error.jsx, sitemap.js, robots.js
     api/auth/[...all]  Better Auth handler
     api/booked-slots   live slot board JSON (no-store)
     api/payment/sslcommerz/[event]  SSLCommerz callbacks: success | fail | cancel | ipn (POST)
     api/payment/bkash/callback      bKash browser callback (GET ?paymentID=&status=)
-    api/cron/expire-holds           daily: re-check lost payments, expire holds (Bearer CRON_SECRET)
+    api/cron/expire-holds           recheck/repair payments, close abandoned (> 48 h), expire locks (Bearer CRON_SECRET;
+                                    Vercel daily + external every 10 min)
     api/ticket-qr/[token]           QR PNG for a signed ticket token (receipt emails)
     control-room/[slug]             revenue display override for /admin (slug + password from env, admin only)
   components/
-    ui/                Button, Dialog, Field, Inputs, Switch, Badge
+    NavProgress.jsx    top loading bar on page changes (link clicks + startNavProgress())
+    ui/                Button, Dialog, Field, Inputs, Switch, Badge, PeoplePicker, Skeleton (Bone, CardBone, Loading)
     site/              public site chrome and home sections (props only); VenueMap + VenueMapLoader (Leaflet),
-                       VerifyTicket
-    admin/             AdminShell, Kit, TonightBoard, StatusBadge, ImageUploader, MediaPicker, Toast
+                       VerifyTicket, WhatsAppButton, PageSkeletons (Home, Book, Grounds, Ground, Bookings, Profile,
+                       TextPage, Result, Auth)
+    admin/             AdminShell, Kit, TonightBoard, StatusBadge, ImageUploader, MediaPicker, Toast,
+                       AdminSkeletons (Overview, Table, Editor, GroundsAdmin, SlotEditor, Media)
     auth/              AuthForms, AuthLayout, VerifyEmailForm
   features/
     auth/              emails.js (sendOtpEmail), ticket-email.js (receipt with QR)
@@ -75,17 +82,24 @@ src/
                        actions/{pitches,bookings,coupons,payments,users,checkin}.js, components/
     coupons/           rules.js (pure evaluateCoupon), service.js (checkCouponForSlot, redeemCoupon)
     cms/               queries.js (cached reads, settings.map), admin-queries.js, server-utils.js, actions/*,
+                       rename.js (renameEverywhere: site name swap in stored texts on Branding save),
                        upload-client.js, admin/ (8 live editors incl. TermsEditor; BrandingForm has Map location)
-    payment/           service.js (start per gateway, confirm SSLCommerz / bKash, recheck per gateway, receipt email),
+    override/          actions.js (control room: unlock, saveOverride, resetOverride)
+    payment/           service.js (start per gateway, confirm SSLCommerz / bKash, recheck per gateway, receipt email,
+                       closeAbandonedPayments),
                        actions.js (payForBooking(id, method)), methods.js (GATEWAYS, getPayMethods),
                        result-page.js, components/ (PaymentResult, RetryPayButton, PayMethodPicker, PayDialog,
                        MethodOffDialog)
-  db/                  index.js (neon-http), pool.js (unused), schema/, seed.js
+  db/                  index.js (neon-http), pool.js (withLockedTx: advisory locks over a Neon WebSocket tx), schema/, seed.js
   lib/                 auth (emailOTP), auth-client, guards, action, time, utils, cache-tags, sslcommerz,
-                       bkash, cloudinary, brevo, ticket-token, qrcode, phone, env
+                       bkash, cloudinary, brevo, ticket-token, qrcode, phone, env, nav-progress (startNavProgress)
+  i18n/                config (LOCALE "bn"), dict/bn.js, server, I18nProvider, format (BN)
   proxy.js             cookie check redirect for /admin, /bookings, /profile
   instrumentation.js   runs lib/env.js assertEnv() once at server start
-drizzle/               migrations 0000 to 0009 (0008 Bangla sample content, data only; 0009 per-person pricing) (0002 check-in, 0003 map, 0004_next_fabian_cortez payments.gateway)
+drizzle/               migrations 0000 to 0009 (0002 check-in, 0003 map, 0004 payments.gateway, 0005 revenue override,
+                       0006 redemptions index, 0007 roles + nav (data), 0008 Bangla content (data), 0009 per-person pricing)
+scripts/check-i18n.mjs fails when a t() key is missing from bn.js
+vercel.json            daily cron (Hobby plan); add "regions": ["sin1"] if Neon is in ap-southeast-1
 next.config.mjs        image hosts + security headers (X-Frame-Options DENY, nosniff, Referrer-Policy, HSTS)
 ```
 
@@ -191,12 +205,28 @@ change while the ground has upcoming bookings. Coupons apply to price x people.
 
 **Control room (revenue display override):** `/control-room/<ADMIN_OVERRIDE_SLUG>` (404 for any other slug or when the
 env var is missing; signed-in admins only, then `ADMIN_OVERRIDE_PASSWORD`, unlock cookie `tz_override_auth` for 2 hours).
-The admin types the "today" and "this month" revenue figures to show; `saveOverride` stores the difference from the real
+The admin types the "today" and "this month" revenue figures to show; `saveOverride({ todayDisplay, monthDisplay })`
+works out on the server (from `getDashboardStats().rawTodayRevenue/rawMonthRevenue`) and stores the difference from the real
 paid revenue in `site_settings.override_revenue_today` / `override_revenue_month` (migration 0005), and
 `getDashboardStats()` (`features/admin/queries.js`) adds those offsets to the revenue on `/admin` (also used for the
 month-on-month change). **Reset** sets both offsets back to 0. Bookings, payments, Admin > Payments and exports are not
 changed. Files: `app/control-room/[slug]/page.jsx`, `OverrideClient.jsx`, `features/override/actions.js`
 (`unlockOverride`, `isOverrideUnlocked`, `saveOverride`, `resetOverride`); env check warns when the two vars are unset.
+
+**Site name is dynamic (1 Nov):** never write the venue name as a literal in UI, metadata or emails. Read
+`settings.siteName` (`getSiteSettings()`) and pass it down. `saveBranding` calls `renameEverywhere(old, new)`
+(`features/cms/rename.js`), which swaps the old name and the starter names (`SAMPLE_NAMES`) in stored texts; when you add
+a new table/field with free text the admin edits, add it to `renameEverywhere` (links, emails, phones and images are
+skipped by `SKIP_KEYS`).
+
+**Page-change loading (1 Nov):** `components/NavProgress.jsx` shows a top bar on page changes. Plain `<Link>`/`<a>` clicks
+start it automatically; before any `router.push`/`router.replace` that changes the page, call `startNavProgress()` from
+`@/lib/nav-progress`. Every new route needs a `loading.jsx` that returns a skeleton from `components/site/PageSkeletons.jsx`
+or `components/admin/AdminSkeletons.jsx` (or a new one built from `components/ui/Skeleton.jsx`) shaped like the page.
+
+**Abuse limits to keep:** wrong promo codes 10 per 15 min per account/IP (`audit_log` action `coupon_wrong`), 5 unpaid
+attempts per player per hour (`bookAndPay`), 8 unpaid payments per hour (`startPayment`), receipt resend 3 per 15 min.
+SSLCommerz fail/cancel callbacks only close a payment when SSLCommerz's own answer has the same `tran_id`.
 
 **WhatsApp button:** `components/site/WhatsAppButton.jsx` in the `(site)` layout; number from `contact.whatsapp`
 (Footer & SEO) or `contact.phone`. The menu has no Contact link any more.
@@ -208,7 +238,16 @@ removed on 27 Oct (migration 0007 makes any such account a player); don't add ro
 `CONTENT_ROLES` in `cms/server-utils.js` is now `["admin"]`. Check the role inside every admin action, not only in
 the layout. `/verify/[token]` is public; only `markTicketUsed` needs admin.
 
-## Known gaps (as of 26 Oct 2026)
+## Known gaps (as of 1 Nov 2026)
+
+- The Vercel sandbox deploy (`https://turf-cms.vercel.app/`) runs an **older build** (audit saw English admin dates,
+  editors and payment pages). Run `npm run db:migrate` (0005 to 0009) on that database, then redeploy the current code.
+- Vercel functions ran in `iad1` (US) while Neon is in Asia: 1–2 s per page. Set the region to `sin1`.
+- Vercel Hobby cron is daily only; an external cron must call `/api/cron/expire-holds` every 10 minutes (bKash has no IPN).
+- Content to fix in the admin panel: old venue name in hand-typed texts (save Branding once), placeholder phone in
+  Footer & SEO, OFF20 banner text vs its coupon (10% in the DB), badminton prices in texts vs slot prices.
+- Not tested end to end by Claude: entering the bKash sandbox PIN/OTP and the SSLCommerz sandbox card page (done by the
+  developer).
 
 - 29 Oct: run `npm run db:migrate` for **0008** (data only: sample English content to Bangla, Contact link removed).
 - 29 Oct (d): run `npm run db:migrate` for **0009** (per-person pricing columns). Then open the swimming pool in
@@ -227,10 +266,10 @@ the layout. `/verify/[token]` is public; only `markTicketUsed` needs admin.
   unless asked; Nagad works through SSLCommerz.
 - To confirm on the dev machine: the `payments.gateway` column exists (migrate printed no success line), and a real
   sandbox payment with bKash and SSLCommerz.
-- Next: pre-deploy fixes, then `DEPLOY.md`.
+- Next: redeploy, region, external cron, content cleanup, then go live (live keys + domain).
 - bKash refunds are manual (merchant panel), like SSLCommerz.
-- `DEPLOY.md` is behind: its env table and checks lack `BREVO_*`, `TICKET_SECRET` and `BKASH_*`.
-- Admin, Bookings has no "Checked in" column/filter (`getAdminBookings` doesn't read `checkedInAt`).
+- `DEPLOY.md` is not in the current code zip; if it exists on the dev machine, its env table needs `BREVO_*`,
+  `TICKET_SECRET`, `BKASH_*`, `ADMIN_OVERRIDE_*`.
 - Open question for the client: keep `/verify/<token>` public, or staff-only?
 - Not built (ask first): audit log writes for admin actions (only receipt resends are logged), SMS, SSLCommerz refund API.
 - `npm audit`: 4 moderate in drizzle-kit's esbuild (dev only); everything else clean.
@@ -239,6 +278,6 @@ the layout. `/verify/[token]` is public; only `markTicketUsed` needs admin.
 ## End of session
 
 Update `Agents.md` sections 2 (Where things stand), 8 (Step plan) and 10 (Changelog), plus any file
-tables in section 6 that changed; `ai-context.md` sections 3, 5, 6, 9 to 13; and this file's Layout and
-Known gaps.
+tables in section 6 that changed; `ai-context.md` sections 3, 5, 6, 9 to 13; and this file's Layout, patterns and
+Known gaps. Delete the `AGENTS.md` that `next dev` re-creates before delivering files (the repo uses `Agents.md`).
 Commit only when asked.

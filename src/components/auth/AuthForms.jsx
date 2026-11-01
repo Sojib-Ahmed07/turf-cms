@@ -9,6 +9,7 @@ import { Mail, Lock, User as UserIcon, Phone, KeyRound } from "lucide-react";
 import { signIn, signUp, authClient } from "@/lib/auth-client";
 import { safeNext } from "@/lib/utils";
 import { useI18n } from "@/i18n/I18nProvider";
+import { startNavProgress } from "@/lib/nav-progress";
 
 /**
  * Better Auth's own messages are English, so show our Bangla text instead. Messages written in Bangla
@@ -73,6 +74,7 @@ export function LoginForm() {
             setError(authMessage(err, t("auth.signInFailed")));
             return;
         }
+        startNavProgress();
         router.push(next);
         router.refresh();
     }
@@ -162,10 +164,12 @@ export function RegisterForm() {
         });
         if (sent.error) {
             // Account exists; they can resend from /verify-email.
+            startNavProgress();
             router.push(`/verify-email?email=${encodeURIComponent(form.email)}&next=${encodeURIComponent(next)}`);
             router.refresh();
             return;
         }
+        startNavProgress();
         router.push(`/verify-email?email=${encodeURIComponent(form.email)}&next=${encodeURIComponent(next)}`);
         router.refresh();
     }

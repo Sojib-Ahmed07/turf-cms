@@ -1,6 +1,18 @@
 // src/features/auth/emails.js
 import "server-only";
 import { sendBrevoEmail } from "@/lib/brevo";
+import { getSiteSettings } from "@/features/cms/queries";
+
+/** The name the admin set in Branding (APP_NAME env as a fallback when the database can't be read). */
+async function siteNameNow() {
+    try {
+        const s = await getSiteSettings();
+        if (s?.siteName) return s.siteName;
+    } catch {
+        // fall through
+    }
+    return process.env.APP_NAME || "TurfZone";
+}
 
 function escapeHtml(s) {
     return String(s)
@@ -12,7 +24,7 @@ function escapeHtml(s) {
 
 /** Send the registration verification code. Throws on failure. */
 export async function sendOtpEmail({ email, otp }) {
-    const siteName = process.env.APP_NAME || "TurfZone";
+    const siteName = await siteNameNow();
     const subject = `${siteName} যাচাই কোড: ${otp}`;
     const safeOtp = escapeHtml(otp);
 
@@ -20,7 +32,7 @@ export async function sendOtpEmail({ email, otp }) {
         <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;">
             <p style="font-size:14px;color:#555;margin:0 0 16px;">আপনার যাচাই কোড</p>
             <p style="font-size:36px;font-weight:700;letter-spacing:8px;color:#0f1f19;margin:0 0 16px;font-variant-numeric:tabular-nums;">${safeOtp}</p>
-            <p style="font-size:14px;color:#555;line-height:1.5;margin:0 0 8px;">${siteName}-এ অ্যাকাউন্ট খোলা শেষ করতে এই কোডটি লিখুন।</p>
+            <p style="font-size:14px;color:#555;line-height:1.5;margin:0 0 8px;">${escapeHtml(siteName)}-এ অ্যাকাউন্ট খোলা শেষ করতে এই কোডটি লিখুন।</p>
             <p style="font-size:13px;color:#888;line-height:1.5;margin:0;">কোডটি ৫ মিনিট কাজ করবে। আপনি অ্যাকাউন্ট না খুলে থাকলে এই ইমেইলটি এড়িয়ে যান।</p>
         </div>
     `;
@@ -30,7 +42,7 @@ export async function sendOtpEmail({ email, otp }) {
 }
 /** Send the forgot-password code. Throws on failure. */
 export async function sendPasswordResetEmail({ email, otp }) {
-    const siteName = process.env.APP_NAME || "TurfZone";
+    const siteName = await siteNameNow();
     const subject = `${siteName} পাসওয়ার্ড রিসেট কোড: ${otp}`;
     const safeOtp = escapeHtml(otp);
     const safeName = escapeHtml(siteName);

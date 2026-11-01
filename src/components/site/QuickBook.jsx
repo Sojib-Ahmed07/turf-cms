@@ -10,6 +10,7 @@ import { addDaysISO } from "@/lib/time";
 import { BOOKING_DAYS_AHEAD } from "@/features/booking/calendar";
 import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
+import { startNavProgress } from "@/lib/nav-progress";
 
 // Value is passed to /book as ?part= and picks the first free slot in that part of the day.
 // Only parts the chosen ground (or any ground) actually has slots in are shown.
@@ -59,6 +60,7 @@ export default function QuickBook({ pitches = [], startDate }) {
         if (date) q.set("date", date);
         if (part) q.set("part", part);
         setBusy(true);
+        startNavProgress();
         router.push(`/book?${q.toString()}`);
     }
 

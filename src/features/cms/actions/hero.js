@@ -31,20 +31,20 @@ const slideSchema = z
         id: z.string().uuid().nullish(),
         image: image,
         mobileImage: image,
-        alt: text(120, "Image description"),
-        eyebrow: text(24, "Small label"),
-        heading: requiredText(60, "Heading"),
-        subheading: text(160, "Text under the heading"),
-        ctaLabel: text(20, "Button text"),
-        ctaHref: link("Button link"),
+        alt: text(120, "ছবির বর্ণনা"),
+        eyebrow: text(24, "ছোট লেবেল"),
+        heading: requiredText(60, "শিরোনাম"),
+        subheading: text(160, "শিরোনামের নিচের লেখা"),
+        ctaLabel: text(20, "বাটনের লেখা"),
+        ctaHref: link("বাটনের লিংক"),
         overlay: z.enum(["dark", "light", "none"]).default("dark"),
         isActive: z.boolean().default(true),
         startDate: isoDate,
         endDate: isoDate,
     })
-    .refine((v) => !(v.ctaLabel && !v.ctaHref), { message: "Add a link for the button, or clear the button text." })
+    .refine((v) => !(v.ctaLabel && !v.ctaHref), { message: "বাটনের জন্য একটি লিংক দিন, অথবা বাটনের লেখা মুছে দিন।" })
     .refine((v) => !(v.startDate && v.endDate && v.endDate < v.startDate), {
-        message: "“Hide after” must be on or after “Show from”.",
+        message: "“কবে পর্যন্ত দেখাবে” তারিখটি “কবে থেকে দেখাবে” তারিখের দিন বা পরে হতে হবে।",
     });
 
 /** Create (no id) or update a slide. Returns { ok, data: { id } }. */
@@ -75,7 +75,7 @@ export async function saveHeroSlide(input) {
         let id = v.id;
         if (id) {
             const rows = await db.update(heroSlides).set(values).where(eq(heroSlides.id, id)).returning({ id: heroSlides.id });
-            if (!rows.length) return { ok: false, error: "This slide was deleted. Reload the page." };
+            if (!rows.length) return { ok: false, error: "স্লাইডটি মুছে ফেলা হয়েছে। পেজটি রিলোড করুন।" };
         } else {
             const [{ next }] = await db
                 .select({ next: sql`coalesce(max(${heroSlides.sortOrder}), -1) + 1` })
@@ -90,33 +90,33 @@ export async function saveHeroSlide(input) {
         return { ok: true, data: { id } };
     } catch (err) {
         console.error("[saveHeroSlide]", err);
-        return { ok: false, error: "Couldn't save the slide. Try again." };
+        return { ok: false, error: "স্লাইড সেভ হয়নি। আবার চেষ্টা করুন।" };
     }
 }
 
 export async function setHeroSlideActive({ id, isActive }) {
     try {
         if (!(await requireRoles(CONTENT_ROLES))) return DENIED;
-        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Slide not found." };
+        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "স্লাইডটি পাওয়া যায়নি।" };
         await db.update(heroSlides).set({ isActive: Boolean(isActive) }).where(eq(heroSlides.id, id));
         refresh();
         return { ok: true };
     } catch (err) {
         console.error("[setHeroSlideActive]", err);
-        return { ok: false, error: "Couldn't update the slide." };
+        return { ok: false, error: "স্লাইড আপডেট হয়নি।" };
     }
 }
 
 export async function deleteHeroSlide(id) {
     try {
         if (!(await requireRoles(CONTENT_ROLES))) return DENIED;
-        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Slide not found." };
+        if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "স্লাইডটি পাওয়া যায়নি।" };
         await db.delete(heroSlides).where(eq(heroSlides.id, id));
         refresh();
         return { ok: true };
     } catch (err) {
         console.error("[deleteHeroSlide]", err);
-        return { ok: false, error: "Couldn't delete the slide." };
+        return { ok: false, error: "স্লাইড মোছা যায়নি।" };
     }
 }
 
@@ -140,6 +140,6 @@ export async function moveHeroSlide({ id, direction }) {
         return { ok: true };
     } catch (err) {
         console.error("[moveHeroSlide]", err);
-        return { ok: false, error: "Couldn't change the order." };
+        return { ok: false, error: "ক্রম বদলানো যায়নি।" };
     }
 }

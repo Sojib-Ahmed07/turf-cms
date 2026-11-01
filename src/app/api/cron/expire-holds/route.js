@@ -6,7 +6,7 @@
 // Call with header:  Authorization: Bearer <CRON_SECRET>   (Vercel Cron sends it automatically)
 import { NextResponse } from "next/server";
 import { expireStaleHolds } from "@/features/booking/queries";
-import { recheckOpenPayments, repairUnsettledPayments } from "@/features/payment/service";
+import { closeAbandonedPayments, recheckOpenPayments, repairUnsettledPayments } from "@/features/payment/service";
 import { configuredGateways } from "@/features/payment/methods";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,9 @@ export async function GET(req) {
         // before expiring holds, so a paid hold isn't released.
         const repaired = await repairUnsettledPayments();
         const expired = await expireStaleHolds();
-        return NextResponse.json({ ok: true, expired, payments: { ...payments, repaired } });
+        // Attempts nobody finished within 48 hours: close them (they stayed "started" in Admin, Payments).
+        const abandoned = await closeAbandonedPayments();
+        return NextResponse.json({ ok: true, expired, payments: { ...payments, repaired, abandoned } });
     } catch (err) {
         console.error("[cron:expire-holds]", err);
         return NextResponse.json({ ok: false }, { status: 500 });

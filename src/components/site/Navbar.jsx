@@ -21,6 +21,7 @@ import { bookButtonLabel, navLabel } from "@/i18n/nav";
 import Button from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { signOut, useSession } from "@/lib/auth-client";
+import { startNavProgress } from "@/lib/nav-progress";
 
 /**
  * Fixed layout; logo + labels come from the CMS.
@@ -95,6 +96,7 @@ export default function Navbar({ settings, items = [], user: initialUser = null 
         await signOut({
             fetchOptions: {
                 onSuccess: () => {
+                    startNavProgress();
                     router.push("/");
                     router.refresh();
                 },

@@ -49,7 +49,7 @@ export function prettyMethod(cardType) {
  */
 export async function initSession(input) {
     const { storeId, storePass, base } = config();
-    if (!storeId || !storePass) return { ok: false, error: "Online payment isn't set up yet." };
+    if (!storeId || !storePass) return { ok: false, error: "অনলাইন পেমেন্ট এখনো চালু করা হয়নি।" };
 
     const body = new URLSearchParams({
         store_id: storeId,
@@ -92,10 +92,10 @@ export async function initSession(input) {
             return { ok: true, url: data.GatewayPageURL, sessionKey: data.sessionkey ?? null };
         }
         console.error("[sslcommerz:init]", res.status, data?.failedreason ?? data);
-        return { ok: false, error: "The payment page couldn't be opened. Try again in a minute." };
+        return { ok: false, error: "পেমেন্ট পেজ খোলা যায়নি। এক মিনিট পরে আবার চেষ্টা করুন।" };
     } catch (err) {
         console.error("[sslcommerz:init]", err?.message ?? err);
-        return { ok: false, error: "The payment service didn't respond. Try again in a minute." };
+        return { ok: false, error: "পেমেন্ট সার্ভিস থেকে উত্তর আসেনি। এক মিনিট পরে আবার চেষ্টা করুন।" };
     }
 }
 

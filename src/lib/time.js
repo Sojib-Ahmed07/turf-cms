@@ -9,6 +9,10 @@
 // Pass the sheet's day start (minutes, from dayStartOf(blocks)) to the helpers below.
 // DEFAULT_DAY_START (6 am) is only a fallback for a ground with no slots.
 
+import { makeFormat } from "@/i18n/format";
+
+const BN = makeFormat("bn");
+
 export const DEFAULT_DAY_START = 6 * 60;
 /** @deprecated use DEFAULT_DAY_START (minutes). */
 export const DAY_START_HOUR = 6;
@@ -160,8 +164,13 @@ export function currentOperatingDay(nightEnd = 0, now = new Date()) {
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "2026-10-11" -> "Sun 11 Oct". Safe on server and client (no locale APIs). */
+/** "2026-10-11" -> "রবি, ১১ অক্টোবর". Safe on server and client (no locale APIs). */
 export function shortDateLabel(iso) {
+    return BN.date(iso);
+}
+
+/** "2026-10-11" -> "Sun 11 Oct" (plain ASCII, for payment gateway product names). */
+export function shortDateAscii(iso) {
     const [y, m, d] = iso.split("-").map(Number);
     const dt = new Date(Date.UTC(y, m - 1, d));
     return `${DAYS[dt.getUTCDay()]} ${d} ${MONTHS[m - 1]}`;

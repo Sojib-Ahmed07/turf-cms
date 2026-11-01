@@ -11,8 +11,8 @@ import { GATEWAYS, isGatewayConfigured } from "./methods";
 import { PAYMENT_LOCK_MINUTES, blockingBooking, getActiveIntervals, getSheetDayStarts, seatNeedForBooking } from "@/features/booking/queries";
 import { redeemCoupon } from "@/features/coupons/service";
 import { sendBookingReceiptByBookingId } from "@/features/auth/ticket-email";
-import { isBlockEnded, isBlockPast, shortDateLabel, slotInterval } from "@/lib/time";
-import { time12 } from "@/lib/utils";
+import { isBlockEnded, isBlockPast, shortDateAscii, slotInterval } from "@/lib/time";
+import { time12Ascii } from "@/lib/utils";
 import { i18nSync } from "@/i18n/server";
 
 // Unfinished payment attempts (failed, cancelled, abandoned) one player may start per hour. Each one
@@ -163,7 +163,7 @@ export async function startPayment(bookingId, user, method = "sslcommerz", i18n 
         tranId,
         amount,
         // Gateways get plain ASCII (their pages and SMS may not show Bangla); the ground name may be Bangla, so only the slot.
-        productName: `Turf slot ${b.code}, ${shortDateLabel(b.bookingDate)}, ${time12(b.startTime)} to ${time12(b.endTime)}${b.people ? `, ${b.people} people` : ""}`,
+        productName: `Turf slot ${b.code}, ${shortDateAscii(b.bookingDate)}, ${time12Ascii(b.startTime)} to ${time12Ascii(b.endTime)}${b.people ? `, ${b.people} people` : ""}`,
         customer: { name: user.name, email: user.email, phone: user.phone },
         urls: {
             success: `${base}/api/payment/sslcommerz/success`,
@@ -217,10 +217,14 @@ export async function confirmPayment({ tranId, valId }) {
 
     if (!valid) {
         console.error("[payment:invalid]", tranId, v.status, v.amount, v.currency_type);
-        await db
-            .update(payments)
-            .set({ status: "failed", valId, raw: v, updatedAt: new Date() })
-            .where(and(eq(payments.id, p.id), ne(payments.status, "paid")));
+        // Only SSLCommerz's own answer about THIS transaction may close it. A made-up or someone else's val_id
+        // (anyone can POST to the callback) must not mark a payment that is still in progress as failed.
+        if (v.tran_id === tranId) {
+            await db
+                .update(payments)
+                .set({ status: "failed", valId, raw: v, updatedAt: new Date() })
+                .where(and(eq(payments.id, p.id), ne(payments.status, "paid")));
+        }
         return { ok: false, outcome: "invalid", bookingId: p.bookingId };
     }
 
@@ -606,6 +610,21 @@ export async function recheckOpenPayments(limit = 30) {
             .where(and(inArray(payments.tranId, slow.map((p) => p.tranId)), eq(payments.status, "initiated")));
     }
     return { checked: fresh.length + slow.length, confirmed };
+}
+
+/**
+ * Payments still "initiated" after RECHECK_MAX_HOURS were abandoned (the gateway sessions expired long ago and the
+ * rechecks never found them paid). Close them as cancelled so Admin, Payments doesn't show them as "started" for ever.
+ * If a gateway still reports one paid later, confirmPayment / recheckPayment claim it as usual (claim works on any
+ * status except paid).
+ */
+export async function closeAbandonedPayments() {
+    const rows = await db
+        .update(payments)
+        .set({ status: "cancelled", raw: { reason: `no answer from the gateway for ${RECHECK_MAX_HOURS} hours` }, updatedAt: new Date() })
+        .where(and(eq(payments.status, "initiated"), lte(payments.createdAt, new Date(Date.now() - RECHECK_MAX_HOURS * 3600000))))
+        .returning({ id: payments.id });
+    return rows.length;
 }
 
 /* -------------------------------------------------------------- */

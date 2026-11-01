@@ -3,7 +3,7 @@
 // Pure: safe on the server and in the browser.
 
 export const BD_PHONE_RE = /^01[3-9]\d{8}$/;
-export const BD_PHONE_HINT = "Enter a Bangladeshi mobile number, e.g. 01712345678.";
+export const BD_PHONE_HINT = "বাংলাদেশি মোবাইল নম্বর দিন, যেমন 01712345678।";
 
 /** "+8801712345678", "8801712345678", "01712-345678" -> "01712345678"; anything else stays as typed (and fails BD_PHONE_RE). */
 export function normalizeBdPhone(raw) {

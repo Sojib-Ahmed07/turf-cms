@@ -19,6 +19,7 @@ import { BOOKING_DAYS_AHEAD } from "@/features/booking/calendar";
 import { MAX_PEOPLE_PER_BOOKING, slotTotal } from "@/features/booking/people";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { useI18n } from "@/i18n/I18nProvider";
+import { startNavProgress } from "@/lib/nav-progress";
 
 const DAYS_AHEAD = BOOKING_DAYS_AHEAD;
 
@@ -238,10 +239,12 @@ export default function BookingClient({
 
         if (!isSignedIn) {
             const back = `/book?pitch=${pitch.id}&date=${date}`;
+            startNavProgress();
             router.push(`/login?next=${encodeURIComponent(back)}`);
             return;
         }
         if (needsVerify) {
+            startNavProgress();
             router.push(verifyHref);
             return;
         }
@@ -273,14 +276,17 @@ export default function BookingClient({
             }
             if (res.ok && res.data.free) {
                 // The code covered the whole price: already confirmed, nothing to pay.
+                startNavProgress();
                 router.push(`/bookings?held=${res.data.code}`);
                 return;
             }
             if (res.needsVerify) {
+                startNavProgress();
                 router.push(verifyHref);
                 return;
             }
             if (res.needsLogin) {
+                startNavProgress();
                 router.push(`/login?next=${encodeURIComponent(`/book?pitch=${pitch.id}&date=${date}`)}`);
                 return;
             }

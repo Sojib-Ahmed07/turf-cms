@@ -54,7 +54,7 @@ export default function FooterSeoForm({ initial }) {
                 return;
             }
             setSaved(form);
-            showToast("Footer and SEO saved");
+            showToast("সেভ হয়েছে");
             router.refresh();
         });
     }
@@ -64,39 +64,55 @@ export default function FooterSeoForm({ initial }) {
 
     return (
         <div className="mx-auto max-w-[1080px]">
-            <PageHeader title="Footer & SEO" description="Contact details, social links, and how the site appears on Google and when shared." />
+            <PageHeader title="যোগাযোগ, ফুটার ও SEO" description="যোগাযোগের তথ্য, হোয়াটসঅ্যাপ নম্বর, সোশ্যাল লিংক, আর Google-এ ও শেয়ার করলে সাইটটি কেমন দেখাবে।" />
 
             <div className="grid gap-6 lg:grid-cols-2">
-                <Panel title="Contact details" description="Shown in the footer, the Find us section, the mobile menu and payment pages.">
+                <Panel title="যোগাযোগের তথ্য" description="ফুটার, হোম পেজের “ঠিকানা” অংশ, মোবাইল মেনু আর পেমেন্ট পেজে দেখাবে।">
                     <div className="space-y-4">
                         <div>
-                            <Label htmlFor="c-phone">Phone</Label>
+                            <Label htmlFor="c-phone">ফোন</Label>
                             <TextInput id="c-phone" value={form.contact.phone} onChange={(e) => setContact({ phone: e.target.value })} placeholder="+880 1711 000000" maxLength={30} />
                         </div>
                         <div>
-                            <Label htmlFor="c-email">Email</Label>
+                            <Label htmlFor="c-wa" optional>
+                                হোয়াটসঅ্যাপ নম্বর
+                            </Label>
+                            <TextInput
+                                id="c-wa"
+                                value={form.contact.whatsapp ?? ""}
+                                onChange={(e) => setContact({ whatsapp: e.target.value })}
+                                placeholder={form.contact.phone || "+880 1711 000000"}
+                                maxLength={30}
+                                inputMode="tel"
+                            />
+                            <p className="mt-1.5 text-[12px] text-ink-3">
+                                সব পেজের নিচে ডান কোণে সবুজ হোয়াটসঅ্যাপ বাটনে এই নম্বর থাকবে। খালি রাখলে ফোন নম্বরটি ব্যবহার হবে; দুটোই খালি থাকলে বাটন দেখাবে না।
+                            </p>
+                        </div>
+                        <div>
+                            <Label htmlFor="c-email">ইমেইল</Label>
                             <TextInput id="c-email" type="email" value={form.contact.email} onChange={(e) => setContact({ email: e.target.value })} maxLength={80} />
                         </div>
                         <div>
-                            <Label>Address</Label>
+                            <Label>ঠিকানা</Label>
                             <CharInput max={100} multiline rows={2} value={form.contact.address} onChange={(e) => setContact({ address: e.target.value })} />
                         </div>
                         <div>
                             <Label htmlFor="c-hours" optional>
-                                Opening hours
+                                খোলার সময়
                             </Label>
-                            <TextInput id="c-hours" value={form.contact.hours} onChange={(e) => setContact({ hours: e.target.value })} placeholder="Automatic from Grounds & slots" maxLength={60} />
-                            <p className="mt-1.5 text-[12px] text-ink-3">Leave empty to show the real hours of your grounds, updated whenever you change their slots.</p>
+                            <TextInput id="c-hours" value={form.contact.hours} onChange={(e) => setContact({ hours: e.target.value })} placeholder="মাঠের স্লট থেকে নিজে থেকেই" maxLength={60} />
+                            <p className="mt-1.5 text-[12px] text-ink-3">খালি রাখলে মাঠগুলোর আসল সময় দেখাবে, স্লট বদলালে নিজে থেকেই আপডেট হবে।</p>
                         </div>
                         <div>
-                            <Label htmlFor="c-map">Google Maps link</Label>
+                            <Label htmlFor="c-map">Google Maps লিংক</Label>
                             <TextInput id="c-map" value={form.contact.mapUrl} onChange={(e) => setContact({ mapUrl: e.target.value })} placeholder="https://maps.app.goo.gl/..." />
                         </div>
                     </div>
                 </Panel>
 
-                <Panel title="Social links" description="Icons in the footer." bodyClassName="p-4">
-                    {form.socials.length === 0 && <p className="px-2 pb-3 text-[14px] text-ink-3">No social links yet.</p>}
+                <Panel title="সোশ্যাল লিংক" description="ফুটারে আইকন হিসেবে দেখাবে।" bodyClassName="p-4">
+                    {form.socials.length === 0 && <p className="px-2 pb-3 text-[14px] text-ink-3">এখনো কোনো সোশ্যাল লিংক নেই।</p>}
                     <ul className="space-y-2">
                         {form.socials.map((s, i) => (
                             <li key={i} className="flex items-center gap-2">
@@ -104,12 +120,12 @@ export default function FooterSeoForm({ initial }) {
                                     <SocialIcon name={s.platform} />
                                 </span>
                                 <div className="w-36 shrink-0">
-                                    <Select value={s.platform} onChange={(e) => setSocial(i, { platform: e.target.value })} options={PLATFORMS} aria-label="Platform" />
+                                    <Select value={s.platform} onChange={(e) => setSocial(i, { platform: e.target.value })} options={PLATFORMS} aria-label="প্ল্যাটফর্ম" />
                                 </div>
-                                <TextInput value={s.url} onChange={(e) => setSocial(i, { url: e.target.value })} placeholder="https://" className="flex-1" aria-label="Link" />
+                                <TextInput value={s.url} onChange={(e) => setSocial(i, { url: e.target.value })} placeholder="https://" className="flex-1" aria-label="লিংক" />
                                 <button
                                     type="button"
-                                    aria-label="Remove link"
+                                    aria-label="লিংক সরান"
                                     onClick={() => setForm((f) => ({ ...f, socials: f.socials.filter((_, j) => j !== i) }))}
                                     className="grid h-11 w-11 shrink-0 place-items-center rounded-ctl text-ink-3 hover:bg-danger-soft hover:text-danger"
                                 >
@@ -124,38 +140,38 @@ export default function FooterSeoForm({ initial }) {
                             onClick={() => setForm((f) => ({ ...f, socials: [...f.socials, { platform: "facebook", url: "" }] }))}
                             className="mt-3 flex w-full items-center justify-center gap-2 rounded-ctl border-2 border-dashed border-line py-3 text-[13px] font-semibold text-ink-3 hover:text-ink"
                         >
-                            <Plus className="h-4 w-4" /> Add link
+                            <Plus className="h-4 w-4" /> লিংক যোগ করুন
                         </button>
                     )}
                 </Panel>
             </div>
 
-            <Panel className="mt-6" title="Search & sharing">
+            <Panel className="mt-6" title="Google ও শেয়ার">
                 <div className="grid gap-8 lg:grid-cols-2">
                     <div className="space-y-4">
                         <div>
-                            <Label optional>Page title</Label>
+                            <Label optional>পেজের শিরোনাম</Label>
                             <CharInput max={60} value={form.seo.title} onChange={(e) => setSeo({ title: e.target.value })} placeholder={initial.siteName} />
                         </div>
                         <div>
-                            <Label optional>Description</Label>
+                            <Label optional>বিবরণ</Label>
                             <CharInput max={160} multiline value={form.seo.description} onChange={(e) => setSeo({ description: e.target.value })} />
                         </div>
                         <div>
-                            <Label optional>Share image</Label>
+                            <Label optional>শেয়ারের ছবি</Label>
                             <ImageUploader
                                 value={form.seo.ogImage}
                                 onChange={(v) => setSeo({ ogImage: v })}
                                 folder="seo"
                                 ratio="1200/630"
-                                hint="1200 × 630 px. Shown on Facebook, WhatsApp and Messenger."
+                                hint="১২০০ × ৬৩০ পিক্সেল। ফেসবুক, হোয়াটসঅ্যাপ আর মেসেঞ্জারে লিংক শেয়ার করলে দেখাবে।"
                                 className="max-w-sm"
                             />
                         </div>
                     </div>
 
                     <div>
-                        <Label>Google preview</Label>
+                        <Label>Google-এ যেমন দেখাবে</Label>
                         <div className="rounded-ctl border border-line bg-white p-5" style={{ fontFamily: "arial, sans-serif" }}>
                             <div className="flex items-center gap-2.5">
                                 <span className="grid h-7 w-7 place-items-center rounded-full bg-chalk ring-1 ring-line">
@@ -168,7 +184,7 @@ export default function FooterSeoForm({ initial }) {
                             </div>
                             <p className="mt-2 truncate text-[20px] leading-snug text-[#1a0dab]">{previewTitle}</p>
                             <p className="mt-1 line-clamp-2 text-[14px] leading-relaxed text-[#4d5156]">
-                                {form.seo.description || "Add a description so Google shows your own words here."}
+                                {form.seo.description || "বিবরণ দিলে Google-এ এখানে আপনার লেখা দেখাবে।"}
                             </p>
                         </div>
                     </div>
@@ -186,10 +202,10 @@ export default function FooterSeoForm({ initial }) {
                             setError("");
                         }}
                     >
-                        Discard
+                        বাদ দিন
                     </Button>
                     <Button size="sm" disabled={pending} onClick={save}>
-                        {pending ? "Saving…" : "Save changes"}
+                        {pending ? "সেভ হচ্ছে…" : "সেভ করুন"}
                     </Button>
                 </SaveBar>
             )}

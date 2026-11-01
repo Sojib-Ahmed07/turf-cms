@@ -8,6 +8,8 @@ import PayDialog from "./PayDialog";
 import MethodOffDialog from "./MethodOffDialog";
 import { payForBooking } from "@/features/payment/actions";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n/I18nProvider";
+import { startNavProgress } from "@/lib/nav-progress";
 
 /**
  * "Try payment again": opens a fresh payment for the same held booking.
@@ -16,6 +18,7 @@ import { cn } from "@/lib/utils";
  */
 export default function RetryPayButton({ bookingId, methods = [], amount = 0, className }) {
     const router = useRouter();
+    const { t } = useI18n();
     const [busy, startTransition] = useTransition();
     const [leaving, setLeaving] = useState(false);
     const [error, setError] = useState("");
@@ -34,10 +37,12 @@ export default function RetryPayButton({ bookingId, methods = [], amount = 0, cl
                 return;
             }
             if (res.needsLogin) {
+                startNavProgress();
                 router.push(`/login?next=${encodeURIComponent("/bookings")}`);
                 return;
             }
             if (res.needsVerify) {
+                startNavProgress();
                 router.push(`/verify-email?next=${encodeURIComponent("/bookings")}`);
                 return;
             }
@@ -69,7 +74,7 @@ export default function RetryPayButton({ bookingId, methods = [], amount = 0, cl
     return (
         <div className={cn("flex flex-col gap-2", className)}>
             <Button size="lg" onClick={start} disabled={working} className="w-full">
-                {working && !choosing ? "Opening payment" : "Try payment again"}
+                {working && !choosing ? t("result.opening") : t("result.retry")}
             </Button>
             {error && !choosing && <p className="text-[13px] font-medium text-danger">{error}</p>}
             {methods.length > 1 && (

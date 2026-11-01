@@ -68,8 +68,9 @@ function GroundCard({ pitch: p, date, i18n: { t, f } }) {
                 <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
                     {p.format && <p className="text-[14px] font-semibold text-white/75">{p.format}</p>}
                     {/* Name and price share one row, centred on each other (Bangla headings sit taller than Latin ones) */}
-                    <div className="mt-1 flex items-center justify-between gap-4">
-                        <h2 className="display min-w-0 truncate pb-[0.06em] text-[clamp(30px,3.6vw,44px)] text-white">{p.name}</h2>
+                    {/* On phones the price sits under the name, so long names aren't cut off */}
+                    <div className="mt-1 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                        <h2 className="display min-w-0 max-w-full pb-[0.06em] text-[clamp(30px,3.6vw,44px)] text-white sm:truncate">{p.name}</h2>
                         <PricePill pitch={p} t={t} f={f} />
                     </div>
                 </div>

@@ -9,6 +9,7 @@ import { authClient } from "@/lib/auth-client";
 import { safeNext } from "@/lib/utils";
 import { useI18n } from "@/i18n/I18nProvider";
 import { authMessage } from "./AuthForms";
+import { startNavProgress } from "@/lib/nav-progress";
 
 /**
  * Two steps: email -> code + new password (Better Auth emailOTP "forget-password").
@@ -57,9 +58,11 @@ export function ForgotPasswordForm({ initialEmail = "" }) {
         const { error: signInErr } = await authClient.signIn.email({ email: email.trim(), password });
         setBusy(false);
         if (signInErr) {
+            startNavProgress();
             router.push(`/login?next=${encodeURIComponent(next)}`);
             return;
         }
+        startNavProgress();
         router.push(next);
         router.refresh();
     }

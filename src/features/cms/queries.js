@@ -13,7 +13,10 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { coupons, heroSlides, navItems, pageSections, promoBanners, siteSettings } from "@/db/schema";
 import { TAGS } from "@/lib/cache-tags";
-import { dhakaDate, shortDateLabel } from "@/lib/time";
+import { dhakaDate } from "@/lib/time";
+import { makeFormat } from "@/i18n/format";
+
+const BN = makeFormat("bn");
 
 const REVALIDATE = 300;
 
@@ -30,9 +33,9 @@ const DEFAULT_SETTINGS = {
     logoDarkUrl: null,
     faviconUrl: null,
     brandColor: DEFAULT_BRAND,
-    menuButtonLabel: "Book a slot",
+    menuButtonLabel: "স্লট বুক করুন",
     showMyBookings: true,
-    contact: { phone: "", email: "", address: "", hours: "", mapUrl: "" },
+    contact: { phone: "", whatsapp: "", email: "", address: "", hours: "", mapUrl: "" },
     socials: [],
     seo: { title: "", description: "", ogImageUrl: null },
     slider: { autoplayMs: 6000, pauseOnHover: true },
@@ -40,30 +43,32 @@ const DEFAULT_SETTINGS = {
 };
 
 const DEFAULT_NAV = [
-    { label: "Home", href: "/" },
-    { label: "Book a slot", href: "/book" },
-    { label: "Grounds", href: "/grounds" },
-    { label: "Contact", href: "/#visit" },
+    { label: "হোম", href: "/" },
+    { label: "স্লট বুক করুন", href: "/book" },
+    { label: "মাঠ", href: "/grounds" },
 ];
+
+// Old menu links that no longer exist: Contact (replaced by the WhatsApp button) and Offers.
+const RETIRED_HREFS = new Set(["/#visit", "/#offers"]);
 
 const DEFAULT_SECTIONS = {
     live_grounds: {
         isVisible: true,
-        heading: "Grounds open today",
-        body: "Live availability for today. Tap a time to jump straight into booking.",
+        heading: "আজ খালি মাঠ",
+        body: "আজ কোন মাঠে কখন খালি আছে, এখানেই দেখুন। একটি সময়ে চাপ দিলেই বুকিং শুরু।",
     },
     how_it_works: {
         isVisible: true,
-        heading: "Book in three steps",
+        heading: "তিন ধাপে বুকিং",
         steps: [
-            { title: "Pick a slot", body: "Choose the ground, the date and a free time. Prices are shown up front." },
-            { title: "Pay online", body: "bKash, card, Nagad or Rocket. Press Pay and go straight to the payment page; the slot is yours once it goes through." },
-            { title: "Show up and play", body: "Your ticket lands in My bookings. Show it at the gate." },
+            { title: "স্লট সিলেক্ট করুন", body: "মাঠ, তারিখ আর খালি সময় সিলেক্ট করুন। দাম আগেই দেখানো থাকে।" },
+            { title: "অনলাইনে পেমেন্ট করুন", body: "বিকাশ, কার্ড, নগদ বা রকেট। পেমেন্ট হয়ে গেলেই স্লটটি আপনার।" },
+            { title: "মাঠে এসে খেলুন", body: "টিকিট পাবেন \"আমার বুকিং\"-এ। গেটে টিকিটটি দেখালেই হবে।" },
         ],
     },
     visit: {
         isVisible: true,
-        heading: "Find us",
+        heading: "আমাদের ঠিকানা",
         body: "",
         facilities: [],
     },
@@ -150,6 +155,7 @@ export function toSettings(row) {
         showMyBookings: row.showMyBookings !== false,
         contact: {
             phone: str(contact.phone),
+            whatsapp: str(contact.whatsapp),
             email: str(contact.email),
             address: str(contact.address),
             hours: str(contact.hours),
@@ -196,7 +202,7 @@ export async function getNavItems() {
     return safe(
         "nav",
         async () => {
-            const rows = await readNav();
+            const rows = (await readNav()).filter((r) => !RETIRED_HREFS.has(r.href));
             return rows.length ? rows : DEFAULT_NAV;
         },
         DEFAULT_NAV
@@ -278,8 +284,9 @@ function toBanner(r, now) {
         ctaLabel: b.ctaLabel || null,
         ctaHref: b.ctaHref || null,
         code: couponLive ? r.couponCode : null,
-        // Display label, e.g. "Ends 31 Oct" (PromoBanner prints it as is).
-        endsAt: b.endsAt ? `Ends ${shortDateLabel(dhakaDate(new Date(b.endsAt))).replace(/^\w+ /, "")}` : null,
+        // Display label, e.g. "৩১ অক্টোবর পর্যন্ত" (PromoBanner prints it as is). endsAt is the start of the next
+        // day, so the label uses the moment before it (the last day the banner shows).
+        endsAt: b.endsAt ? `${BN.dayMonth(dhakaDate(new Date(new Date(b.endsAt).getTime() - 1)))} পর্যন্ত` : null,
     };
 }
 
@@ -352,62 +359,57 @@ export async function getSections() {
 
 /** A starting draft that matches how the booking system works. The venue should review it. */
 export const DEFAULT_TERMS = {
-    heading: "Booking terms",
-    intro: "Please read these before you book. By paying for a slot you agree to them.",
+    heading: "বুকিংয়ের নিয়ম",
+    intro: "বুক করার আগে নিয়মগুলো পড়ে নিন। কোনো স্লটের পেমেন্ট করলে ধরে নেওয়া হবে আপনি এই নিয়মগুলো মেনে নিয়েছেন।",
     items: [
         {
-            title: "Booking and payment",
-            body: "A booking is confirmed only when your online payment goes through. Slots aren't reserved: while you are on the payment page nobody else can pay for the same slot (up to 5 minutes with bKash, 10 with card or other wallet). If you cancel, the payment fails or the time runs out, the slot is free for other players again.",
+            title: "বুকিং ও পেমেন্ট",
+            body: "অনলাইনে পেমেন্ট হয়ে গেলেই কেবল বুকিং কনফার্ম হয়। আগে থেকে স্লট ধরে রাখা হয় না: আপনি পেমেন্ট পেজে থাকার সময় অন্য কেউ ওই স্লটের পেমেন্ট করতে পারবেন না (বিকাশে ৫ মিনিট, কার্ড বা অন্য ওয়ালেটে ১০ মিনিট পর্যন্ত)। পেমেন্ট ক্যানসেল করলে, ফেইল হলে বা সময় শেষ হলে স্লটটি আবার সবার জন্য খালি হয়ে যায়।",
         },
         {
-            title: "Prices",
-            body: "Prices are per slot, in Taka, and include floodlights and the changing room. The total shown at checkout is what you pay.",
+            title: "দাম",
+            body: "দাম প্রতি স্লটের, টাকায়। ফ্লাডলাইট আর চেঞ্জিং রুমের খরচ দামের মধ্যেই ধরা আছে। পেমেন্টের সময় যে মোট টাকা দেখানো হয়, সেটাই দিতে হবে।",
         },
         {
-            title: "Promo codes",
-            body: "One code per booking. Each code has its own limits (dates, times, grounds and number of uses) and can't be exchanged for cash.",
+            title: "প্রোমো কোড",
+            body: "একটি বুকিংয়ে একটি কোড ব্যবহার করা যায়। প্রতিটি কোডের নিজস্ব নিয়ম আছে (তারিখ, সময়, মাঠ আর কতবার ব্যবহার করা যাবে)। কোডের বদলে নগদ টাকা দেওয়া হয় না।",
         },
         {
-            title: "Cancelling or moving a booking",
-            body: "You can release a slot whose payment you left open from My bookings. To cancel or move a paid booking, call us at least 24 hours before your slot.",
+            title: "বুকিং ক্যানসেল বা বদলানো",
+            body: "যে স্লটের পেমেন্ট শেষ করেননি, সেটি \"আমার বুকিং\" থেকে ছেড়ে দিতে পারেন। পেমেন্ট হয়ে যাওয়া বুকিং ক্যানসেল করতে বা বদলাতে খেলার অন্তত ২৪ ঘণ্টা আগে কাউন্টারে ফোন করুন।",
         },
         {
-            title: "Refunds",
-            body: "If you paid but the slot was already taken, or you paid twice for the same booking, we refund the full amount. Refunds go back to the way you paid and can take up to 10 working days to reach you.",
+            title: "টাকা ফেরত (রিফান্ড)",
+            body: "পেমেন্ট করার পর যদি দেখা যায় স্লটটি আগেই বুক হয়ে গেছে, অথবা একই বুকিংয়ের জন্য দুবার পেমেন্ট হয়েছে, পুরো টাকা ফেরত দেওয়া হবে। যেভাবে পেমেন্ট করেছেন সেখানেই টাকা ফেরত যাবে, এতে ১০ কর্মদিবস পর্যন্ত লাগতে পারে।",
         },
         {
-            title: "On the day",
-            body: "Arrive 10 minutes early and show your ticket at the desk (My bookings, then Show ticket). Slots start and end on time; a late start doesn't extend your slot.",
+            title: "খেলার দিন",
+            body: "খেলার ১০ মিনিট আগে চলে আসুন এবং কাউন্টারে টিকিট দেখান (\"আমার বুকিং\", তারপর \"টিকিট দেখুন\")। স্লট ঠিক সময়ে শুরু ও শেষ হয়; দেরি করে এলে সময় বাড়ানো হয় না।",
         },
         {
-            title: "If we have to close",
-            body: "If a ground has to close (for example for bad weather or repairs), we'll offer you another slot or a full refund.",
+            title: "মাঠ বন্ধ রাখতে হলে",
+            body: "খারাপ আবহাওয়া বা মেরামতের মতো কারণে মাঠ বন্ধ রাখতে হলে আপনাকে অন্য একটি স্লট দেওয়া হবে, অথবা পুরো টাকা ফেরত দেওয়া হবে।",
         },
         {
-            title: "Ground rules",
-            body: "Turf shoes or trainers only, no metal studs. No smoking or glass on the pitch. Your group is responsible for any damage it causes.",
+            title: "মাঠের নিয়ম",
+            body: "শুধু টার্ফ শু বা কেডস পরে খেলা যাবে, লোহার স্টাড চলবে না। মাঠে ধূমপান আর কাচের জিনিস নিষেধ। আপনার দলের কারণে কোনো ক্ষতি হলে তার দায় আপনার দলের।",
         },
     ],
 };
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-/** Row -> { heading, intro, items: [{ title, body }], updated: "15 October 2026" | null } (also used by the admin editor). */
+/** Row -> { heading, intro, items: [{ title, body }], updated: "১৫ অক্টোবর ২০২৬" | null, updatedIso } (also the admin editor). */
 export function toTerms(row) {
     const data = obj(row?.data);
     const items = (Array.isArray(data.items) ? data.items : [])
         .filter((i) => i && str(i.title).trim())
         .map((i) => ({ title: str(i.title), body: str(i.body) }));
-    let updated = null;
-    if (row?.updatedAt) {
-        const [y, m, d] = dhakaDate(new Date(row.updatedAt)).split("-").map(Number);
-        updated = `${d} ${MONTHS[m - 1]} ${y}`;
-    }
+    const updatedIso = row?.updatedAt ? dhakaDate(new Date(row.updatedAt)) : null;
     return {
         heading: str(data.heading) || DEFAULT_TERMS.heading,
         intro: row ? str(data.intro) : DEFAULT_TERMS.intro,
         items: row ? items : DEFAULT_TERMS.items,
-        updated,
+        updated: updatedIso ? BN.dayMonth(updatedIso) + " " + BN.digits(updatedIso.slice(0, 4)) : null,
+        updatedIso,
     };
 }
 

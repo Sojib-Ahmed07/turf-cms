@@ -100,7 +100,7 @@ async function call(path, body) {
  * returns { ok: true, paymentId, url } or { ok: false, error }
  */
 export async function createPayment(input) {
-    if (!isBkashConfigured()) return { ok: false, error: "bKash payment isn't set up yet." };
+    if (!isBkashConfigured()) return { ok: false, error: "bKash পেমেন্ট এখনো চালু করা হয়নি।" };
     const data = await call("/tokenized/checkout/create", {
         mode: "0011", // checkout without saving the wallet (one-off payment)
         payerReference: String(input.payerReference || input.tranId).slice(0, 50),
@@ -113,9 +113,9 @@ export async function createPayment(input) {
     if (data?.statusCode === "0000" && data.paymentID && data.bkashURL) {
         return { ok: true, paymentId: data.paymentID, url: data.bkashURL };
     }
-    if (!data) return { ok: false, error: "bKash didn't respond. Try again in a minute." };
+    if (!data) return { ok: false, error: "bKash থেকে উত্তর আসেনি। এক মিনিট পরে আবার চেষ্টা করুন।" };
     console.error("[bkash:create]", data.statusCode, data.statusMessage ?? data.message);
-    return { ok: false, error: "The bKash payment page couldn't be opened. Try again in a minute." };
+    return { ok: false, error: "bKash পেমেন্ট পেজ খোলা যায়নি। এক মিনিট পরে আবার চেষ্টা করুন।" };
 }
 
 /** Execute (capture) an approved payment. Returns the JSON body, or null on network error/timeout. */

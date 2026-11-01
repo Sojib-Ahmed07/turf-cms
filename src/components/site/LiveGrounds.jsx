@@ -47,8 +47,9 @@ export default async function LiveGrounds({ content, pitches = [], date }) {
                             <div className="absolute inset-0 bg-gradient-to-t from-pitch/90 via-pitch/10 to-transparent" />
                             <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
                                 {featured.format && <p className="text-[14px] font-semibold text-white/75">{featured.format}</p>}
-                                <div className="mt-1 flex items-center justify-between gap-4">
-                                    <h3 className="display min-w-0 truncate pb-[0.06em] text-[clamp(36px,4.6vw,56px)] text-white">{featured.name}</h3>
+                                {/* On phones the price sits under the name, so long names aren't cut off */}
+                                <div className="mt-1 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                                    <h3 className="display min-w-0 max-w-full pb-[0.06em] text-[clamp(36px,4.6vw,56px)] text-white sm:truncate">{featured.name}</h3>
                                     <p className="shrink-0 whitespace-nowrap rounded-full bg-white px-4 py-2.5 text-[15px] font-bold leading-none text-ink tnum">
                                         {f.taka(featured.perPerson ? featured.fromPerPerson : featured.fromHourly)}
                                         <span className="font-medium text-ink-3">{featured.perPerson ? t("common.perPerson") : t("common.perHour")}</span>

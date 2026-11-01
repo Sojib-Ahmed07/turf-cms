@@ -3,11 +3,12 @@
 
 Paste this whole file into a new chat (Claude, Gemini, DeepSeek, any model) before asking for work,
 then attach the source files the task touches. It is self-contained: everything a new model needs to
-continue the project without the old chat. Last updated **26 Oct 2026**, after Step 7a (email OTP at
-registration), Step 7b (QR tickets, `/verify/<token>`, check-in, receipt email), Step 7c (admin-set
-Leaflet venue map), **Step 8a (direct bKash Tokenized Checkout next to SSLCommerz)** and **Step 8b
-(admin on/off switch per payment method)**, plus a security review (Next.js 16.4.3 and fixes). Direct Nagad was
-dropped. Next: confirm payments on the dev machine, pre-deploy fixes, then deploy.
+continue the project without the old chat. Last updated **1 Nov 2026**, after Steps 0 to 8b (booking, SSLCommerz +
+direct bKash, CMS, coupons, email OTP, QR tickets, map, payment-method switches), the security review, the 27 Oct
+audit (no holds, roles admin + player only, `/grounds` pages), **the Bangla-only site (29 Oct)**, **per-person
+pricing for the swimming pool (29 Oct)**, **the live-site audit fixes (1 Nov)**, **the dynamic site name (1 Nov)** and
+**page-change loading bars + skeletons (1 Nov)**. Direct Nagad was dropped. Next: redeploy the latest code, function
+region next to Neon, 10-minute external cron, content cleanup, then go live.
 
 In the repo, `Agents.md` holds the same facts in more detail (file tables, changelog) and `CLAUDE.md`
 holds Claude Code's working rules. If this file and the code disagree, the code wins; fix this file.
@@ -20,6 +21,9 @@ TurfZone CMS is a turf-booking website for **one venue** in Mirpur 12, Dhaka, Ba
 "TurfZone", three grounds, open 6 am to 3 am, prices in BDT ৳). Built for a client. Players register
 (email code via Brevo), pick a ground, a date and a time block, pay online **directly with bKash**
 (Tokenized Checkout) or through **SSLCommerz** (cards, Nagad, Rocket, bKash) and get a ticket with a **signed QR code** (on screen and by email).
+Football, cricket and badminton are booked per slot; the **swimming pool is priced per person** and shared up to a
+capacity. The **whole site, admin panel included, is in plain Bangla** (one language). The venue name is dynamic: the
+admin changes it in Branding and it changes everywhere.
 Staff scan the QR at the gate and mark it used. The **design is fixed in code**; the admin edits content
 only: logo, brand colour, map location, hero slider, offer banners, menu labels, home sections, footer,
 SEO, booking terms, grounds and slot schedules. The UI was designed new; the booking logic was ported
@@ -60,14 +64,32 @@ from an earlier prototype (`turf.zip`, bKash replaced by SSLCommerz).
 | 8b | Admin on/off switch per payment method (Admin, Payments, "Payment methods" panel); a switched-off method shows "Off right now" and a dialog that names the method that is on | Done 26 Oct (lint 0 errors, build compiles; no migration) |
 | Audit | Bookings/payments audit fixes: overlap-based availability (incl. neighbouring days), schedule-edit guard, 24 h sheet cap, slot identity check, locked hold/walk-in transactions, hourly hold cap, coupon limits under lock, SSLCommerz hold 30 min, no confirm of started/finished slots, recheck up to 48 h, risky-payment gate warning, `staff` role, forgot password, **migration 0006** (missing coupon redemption index) | Done 27 Oct (27 integration tests on PGlite with mocked gateways, lint 0 errors, build passes; sandbox payments still to do) |
 | Review | Security review: Next 16.4.3 + zod 4.6.7, open-redirect fix, 14-day booking window, phone/name auth hooks, editor overview without revenue, receipt resend limit, match-day check-in, bKash slot check before execute, security headers, robots/noindex for verify pages | Done 26 Oct (applied on the dev machine; `npm run build` passes) |
+| Audit 2 | Payment-only lock instead of 15-min holds, roles `admin` + `user` only (migration 0007), one-month window, `/grounds` + `/grounds/[slug]`, Checked in column in Admin, Bookings, 12-hour times + site name on `/verify` | Done 27 Oct |
+| Bangla | Whole site + admin + emails + `/verify` in plain Bangla, Bangla digits, WhatsApp button, Contact link removed (migration 0008, data only) | Done 29 Oct |
+| Per person | Swimming pool priced per person, shared slot up to `capacity`, 1 to 10 people per booking (migration 0009) | Done 29 Oct |
+| Live audit | Browser audit of `turf-cms.vercel.app`; fixes: abandoned payments closed after 48 h, forged SSLCommerz callback guard, promo-code guess limit, phone layout, admin tab titles, control-room offset worked out on the server | Done 1 Nov (no migration) |
+| Name | Site name dynamic everywhere (`renameEverywhere` on Branding save; emails use the Branding name) | Done 1 Nov (no migration) |
+| Loading | Top progress bar on page changes + page-shaped skeleton `loading.jsx` on every route | Done 1 Nov (no migration) |
 | — | Direct Nagad | Dropped 26 Oct (needs a whitelisted fixed IP; Vercel Static IPs $100/month). Nagad stays inside SSLCommerz |
-| **Deploy** | **Vercel + live Neon branch + domain + live SSLCommerz + live bKash, following `DEPLOY.md`** | **Next (after pre-deploy fixes)** |
+| **Deploy** | Sandbox deploy runs at `https://turf-cms.vercel.app/` (older build). **Redeploy latest, region, cron, then live keys + domain** | **Next** |
 
-Code check on 26 Oct: `npm run lint` = 0 errors, 2 warnings (`@next/next/no-img-element` on the QR `<img>`
-in `BookingTicket.jsx` and `TicketDialog.jsx`; intentional, data URLs). `npm run build` passes on the
-developer's machine (Next 16.4.3). `npm audit`: only 4 moderate in drizzle-kit's esbuild (dev only).
+Code check on 1 Nov: `npm run lint` = 0 errors, 2 warnings (`@next/next/no-img-element` on the QR `<img>`
+in `BookingTicket.jsx` and `TicketDialog.jsx`; intentional, data URLs). `next build --webpack` passes (Next 16.4.3).
+`npm audit`: only 4 moderate in drizzle-kit's esbuild (dev only).
 
-Open items on the developer's side:
+Open items on the developer's side (1 Nov):
+- **Migrations**: every database needs 0000 to **0009** (`npm run db:migrate`). The error
+  `Failed query ... "pricing", "capacity"` means 0009 isn't applied.
+- **Redeploy**: the live audit saw an older build on Vercel (English admin dates, editors, payment pages). Migrate that
+  database, then deploy the current code.
+- **Region**: Vercel functions ran in `iad1` (US); Neon is in Asia. Set `sin1` (`vercel.json` `"regions": ["sin1"]`
+  or Project Settings, Functions) for Neon `ap-southeast-1`.
+- **Cron**: external cron (cron-job.org) every 10 minutes on `/api/cron/expire-holds` with
+  `Authorization: Bearer <CRON_SECRET>`; the Vercel Hobby cron is daily only.
+- **Content cleanup in the admin**: save Branding once (renames the old name in stored texts), real phone in Footer &
+  SEO, OFF20 banner text vs its coupon (10% in the DB), badminton prices in texts vs slot prices, booking terms draft.
+
+Older open items (check they're done):
 - Migration **0004** (`0004_next_fabian_cortez`: `payments.gateway` + `payments_session_key_idx`) was generated and
   `db:migrate` ran on 26 Oct, but printed no success line. **Confirm the `gateway` column exists** before testing
   payments; on the live DB, migrate 0000 to 0004 during deploy.
@@ -131,7 +153,7 @@ When unsure, read `node_modules/next/dist/docs/` before writing code.
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Uploads. Optional `CLOUDINARY_FOLDER` (default `turfzone`). Old `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` still works |
 | `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` | Registration OTP + booking receipt emails. Sender must be verified in Brevo |
 | `TICKET_SECRET` | HMAC key for QR ticket tokens, 32+ chars. Falls back to `BETTER_AUTH_SECRET` (env check warns). Changing it invalidates every QR issued before |
-| `APP_NAME` | Optional. Site name used in the OTP email only (default "TurfZone"); receipts use the CMS site name |
+| `APP_NAME` | Optional fallback only. All emails use the site name from Admin, Branding; `APP_NAME` is used if the DB can't be read |
 | `ADMIN_OVERRIDE_SLUG`, `ADMIN_OVERRIDE_PASSWORD` | Control room (`/control-room/<slug>`): revenue display override for `/admin`. Both unset = page disabled |
 
 `SSLCZ_API_BASE`, `BKASH_API_BASE` and `CLOUDINARY_API_BASE` exist only to point tests at mocks; never set them in real env
@@ -144,31 +166,37 @@ src/
   proxy.js                 cookie check -> /login for /admin, /bookings, /profile
   instrumentation.js       runs lib/env.js assertEnv() once at server start
   app/
-    layout.jsx             root: font, brand colour + SEO from site settings, force-dynamic
-    (site)/                public: layout (top bar, navbar, footer, popup), /, /book, /bookings,
-                           /profile, /terms, /payment/success|failed|cancelled,
-                           /verify/[token] (QR ticket check, public; admin sees "Mark as used");
-                           loading.jsx, error.jsx
-    (auth)/                /login, /register, /verify-email
-    admin/                 layout (requireRole admin|editor); page (overview); pitches/, pitches/[id]/;
-                           bookings, branding, navigation, hero, banners, sections, footer, media,
+    layout.jsx             root: font, brand colour + SEO from site settings, force-dynamic, <NavProgress />
+    (site)/                public: layout (top bar, navbar, footer, popup, WhatsApp button), /, /book, /grounds,
+                           /grounds/[slug], /bookings, /profile, /terms, /payment/success|failed|cancelled,
+                           /verify/[token] (QR ticket check, public; admin sees "Mark as used"); error.jsx
+    (auth)/                /login, /register, /verify-email, /forgot-password
+    admin/                 layout (requireRole(["admin"]), title "%s | অ্যাডমিন"); page (overview); pitches/,
+                           pitches/[id]/; bookings, branding, navigation, hero, banners, sections, footer, media,
                            terms, coupons, payments, users
+                           (every public, auth and admin route has its own loading.jsx skeleton)
+    control-room/[slug]/   revenue display override (env slug + password, admin only)
     not-found.jsx, global-error.jsx, sitemap.js, robots.js
     api/auth/[...all]/route.js               Better Auth
     api/booked-slots/route.js                slot board JSON for /book and walk-ins
     api/payment/sslcommerz/[event]/route.js  POST success | fail | cancel | ipn
     api/payment/bkash/callback/route.js      GET ?paymentID=&status=success|failure|cancel (browser back from bKash)
-    api/cron/expire-holds/route.js           housekeeping (vercel.json: 21:00 UTC = 3 am Dhaka)
+    api/cron/expire-holds/route.js           housekeeping: recheck, repair, close abandoned (> 48 h), expire locks
+                                             (vercel.json daily 21:00 UTC; external cron every 10 min)
     api/ticket-qr/[token]/route.js           GET: QR PNG for a signed token (used by the receipt email)
   components/
-    ui/                    Button, Badge, Dialog, Field/Input, Inputs, Switch
+    NavProgress.jsx        top loading bar on page changes (client)
+    ui/                    Button, Badge, Dialog, Field/Input, Inputs, Switch, PeoplePicker (1-10 stepper),
+                           Skeleton (Bone, CardBone, Loading, times)
     site/                  Navbar, TopBar, Footer, FooterCta, Logo, HeroSlider, QuickBook, PromoBanner,
                            PromoPopup, LiveGrounds, HowItWorks, VenueInfo, PitchLines, SignOutButton,
                            VenueMap (Leaflet, client), VenueMapLoader (ssr:false wrapper),
-                           VerifyTicket (result card + "Mark as used")
+                           VerifyTicket (result card + "Mark as used"), WhatsAppButton,
+                           PageSkeletons (Home, Book, Grounds, Ground, Bookings, Profile, TextPage, Result, Auth)
     admin/                 AdminShell, Kit (PageHeader, Panel, SettingRow, Label, SaveBar, OrderButtons,
                            Table/Th/Td, Toolbar), ImageUploader, MediaPicker, Toast (useToast),
-                           StatusBadge, TonightBoard
+                           StatusBadge, TonightBoard,
+                           AdminSkeletons (Overview, Table, Editor, GroundsAdmin, SlotEditor, Media)
     auth/                  AuthForms, AuthLayout, VerifyEmailForm
     ErrorPanel.jsx
   features/
@@ -176,25 +204,33 @@ src/
                            sendBookingReceiptByBookingId)
     booking/               queries.js (getMyBookings adds ticketToken + qrDataUrl), actions.js
                            (emailVerified gate, receipt on free booking), actions-email.js
-                           (resendTicketEmail), slots.js, calendar.js, parts.js, components/
+                           (resendTicketEmail), slots.js, calendar.js, parts.js, people.js (per-person
+                           helpers), components/
     profile/               actions.js (updateProfile), components/ProfileClient.jsx
     admin/                 queries.js, commerce-queries.js,
                            actions/{pitches,bookings,coupons,payments,users,checkin}.js, components/
     coupons/               rules.js, service.js
     cms/                   queries.js, admin-queries.js, server-utils.js, actions/*, upload-client.js,
-                           admin/ (8 editors; BrandingForm has Map location)
+                           rename.js (renameEverywhere), admin/ (8 editors; BrandingForm has Map location)
+    override/              actions.js (control room)
     payment/               service.js (start per gateway, confirm SSLCommerz, confirmBkashPayment,
-                           recheck per gateway, receipt after confirm), actions.js (payForBooking(id, method),
+                           recheck per gateway, receipt after confirm, closeAbandonedPayments),
+                           actions.js (payForBooking(id, method),
                            emailVerified gate), methods.js (GATEWAYS, getPayMethods, isGatewayConfigured),
                            result-page.js, components/ (PaymentResult, RetryPayButton, PayMethodPicker, PayDialog,
                            MethodOffDialog)
-  db/                      index.js, pool.js (unused), schema/{auth,booking,commerce,cms}.js, seed.js
+  db/                      index.js, pool.js (withLockedTx advisory locks), schema/{auth,booking,commerce,cms}.js, seed.js
   lib/                     auth (emailOTP), auth-client (emailOTPClient), guards, action, time, utils,
-                           cache-tags, sslcommerz, bkash, cloudinary, brevo, ticket-token, qrcode, env
+                           cache-tags, sslcommerz, bkash, cloudinary, brevo, ticket-token, qrcode, phone, env,
+                           nav-progress (startNavProgress)
+  i18n/                    config (LOCALE "bn"), dict/bn.js, server.js, I18nProvider.jsx, format.js (BN)
+scripts/check-i18n.mjs     fails when a t() key is missing from bn.js
 drizzle/                   0000 initial schema, 0001 booking FKs + unique active-slot index,
                            0002 bookings.checked_in_at/by, 0003 site_settings map_* columns,
-                           0004 payments.gateway + payments_session_key_idx
-vercel.json                cron
+                           0004 payments.gateway + payments_session_key_idx, 0005 revenue override,
+                           0006 redemptions_booking_uq, 0007 roles + nav (data), 0008 Bangla content (data),
+                           0009 per-person pricing
+vercel.json                daily cron (add "regions": ["sin1"])
 ```
 
 Import alias `@/*` -> `src/*`. All tables re-exported from `@/db/schema`.
@@ -214,7 +250,8 @@ Import alias `@/*` -> `src/*`. All tables re-exported from `@/db/schema`.
 7. **Images the admin controls:** `<Image unoptimized={!canOptimize(src)} />` (`src/lib/utils.js`).
    `next.config.mjs` allows `images.unsplash.com` and `res.cloudinary.com`. QR codes are data URLs in a
    plain `<img>` (lint warning accepted).
-8. Money: `taka(n)` -> "৳1,800". Times: `time12("18:30")` -> "6:30 pm".
+8. Money: `taka(n)` -> "৳১,৮০০". Times: `time12("18:30")` -> Bangla 12-hour time. Gateways get ASCII
+   (`takaAscii`, `time12Ascii`, `shortDateAscii`).
 9. Unique violations: check `err.code === "23505"` (also `err.cause.code`) and return a friendly error.
 10. Don't use the `action()` wrapper in `src/lib/action.js` as is: it calls `requireRole`, whose
     `redirect()` throws inside its try/catch and becomes "Something went wrong". Write actions like
@@ -223,6 +260,13 @@ Import alias `@/*` -> `src/*`. All tables re-exported from `@/db/schema`.
 12. Slow side effects after a response (emails) go through `waitUntil(promise.catch(...))` from
     `@vercel/functions`, so a failed email never fails the booking or payment.
 13. Browser-only libraries (Leaflet) load via a client wrapper with `next/dynamic(..., { ssr: false })`.
+14. **Bangla only.** New UI text is plain Bangla (player pages: a key in `i18n/dict/bn.js` read with `t()`; admin and
+    server errors: Bangla in the file). Run `node scripts/check-i18n.mjs`.
+15. **Never hard-code the venue name.** Read `settings.siteName` and pass it down; free-text fields the admin edits
+    belong in `renameEverywhere` (`features/cms/rename.js`).
+16. **Loading:** every new route gets a `loading.jsx` skeleton (`components/site/PageSkeletons.jsx`,
+    `components/admin/AdminSkeletons.jsx`, shapes from `components/ui/Skeleton.jsx`). Call `startNavProgress()`
+    (`@/lib/nav-progress`) before any `router.push`/`router.replace` that changes the page.
 
 Server action template:
 
@@ -248,16 +292,16 @@ const schema = z.object({ /* ... */ });
 export async function saveThing(input) {
     try {
         const user = await requireRoles(["admin"]);
-        if (!user) return { ok: false, error: "You don't have access to this." };
+        if (!user) return { ok: false, error: "এই কাজের অনুমতি আপনার নেই।" };
         const parsed = schema.safeParse(input);
-        if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form." };
+        if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "ফর্মটা আবার দেখুন।" };
         // ... db work
         updateTag(TAGS.hero);            // public site shows the change on the next request
         revalidatePath("/admin/hero");
         return { ok: true, data: null };
     } catch (err) {
         console.error("[saveThing]", err);
-        return { ok: false, error: "Couldn't save. Try again." };
+        return { ok: false, error: "সেভ করা যায়নি। আবার চেষ্টা করুন।" };
     }
 }
 ```
@@ -275,20 +319,20 @@ Radii: `rounded-frame` 28px (big sections), `rounded-card` 20px, `rounded-ctl` 1
 Visual motifs: chalk pitch lines (`PitchLines`), ticket perforations (dashed lines) on cards. Map pin and
 chip use `--brand` and `pitch`. Keep new screens consistent; reuse `components/ui` and `components/admin/Kit`.
 
-Copy: sentence case; buttons say exactly what happens; errors say what to do next; no ALL-CAPS labels.
+Copy: plain everyday Bangla ("সিলেক্ট করুন", "কনফার্মড", "পেমেন্ট", "লগইন"; not formal words like "বাছুন"); buttons say
+exactly what happens; errors say what to do next. Numbers, dates and times in Bangla digits.
+
+Loading: a thin `--brand` bar at the top on page changes (`NavProgress`) and grey pulsing skeletons shaped like the page
+(`Bone` = `animate-pulse rounded-ctl bg-ink/[0.07]`, `CardBone` = white card with `ring-line`, dark photo areas `bg-pitch/80`).
 
 ## 9. Domain rules
 
 ### Roles
 
 `user.role`: `user` (player) or `admin` (everything, incl. **Mark as used** check-in). Editor and staff were
-**removed on 27 Oct** (migration 0007 turns them into players). The text below about editors is historical. **Editor is still live
-in the code**: the admin layout and the content pages (hero, banners, sections, footer, media, terms)
-call `requireRole(["admin", "editor"])`; `CONTENT_ROLES = ["admin", "editor"]` in
-`cms/server-utils.js`; the Users page role dropdown offers Admin, Editor, Player. Branding, navigation,
-grounds, bookings, payments, coupons, users and ticket check-in are admin only (`adminOnly` in
-`AdminShell`, `ADMIN_ONLY` in actions). (An earlier version of this file said 7a removed editor; it did
-not. If the client wants editor gone, that is a new task.)
+**removed on 27 Oct** (migration 0007 turns them into players). The admin layout calls `requireRole(["admin"])`,
+`CONTENT_ROLES = ["admin"]` in `cms/server-utils.js`, and the Users page offers অ্যাডমিন / প্লেয়ার only. Check the role
+inside every admin action too. Don't add roles back unless asked.
 
 ### Registration and email verification (Step 7a)
 
@@ -356,6 +400,41 @@ same shape. The bookings table search covers name, phone, email and booking ID.
   re-centres on change). No map -> the illustrated `MapArt`. "Get directions" still uses
   `contact.mapUrl` (Footer & SEO).
 
+### Site name everywhere (1 Nov)
+
+- `saveBranding` (`cms/actions/settings.js`) calls `renameEverywhere(oldName, newName)` (`cms/rename.js`) on every save.
+  It replaces the old name **and** the starter names (`SAMPLE_NAMES = ["TurfZone", "টার্ফজোন"]`) in: `site_settings`
+  tagline, map label, SEO title/description, contact (address, hours); every `page_sections` row (home sections, terms);
+  `hero_slides`; `promo_banners`; `pitches.description`. `swapNameDeep` skips links, emails, phones and images
+  (`SKIP_KEYS`); Latin names match whole words only. Returns `{ renamed, tagline, mapLabel }`; BrandingForm shows how
+  many texts changed.
+- Emails (OTP, password reset, receipts) use the Branding name (`getSiteSettings()`); `APP_NAME` is only a fallback.
+- Page titles, navbar, footer, `/verify`, payment pages and the admin sidebar read `settings.siteName`.
+
+### Page-change loading (1 Nov)
+
+- `components/NavProgress.jsx` (client, root layout inside `<Suspense>`): starts on a same-origin link click (ignores
+  new-tab/modifier clicks, `target`, `download`, hash-only and same-URL links) or the `tz:navstart` window event;
+  creeps toward 90%; finishes when `usePathname()`/`useSearchParams()` change; stops itself after 10 s.
+- `lib/nav-progress.js` `startNavProgress()`: fire it before `router.push`/`router.replace` (booking → payment pages,
+  admin filters, login redirects all do).
+- Every route has `loading.jsx`: public `(site)/loading.jsx` = `HomeSkeleton`, book, grounds, ground, bookings,
+  profile, terms, payment, verify; `(auth)/loading.jsx` = `AuthSkeleton`; `admin/loading.jsx` = `OverviewSkeleton`, plus
+  bookings, payments, users, coupons (tables), branding, navigation, footer, terms, hero, banners, sections (editors),
+  media, pitches, pitches/[id] (slot editor).
+
+### Per-person grounds (swimming pool, 29 Oct, migration 0009)
+
+- `pitches.pricing` = `slot` (one booking takes the whole slot) or `per_person` (slot price is per person; many bookings
+  share the slot until `pitches.capacity` people). `bookings.people` = null for whole-slot bookings, else the head count.
+- The unique index `bookings_active_slot_uq` only covers `people is null`; per-person seats are counted under the
+  ground's lock. Use `blockingBooking(active, interval, need)` with `seatNeed(pitch, people)` (new booking) or
+  `await seatNeedForBooking(row)` (existing one). `seatsLeft()`; `getSlotBoard` returns `seatsLeft` per slot.
+- `features/booking/people.js`: `MAX_PEOPLE_PER_BOOKING = 10`, `clampPeople`, `slotTotal(price, people)`. Coupons
+  apply to price x people. `PeoplePicker` on /book (above the board) and in the walk-in dialog.
+- Admin ground form: "দাম কীভাবে ধরা হবে" (পুরো স্লটের দাম / জনপ্রতি দাম) + capacity; sport সুইমিং পুল picks per-person;
+  can't switch while the ground has upcoming bookings. Slot editor shows "/জন"; today board "২/২০ জন".
+
 ### Booking (ported from the prototype)
 
 - Each pitch has `defaultBlocks` JSON `[{ startTime, endTime, price, sortOrder }]`, ids `default-<i>`.
@@ -369,7 +448,7 @@ same shape. The bookings table search covers name, phone, email and booking ID.
 - **"Today":** `currentVenueDay()` (booking queries). Yesterday stays "today" only while an open
   ground's sheet for yesterday still has after-midnight slots running.
 - Parts of the day: `features/booking/parts.js`.
-- Slot states: free, held (unexpired hold), booked (confirmed), past.
+- Slot states: free, held (open payment lock), booked (confirmed, or per-person slot full), past.
 - **Holds: none.** There are no reservations. `bookAndPay` (booking/actions.js) checks the slot and opens the gateway
   in one step; the slot is locked only while the player is on the payment page: `PAYMENT_LOCK_MINUTES`
   (`{ bkash: 5, sslcommerz: 10 }`, booking queries), released **at once** when the payment is cancelled or fails
@@ -435,7 +514,10 @@ same shape. The bookings table search covers name, phone, email and booking ID.
   rule, so bKash never charges for a slot that can't be confirmed.
 - **Job** (`/api/cron/expire-holds`, run **every 10 min** by an external cron): `recheckOpenPayments` checks payments
   5 min–2 h old every run and `initiated` ones up to 48 h about hourly (`updatedAt` backoff), then
-  `repairUnsettledPayments`, then `expireStaleHolds`.
+  `repairUnsettledPayments`, then `closeAbandonedPayments` (still `initiated` after 48 h → `cancelled`), then
+  `expireStaleHolds`.
+- **Forged callbacks (1 Nov):** an SSLCommerz fail/cancel POST only marks the payment failed/cancelled when SSLCommerz's
+  own query answer is for the same `tran_id` (`v.tran_id === tranId`); otherwise the row is left for the recheck.
 - **Risky SSLCommerz payments** (`risk_level 1`) still confirm; `/verify` warns staff until an admin presses
   **Mark checked** in Admin, Payments (`markRiskChecked`: sets `riskLevel "0"`, keeps the old reason in `riskTitle`).
 - Result page: paid but booking not yet confirmed shows **pending**, not failed.
@@ -491,11 +573,14 @@ same shape. The bookings table search covers name, phone, email and booking ID.
 - Total 0 (100% off): booking confirmed + paid at once, no SSLCommerz, `data.free = true`, receipt emailed.
 - `redeemCoupon(bookingId)` inserts `coupon_redemptions` and bumps usedCount once per booking.
 - Admin (`/admin/coupons`, `actions/coupons.js`): create/edit, on/off, delete (refused once used).
+- **Guessing limit (1 Nov):** an unknown code (`unknownCode: true` from `checkCouponForSlot`) is logged in `audit_log`
+  (action `coupon_wrong`, per user and IP); after 10 in 15 minutes `previewCoupon` / `bookAndPay` answer
+  `errors.tooManyCodes`.
 
 ### Admin payments and users (Step 6 part 1)
 
 - `/admin/payments?status=paid|started|failed|refund_due|refunded|risky&q=&page=` (25 per page).
-- `/admin/users?q=`: `setUserRole({ userId, role })` with role `admin | editor | user`, admin only;
+- `/admin/users?q=`: `setUserRole({ userId, role })` with role `admin | user`, admin only;
   you can't change your own role; the last admin stays admin.
 
 ### Profile, terms, ticket (Step 6 part 2)
@@ -527,10 +612,10 @@ and a 5-minute safety revalidate, and falls back to defaults if the DB fails. Wr
 
 - `auth.js`: `user` (id text, name, email, emailVerified, image, phone, role), `session`, `account`,
   `verification` (Better Auth's own table; the OTP plugin stores codes here).
-- `booking.js`: `pitches`, `time_blocks`.
+- `booking.js`: `pitches` (incl. **pricing** `slot | per_person`, default `slot`; **capacity** int), `time_blocks`.
 - `commerce.js`: `coupons`, `bookings` (code, userId, customerName, customerPhone, pitchId,
   timeBlockId, bookingDate, startTime, endTime, subtotal, discount, totalPrice, couponId, status,
-  paymentStatus, source, holdExpiresAt, cancelledAt, cancelReason, **checkedInAt** (timestamp),
+  paymentStatus, source, holdExpiresAt, cancelledAt, cancelReason, **people** (null = whole slot), **checkedInAt** (timestamp),
   **checkedInBy** (-> user.id, on delete set null)), `coupon_redemptions`, `payments` (**gateway**
   `sslcommerz | bkash`, default `sslcommerz`; index on `session_key`), `audit_log`.
 - `cms.js`: `site_settings` (incl. **mapLat, mapLng, mapZoom, mapLabel, mapAddress**), `nav_items`,
@@ -539,7 +624,9 @@ and a 5-minute safety revalidate, and falls back to defaults if the DB fails. Wr
   `0003_yummy_thunderbolt` (map), `0004_next_fabian_cortez` (payments.gateway), `0005_wealthy_blindfold`
   (`site_settings.override_revenue_*`), `0006_outstanding_preak` (`redemptions_booking_uq`, `IF NOT EXISTS`;
   `redeemCoupon`'s `ON CONFLICT` errors without it), `0007_roles_and_nav_cleanup` (data: editor/staff -> user,
-  Grounds link -> `/grounds`, Offers link removed).
+  Grounds link -> `/grounds`, Offers link removed), `0008_bangla_content` (data: sample English content to Bangla,
+  `/#visit` link removed), `0009_per_person_pricing` (`pitches.pricing`, `pitches.capacity`, `bookings.people`;
+  `bookings_active_slot_uq` now `WHERE status IN ('held','confirmed') AND people IS NULL`).
 
 Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:migrate`. Give both commands.
 
@@ -571,9 +658,17 @@ Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:mig
   `toPitchView`, `getTimeBlocksForPitch`, `resolveBlock`, `getTakenSlots`, `getSlotBoard`,
   `getGroundsToday`, `expireStaleHolds`, `getMyBookings` (with `ticketToken`, `qrDataUrl`),
   `getBookingForUser`, `HOLD_MINUTES`.
-- `features/booking/actions.js`: `previewCoupon`, `createBookingHold` (`needsVerify`; free -> receipt),
-  `cancelHeldBooking`. `actions-email.js`: `resendTicketEmail(bookingId)`.
-- `features/booking/calendar.js`: `isAfterMidnight(b)`, `playDate(b)`, `calendarUrl(b)`, `longDateLabel`.
+- `features/booking/actions.js`: `previewCoupon`, `bookAndPay` (check slot + seats, open the gateway; `needsVerify`;
+  free -> receipt), `cancelHeldBooking` / release slot. `actions-email.js`: `resendTicketEmail(bookingId)`.
+- `features/booking/calendar.js`: `isAfterMidnight(b)`, `playDate(b)`, `calendarUrl(b)`, `longDateLabel`,
+  `BOOKING_DAYS_AHEAD` (30), `isRealDate`.
+- `features/booking/people.js`: `MAX_PEOPLE_PER_BOOKING`, `clampPeople(n)`, `slotTotal(price, people)`.
+  Booking queries: `seatNeed(pitch, people)`, `seatNeedForBooking(row, exec)`, `seatsLeft`, `blockingBooking(active, interval, need)`.
+- `features/cms/rename.js`: `SAMPLE_NAMES`, `swapName(text, olds, next)`, `swapNameDeep(value, olds, next)`,
+  `renameEverywhere(oldName, newName)` -> count of rows changed.
+- `lib/nav-progress.js`: `startNavProgress()`. `components/ui/Skeleton.jsx`: `Bone`, `CardBone`, `Loading`, `times`.
+- `features/override/actions.js`: `unlockOverride(password)`, `isOverrideUnlocked()`,
+  `saveOverride({ todayDisplay, monthDisplay })` (offset worked out on the server), `resetOverride()`.
 - `features/coupons/service.js`: `getCouponByCode`, `couponUses`, `checkCouponForSlot`, `redeemCoupon(bookingId)`.
 - `features/admin/commerce-queries.js`: `getCouponsAdmin`, `getPaymentsAdmin(filters)`, `getUsersAdmin({ q })`.
 - `features/admin/queries.js`: dashboard stats, today board, latest bookings, `getAdminBookings(filters)`,
@@ -584,18 +679,20 @@ Schema changes: edit the schema file -> `npm run db:generate` -> `npm run db:mig
   `getPromoBanners`, `getSections`, `getTerms`, `getSiteChrome`, `brandInk`.
 - `features/payment/service.js`: `startPayment(bookingId, user, method)`, `confirmPayment` (SSLCommerz),
   `confirmBkashPayment(paymentId)`, `closeBkashPayment(paymentId, status, raw)`, `recheckPayment(tranId)`
-  (per gateway), `recheckOpenPayments`, `markPaymentClosed`, `getPaymentResult` (incl. `gateway`).
+  (per gateway), `recheckOpenPayments`, `closeAbandonedPayments`, `markPaymentClosed`, `getPaymentResult` (incl. `gateway`).
   `actions.js`: `payForBooking(bookingId, method?)` (`needsVerify`).
 
 ## 12. Remaining work
 
-### Before deploy (small, recommended)
+### Now (1 Nov)
 
-- **Update `DEPLOY.md`**: add `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`, `TICKET_SECRET`
-  (and optional `APP_NAME`) to the Vercel env table and step 3 secrets; add final checks for
-  register-with-code, receipt email, QR scan -> `/verify/...` -> Mark as used; set the map in Branding.
-- **Admin bookings table**: "Checked in" column + optional `?checkedIn=yes|no` filter. Planned in 7b,
-  not built: `getAdminBookings` doesn't select `checkedInAt` yet.
+- **Redeploy the latest code** on Vercel after `npm run db:migrate` (0000 to 0009) on that database. The audited build
+  was older (English admin dates, editors and payment pages).
+- **Function region** next to Neon: `sin1` for `ap-southeast-1` (`vercel.json` `"regions": ["sin1"]`).
+- **External cron** every 10 minutes (required: bKash has no IPN; abandoned payments are closed by it).
+- **Content cleanup** in the admin: save Branding once (renames the old name), real phone in Footer & SEO, OFF20 banner
+  text vs its coupon (10% in the DB), badminton prices in texts vs slot prices, booking terms.
+- If `DEPLOY.md` exists on the dev machine: add `BREVO_*`, `TICKET_SECRET`, `BKASH_*`, `ADMIN_OVERRIDE_*` to its env table.
 - Decide with the client: should `/verify/<token>` stay public (anyone holding the QR sees name,
   ground, time, amount) or require staff sign-in? Currently public; check-in is admin only.
 
@@ -607,7 +704,7 @@ Static IPs cost $100/month per project. Nagad stays available through SSLCommerz
 ### Deploy
 
 Follow `DEPLOY.md` (add the `BKASH_*` keys and bKash live onboarding: the live callback domain must be
-the one in `APP_URL`): separate Neon branch, `db:migrate` (applies 0000 to 0006) + seed, Vercel env vars
+the one in `APP_URL`): separate Neon branch, `db:migrate` (applies 0000 to 0009) + seed, Vercel env vars
 (incl. Brevo + `TICKET_SECRET`), domain, Google OAuth redirect, owner promoted to admin, live
 SSLCommerz store + IPN URL `https://<domain>/api/payment/sslcommerz/ipn`, `SSLCZ_IS_LIVE=true`, daily
 Vercel cron + external **10-minute** cron (required: bKash has no IPN) (cron-job.org with `Authorization: Bearer <CRON_SECRET>`).
@@ -618,7 +715,7 @@ Refunds stay manual. `TICKET_SECRET` on live must never change after tickets go 
 - Write admin actions (incl. check-in) to `audit_log` (table exists, unused).
 - SMS confirmation (email receipts already exist).
 - SSLCommerz refund API (needs a fixed server IP).
-- Remove the editor role if the client doesn't need it.
+- Payment-attempt admin export, booking reminders by email.
 
 ## 13. Known issues and gotchas
 
@@ -632,10 +729,20 @@ Refunds stay manual. `TICKET_SECRET` on live must never change after tickets go 
 
 | Issue | Fix / note |
 |---|---|
+| `Failed query ... "pricing", "capacity"` / `column "people" does not exist` | Migration 0009 not applied: `npm run db:migrate` |
+| `Module not found: Can't resolve './dict/en'` | Old `src/i18n/*` files; replace the whole `src/i18n/` folder (Bangla only) |
+| Old venue name still shows | Save Branding once (renames stored texts); in code read `settings.siteName`, never a literal |
+| "অনেকবার ভুল কোড দেওয়া হয়েছে" at checkout | Wrong promo-code limit (10 per 15 min); wait |
+| "এই স্লটে এতজনের জায়গা আর খালি নেই" | Per-person slot has fewer places left than the people picked |
+| Ground form won't change the pricing type | The ground has upcoming bookings |
+| No top bar on a page change | `router.push` without `startNavProgress()` first |
+| Blank screen while a new page loads | Add a `loading.jsx` skeleton for that route |
+| Pages take 1–2 s on Vercel | Function region far from Neon; set `sin1` |
+| `next dev` creates an `AGENTS.md` | It re-adds its own file; the repo uses `Agents.md` (delete the copy before sharing files) |
 | Coupon booking fails with "no unique or exclusion constraint matching the ON CONFLICT" | Migration 0006 not applied: `npm run db:migrate` |
 | Admin schedule save says "This change would move or remove a booked slot" | Expected (schedule guard): keep those exact times, or cancel/move the listed bookings first |
 | Player sees "The venue just changed this slot's time or price" | Expected: the schedule changed while the page was open; the board reloads |
-| "Reserved and released too many slots in the last hour" | Hold cap (6 unpaid holds per hour per player) |
+| Error about too many unpaid attempts | Cap: 5 unpaid attempts per player per hour (`bookAndPay`), 8 unpaid payments per hour (`startPayment`) |
 | Paid bKash booking expired / slot resold | The external cron isn't running every 10 minutes |
 | `withLockedTx` / WebSocket errors | Node older than 22 (no global WebSocket); use Node 22+ locally and on Vercel |
 | `SEED_ADMIN_EMAIL`, `CRON_SECRET` placeholders in `.env.local` | Set real values (section 3) |
@@ -680,6 +787,14 @@ There is no test suite in the repo. Verify with `npm run build` and click-throug
 2. Update this file (sections 3, 5, 6, 9, 10, 11, 12, 13), `Agents.md` (sections 2, 6, 8, 9, 10) and
    `CLAUDE.md` (layout + known gaps) to match the code.
 3. Deliver files with paths and new/replace, plus installs, migrations and test steps.
+
+**1 Nov:** status (audit, name, loading rows; deploy state), open items (migrations 0009, redeploy, region, cron,
+content), env (`APP_NAME` fallback only), project map (NavProgress, skeletons, loading.jsx, rename.js, people.js,
+PeoplePicker, WhatsAppButton, i18n, override, migrations 0005 to 0009), conventions 14 to 16, roles (admin + user),
+domain sections (site name, loading, per-person), payments (`closeAbandonedPayments`, forged-callback guard),
+coupons (guess limit), schema, APIs, remaining work, gotchas.
+
+**29 Oct:** Bangla only (migration 0008) and per-person pricing (migration 0009).
 
 **26 Oct, payment robustness:** `ensureSettled` + cron `repairUnsettledPayments()` finish bookings whose payment was
 marked paid but never settled; `redeemCoupon` atomic (unique `redemptions_booking_uq` + `onConflictDoNothing`).

@@ -4,46 +4,17 @@ import Button from "@/components/ui/Button";
 import PitchLines from "@/components/site/PitchLines";
 import RetryPayButton from "./RetryPayButton";
 import { calendarUrl, playDate } from "@/features/booking/calendar";
-import { shortDateLabel } from "@/lib/time";
-import { cn, taka, time12 } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { getI18n } from "@/i18n/server";
 
+// Texts live in the dictionaries under result.<status>Title / result.<status>Body.
 const COPY = {
-    success: {
-        icon: Check,
-        ring: "bg-brand text-white",
-        title: "You're booked",
-        body: "Your ticket is in My bookings. Show it at the gate on match day.",
-    },
-    pending: {
-        icon: Loader2,
-        ring: "bg-flare text-ink",
-        title: "Confirming your payment",
-        body: "We're waiting for the payment gateway to confirm. This usually takes a minute. Refresh this page, or check My bookings shortly.",
-    },
-    failed: {
-        icon: X,
-        ring: "bg-danger text-white",
-        title: "Payment didn't go through",
-        body: "Your bank or wallet didn't complete the payment. No money was taken.",
-    },
-    cancelled: {
-        icon: Minus,
-        ring: "bg-ink-3 text-white",
-        title: "Payment cancelled",
-        body: "You left the payment page before paying. No money was taken.",
-    },
-    refund: {
-        icon: RotateCcw,
-        ring: "bg-flare text-ink",
-        title: "Paid, but the slot was gone",
-        body: "Your payment arrived after the slot was given to someone else (or after its time), so we couldn't confirm it. The full amount will be refunded to you. The desk will contact you.",
-    },
-    missing: {
-        icon: Minus,
-        ring: "bg-ink-3 text-white",
-        title: "Payment not found",
-        body: "We couldn't find this payment. Your bookings and their payment status are in My bookings.",
-    },
+    success: { icon: Check, ring: "bg-brand text-white" },
+    pending: { icon: Loader2, ring: "bg-flare text-ink" },
+    failed: { icon: X, ring: "bg-danger text-white" },
+    cancelled: { icon: Minus, ring: "bg-ink-3 text-white" },
+    refund: { icon: RotateCcw, ring: "bg-flare text-ink" },
+    missing: { icon: Minus, ring: "bg-ink-3 text-white" },
 };
 
 /**
@@ -53,8 +24,10 @@ const COPY = {
  * deskPhone: venue phone from site settings
  * payMethods: [{ id, label, hint }] for "Try payment again"
  */
-export default function PaymentResult({ status = "success", booking = null, canRetry = false, deskPhone = "", payMethods = [] }) {
-    const c = COPY[status] ?? COPY.missing;
+export default async function PaymentResult({ status = "success", booking = null, canRetry = false, deskPhone = "", payMethods = [] }) {
+    const { t, f } = await getI18n();
+    const key = COPY[status] ? status : "missing";
+    const c = COPY[key];
     const Icon = c.icon;
     const dark = status === "success";
 
@@ -67,8 +40,8 @@ export default function PaymentResult({ status = "success", booking = null, canR
                     <span className={cn("relative mx-auto grid h-16 w-16 place-items-center rounded-full ring-8", c.ring, dark ? "ring-white/10" : "ring-white")}>
                         <Icon className={cn("h-7 w-7", status === "pending" && "animate-spin")} strokeWidth={3} />
                     </span>
-                    <h1 className={cn("display relative mt-6 text-[clamp(34px,6vw,46px)]", !dark && "text-ink")}>{c.title}</h1>
-                    <p className={cn("relative mx-auto mt-3 max-w-[40ch] text-[15px] leading-relaxed", dark ? "text-white/70" : "text-ink-3")}>{c.body}</p>
+                    <h1 className={cn("display relative mt-6 text-[clamp(34px,6vw,46px)]", !dark && "text-ink")}>{t(`result.${key}Title`)}</h1>
+                    <p className={cn("relative mx-auto mt-3 max-w-[40ch] text-[15px] leading-relaxed", dark ? "text-white/70" : "text-ink-3")}>{t(`result.${key}Body`)}</p>
                 </div>
 
                 {booking && (
@@ -82,23 +55,26 @@ export default function PaymentResult({ status = "success", booking = null, canR
 
                         <div className="p-8">
                             <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
-                                <Item label="Ground" value={booking.pitch} />
-                                <Item label="Date" value={shortDateLabel(playDate(booking))} />
-                                <Item label="Time" value={`${time12(booking.start)} to ${time12(booking.end)}`} />
-                                <Item label="Booking ID" value={booking.id} />
+                                <Item label={t("result.ground")} value={booking.pitch} />
+                                <Item label={t("result.date")} value={f.date(playDate(booking))} />
+                                <Item label={t("result.time")} value={t("ticket.timeRange", { from: f.time(booking.start), to: f.time(booking.end) })} />
+                                <Item label={t("result.bookingId")} value={booking.id} />
                                 {(status === "success" || status === "refund") && (
                                     <>
-                                        <Item label="Paid" value={`${taka(booking.total)} with ${booking.paidWith}`} />
-                                        {booking.trxId && <Item label="Transaction" value={booking.trxId} />}
+                                        <Item
+                                            label={t("result.paid")}
+                                            value={booking.paidWith ? t("result.paidWith", { amount: f.taka(booking.total), method: booking.paidWith }) : f.taka(booking.total)}
+                                        />
+                                        {booking.trxId && <Item label={t("result.transaction")} value={booking.trxId} />}
                                     </>
                                 )}
-                                {status !== "success" && status !== "refund" && <Item label="Amount" value={taka(booking.total)} />}
+                                {status !== "success" && status !== "refund" && <Item label={t("result.amount")} value={f.taka(booking.total)} />}
                             </dl>
 
                             {canRetry && (status === "failed" || status === "cancelled") && (
                                 <p className="mt-6 flex items-center gap-2 rounded-ctl bg-flare-soft px-4 py-3 text-[14px] font-medium text-flare-deep">
                                     <Hourglass className="h-4 w-4 shrink-0" />
-                                    The slot is free for everyone again. Try again now to book it before someone else does.
+                                    {t("result.slotFree")}
                                 </p>
                             )}
 
@@ -106,17 +82,17 @@ export default function PaymentResult({ status = "success", booking = null, canR
                                 {status === "success" && (
                                     <>
                                         <Button href="/bookings" variant="ink" size="lg" className="w-full sm:w-auto sm:flex-1">
-                                            View my bookings
+                                            {t("result.viewBookings")}
                                         </Button>
                                         <Button href={calendarUrl(booking)} variant="outline" size="lg" className="w-full sm:w-auto sm:flex-1" target="_blank" rel="noreferrer">
                                             <CalendarPlus className="h-4 w-4" />
-                                            Add to calendar
+                                            {t("ticket.addCalendar")}
                                         </Button>
                                     </>
                                 )}
                                 {status === "pending" && (
                                     <Button href="/bookings" variant="ink" size="lg" className="w-full sm:w-auto sm:flex-1">
-                                        Check my bookings
+                                        {t("result.checkBookings")}
                                     </Button>
                                 )}
                                 {(status === "failed" || status === "cancelled") && (
@@ -130,13 +106,13 @@ export default function PaymentResult({ status = "success", booking = null, canR
                                             />
                                         )}
                                         <Button href="/book" variant={canRetry ? "outline" : "brand"} size="lg" className="w-full sm:w-auto sm:flex-1">
-                                            Pick another slot
+                                            {t("result.pickAnother")}
                                         </Button>
                                     </>
                                 )}
                                 {status === "refund" && (
                                     <Button href="/book" size="lg" className="w-full sm:w-auto sm:flex-1">
-                                        Pick another slot
+                                        {t("result.pickAnother")}
                                     </Button>
                                 )}
                             </div>
@@ -147,18 +123,27 @@ export default function PaymentResult({ status = "success", booking = null, canR
                 {!booking && (
                     <div className="p-8">
                         <Button href="/bookings" variant="ink" size="lg" className="w-full">
-                            Go to my bookings
+                            {t("result.goBookings")}
                         </Button>
                     </div>
                 )}
             </div>
             {deskPhone && (
                 <p className="mt-6 text-center text-[13px] text-ink-3">
-                    Questions about a payment? Call the desk on{" "}
-                    <a href={`tel:${deskPhone.replace(/[^\d+]/g, "")}`} className="font-semibold text-ink hover:underline">
-                        {deskPhone}
-                    </a>
-                    .
+                    {t("result.questions", { phone: "\u0000" })
+                        .split("\u0000")
+                        .map((part, i) =>
+                            i === 0 ? (
+                                part
+                            ) : (
+                                <span key={i}>
+                                    <a href={`tel:${deskPhone.replace(/[^\d+]/g, "")}`} className="font-semibold text-ink hover:underline">
+                                        {deskPhone}
+                                    </a>
+                                    {part}
+                                </span>
+                            )
+                        )}
                 </p>
             )}
         </div>

@@ -9,6 +9,7 @@ import { authClient } from "@/lib/auth-client";
 import { safeNext } from "@/lib/utils";
 import { useI18n } from "@/i18n/I18nProvider";
 import { authMessage } from "./AuthForms";
+import { startNavProgress } from "@/lib/nav-progress";
 
 export function VerifyEmailForm({ initialEmail = "" }) {
     const { t } = useI18n();
@@ -36,6 +37,7 @@ export function VerifyEmailForm({ initialEmail = "" }) {
             setError(fromAuth(err, t("auth.codeFailed")));
             return;
         }
+        startNavProgress();
         router.push(next);
         router.refresh();
     }

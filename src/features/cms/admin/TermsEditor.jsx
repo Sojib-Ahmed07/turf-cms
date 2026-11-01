@@ -43,7 +43,7 @@ export default function TermsEditor({ initial }) {
                 return;
             }
             setSaved(form);
-            showToast("Booking terms saved");
+            showToast("বুকিংয়ের নিয়ম সেভ হয়েছে");
             router.refresh();
         });
     }
@@ -51,40 +51,40 @@ export default function TermsEditor({ initial }) {
     return (
         <div className="mx-auto max-w-[920px]">
             <PageHeader
-                title="Booking terms"
-                description="The rules players agree to when they book. Shown on the Booking terms page, linked from the footer."
+                title="বুকিংয়ের নিয়ম"
+                description="বুক করার সময় খেলোয়াড়রা যে নিয়ম মেনে নেন। “বুকিংয়ের নিয়ম” পেজে দেখাবে, ফুটারে তার লিংক আছে।"
                 actions={
                     <Button href="/terms" target="_blank" rel="noreferrer" variant="outline" size="sm">
                         <ExternalLink className="h-3.5 w-3.5" />
-                        View page
+                        পেজটি দেখুন
                     </Button>
                 }
             />
 
             {!initial.updated && (
                 <p className="mb-6 rounded-card bg-flare-soft px-5 py-4 text-[14px] text-ink-2 ring-1 ring-flare/50">
-                    This is a starting draft based on how booking works on the site. Check every section (cancellation notice,
-                    refund time, ground rules) matches your venue, then save.
+                    এটি সাইটের বুকিং যেভাবে কাজ করে তার ওপর ভিত্তি করে লেখা একটি শুরুর খসড়া। প্রতিটি অংশ (ক্যানসেলের নোটিশ,
+                    টাকা ফেরতের সময়, মাঠের নিয়ম) আপনার মাঠের সাথে মিলছে কি না দেখে নিন, তারপর সেভ করুন।
                 </p>
             )}
 
             <div className="space-y-6">
-                <Panel title="Page" description={initial.updated ? `Last saved ${initial.updated}` : "Not saved yet"}>
+                <Panel title="পেজ" description={initial.updated ? `শেষ সেভ: ${initial.updated}` : "এখনো সেভ করা হয়নি"}>
                     <div className="space-y-5">
                         <div>
-                            <Label htmlFor="t-heading">Title</Label>
+                            <Label htmlFor="t-heading">শিরোনাম</Label>
                             <CharInput id="t-heading" max={60} value={form.heading} onChange={(e) => set({ heading: e.target.value })} />
                         </div>
                         <div>
                             <Label htmlFor="t-intro" optional>
-                                Intro
+                                শুরুর লেখা
                             </Label>
                             <CharInput id="t-intro" max={300} multiline rows={2} value={form.intro} onChange={(e) => set({ intro: e.target.value })} />
                         </div>
                     </div>
                 </Panel>
 
-                <Panel title="Sections" description="Numbered on the page in this order. Leave a blank line in the text to start a new paragraph.">
+                <Panel title="অংশগুলো" description="পেজে এই ক্রমে নম্বর দিয়ে দেখাবে। নতুন প্যারাগ্রাফ শুরু করতে লেখার মাঝে একটি খালি লাইন রাখুন।">
                     <div className="space-y-3">
                         {form.items.map((item, i) => (
                             <div key={i} className="grid gap-3 rounded-ctl bg-chalk p-4 sm:grid-cols-[28px_1fr_36px]">
@@ -93,20 +93,20 @@ export default function TermsEditor({ initial }) {
                                     <OrderButtons onMove={(d) => move(i, d)} first={i === 0} last={i === form.items.length - 1} label={`section ${i + 1}`} />
                                 </div>
                                 <div className="space-y-2.5">
-                                    <CharInput max={80} value={item.title} onChange={(e) => setItem(i, { title: e.target.value })} aria-label={`Section ${i + 1} title`} placeholder="Section title" />
+                                    <CharInput max={80} value={item.title} onChange={(e) => setItem(i, { title: e.target.value })} aria-label={`অংশ ${i + 1}-এর শিরোনাম`} placeholder="অংশের শিরোনাম" />
                                     <CharInput
                                         max={1500}
                                         multiline
                                         rows={4}
                                         value={item.body}
                                         onChange={(e) => setItem(i, { body: e.target.value })}
-                                        aria-label={`Section ${i + 1} text`}
-                                        placeholder="What players need to know"
+                                        aria-label={`অংশ ${i + 1}-এর লেখা`}
+                                        placeholder="খেলোয়াড়দের যা জানা দরকার"
                                     />
                                 </div>
                                 <button
                                     type="button"
-                                    aria-label={`Remove section ${i + 1}`}
+                                    aria-label={`অংশ ${i + 1} সরান`}
                                     disabled={form.items.length <= 1}
                                     onClick={() => set({ items: form.items.filter((_, j) => j !== i) })}
                                     className="grid h-9 w-9 place-items-center rounded-ctl text-ink-3 hover:bg-danger-soft hover:text-danger disabled:pointer-events-none disabled:opacity-30"
@@ -121,16 +121,16 @@ export default function TermsEditor({ initial }) {
                                 onClick={() => set({ items: [...form.items, { title: "", body: "" }] })}
                                 className="flex w-full items-center justify-center gap-2 rounded-ctl border-2 border-dashed border-line py-3 text-[13px] font-semibold text-ink-3 hover:text-ink"
                             >
-                                <Plus className="h-4 w-4" /> Add a section
+                                <Plus className="h-4 w-4" /> একটি অংশ যোগ করুন
                             </button>
                         )}
                     </div>
-                    <p className="mt-4 text-[12px] text-ink-3">The phone number and email under the terms come from Footer &amp; SEO.</p>
+                    <p className="mt-4 text-[12px] text-ink-3">নিয়মের নিচের ফোন নম্বর আর ইমেইল আসে “যোগাযোগ, ফুটার ও SEO” পেজ থেকে।</p>
                 </Panel>
             </div>
 
             {(dirty || !initial.updated) && (
-                <SaveBar error={error} message={dirty ? "You have unsaved changes" : "The site shows this starting draft until you save"}>
+                <SaveBar error={error} message={dirty ? "পরিবর্তন এখনো সেভ হয়নি" : "সেভ না করা পর্যন্ত সাইটে এই শুরুর খসড়াটি দেখাবে"}>
                     {dirty && (
                         <Button
                             variant="outline-light"
@@ -141,11 +141,11 @@ export default function TermsEditor({ initial }) {
                                 setError("");
                             }}
                         >
-                            Discard
+                            বাদ দিন
                         </Button>
                     )}
                     <Button size="sm" disabled={pending} onClick={save}>
-                        {pending ? "Saving…" : "Save terms"}
+                        {pending ? "সেভ হচ্ছে…" : "নিয়ম সেভ করুন"}
                     </Button>
                 </SaveBar>
             )}

@@ -26,7 +26,7 @@ const EMPTY = {
     eyebrow: "",
     heading: "",
     subheading: "",
-    ctaLabel: "Book a slot",
+    ctaLabel: "স্লট বুক করুন",
     ctaHref: "/book",
     overlay: "dark",
     isActive: true,
@@ -75,7 +75,7 @@ export default function HeroEditor({ initial }) {
 
     function select(id) {
         if (id === selectedId) return;
-        if (dirty && !window.confirm("Discard your unsaved changes to this slide?")) return;
+        if (dirty && !window.confirm("এই স্লাইডে যা বদলেছেন তা সেভ হয়নি। বাদ দেবেন?")) return;
         const next = slides.find((s) => s.id === id) ?? null;
         setSelectedId(id);
         setDraft(toDraft(next));
@@ -91,7 +91,7 @@ export default function HeroEditor({ initial }) {
             }
             setSelectedId(res.data.id);
             setDraft((d) => ({ ...d, id: res.data.id }));
-            showToast(draft.id ? "Slide saved" : "Slide added");
+            showToast(draft.id ? "স্লাইড সেভ হয়েছে" : "স্লাইড যোগ হয়েছে");
             router.refresh();
         });
     }
@@ -107,7 +107,7 @@ export default function HeroEditor({ initial }) {
             const rest = slides.filter((s) => s.id !== draft.id);
             setSelectedId(rest[0]?.id ?? "new");
             setDraft(toDraft(rest[0] ?? null));
-            showToast("Slide deleted");
+            showToast("স্লাইড মুছে ফেলা হয়েছে");
             router.refresh();
         });
     }
@@ -127,20 +127,20 @@ export default function HeroEditor({ initial }) {
     return (
         <div className="mx-auto max-w-[1280px]">
             <PageHeader
-                title="Hero slides"
-                description="The big banner at the top of the home page. One slide shows as a fixed banner; two or more play as a slider."
+                title="হিরো স্লাইড"
+                description="হোম পেজের একেবারে ওপরের বড় ব্যানার। একটি স্লাইড থাকলে স্থির ব্যানার হিসেবে দেখাবে; দুই বা বেশি থাকলে একটার পর একটা ঘুরে ঘুরে দেখাবে।"
                 actions={
                     <Button variant="ink" onClick={() => select("new")}>
                         <Plus className="h-4 w-4" />
-                        Add slide
+                        স্লাইড যোগ করুন
                     </Button>
                 }
             />
 
             {/* Preview */}
             <Panel
-                title="Preview"
-                description={draft.id ? "The selected slide, with your unsaved changes." : "Your new slide, before saving."}
+                title="যেমন দেখাবে"
+                description={draft.id ? "সিলেক্ট করা স্লাইড, সেভ না করা পরিবর্তনসহ।" : "আপনার নতুন স্লাইড, সেভ করার আগে।"}
                 actions={
                     <div className="inline-flex rounded-full bg-ink/5 p-1">
                         {[
@@ -174,7 +174,7 @@ export default function HeroEditor({ initial }) {
                                 <span className="inline-flex rounded-full bg-flare px-2.5 py-0.5 text-[11px] font-bold text-ink">{draft.eyebrow}</span>
                             )}
                             <p className={cn("display mt-3 max-w-[16ch] text-white", device === "desktop" ? "text-[clamp(17px,3.4vw,44px)]" : "text-[26px]")}>
-                                {draft.heading || "Your heading"}
+                                {draft.heading || "আপনার শিরোনাম"}
                             </p>
                             {draft.subheading && device === "desktop" && (
                                 <p className="mt-2 hidden max-w-[46ch] text-[13px] text-white/75 sm:block">{draft.subheading}</p>
@@ -190,8 +190,8 @@ export default function HeroEditor({ initial }) {
             <div className="mt-6 grid gap-6 xl:grid-cols-12">
                 {/* List */}
                 <div className="space-y-6 xl:col-span-5">
-                    <Panel title="Slides" description="Use the arrows to change the order. Hidden and ended slides aren't shown." bodyClassName="p-3">
-                        {slides.length === 0 && <p className="px-3 py-6 text-center text-[14px] text-ink-3">No slides yet. The home page shows a plain green banner.</p>}
+                    <Panel title="স্লাইডগুলো" description="তীর চিহ্ন দিয়ে আগে-পরে সাজান। লুকানো আর মেয়াদ শেষ হওয়া স্লাইড দেখায় না।" bodyClassName="p-3">
+                        {slides.length === 0 && <p className="px-3 py-6 text-center text-[14px] text-ink-3">এখনো কোনো স্লাইড নেই। হোম পেজে সাধারণ একটি সবুজ ব্যানার দেখাচ্ছে।</p>}
                         <ul className="space-y-1.5">
                             {slides.map((s, i) => (
                                 <li key={s.id}>
@@ -211,7 +211,7 @@ export default function HeroEditor({ initial }) {
                                             first={i === 0}
                                             last={i === slides.length - 1}
                                             disabled={pending}
-                                            label="slide"
+                                            label="স্লাইড"
                                         />
                                         <span className="relative h-12 w-20 shrink-0 overflow-hidden rounded-[10px] bg-pitch">
                                             {s.image?.url && <Image src={s.image.url} alt="" fill sizes="80px" unoptimized={!canOptimize(s.image.url)} className="object-cover" />}
@@ -227,7 +227,7 @@ export default function HeroEditor({ initial }) {
                                                 size="sm"
                                                 checked={s.isActive}
                                                 onChange={(v) => rowAction(s.id, () => setHeroSlideActive({ id: s.id, isActive: v }))}
-                                                label={`Show ${s.heading}`}
+                                                label={`${s.heading} দেখাবে`}
                                             />
                                         </span>
                                     </div>
@@ -236,7 +236,7 @@ export default function HeroEditor({ initial }) {
                             {selectedId === "new" && (
                                 <li className="flex items-center gap-3 rounded-[14px] bg-chalk p-2 pr-3 ring-2 ring-ink">
                                     <span className="h-12 w-[108px] shrink-0 rounded-[10px] bg-pitch/80" />
-                                    <span className="truncate text-[14px] font-semibold text-ink">{draft.heading || "New slide"}</span>
+                                    <span className="truncate text-[14px] font-semibold text-ink">{draft.heading || "নতুন স্লাইড"}</span>
                                 </li>
                             )}
                         </ul>
@@ -247,7 +247,7 @@ export default function HeroEditor({ initial }) {
                                 className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border-2 border-dashed border-line py-3 text-[13px] font-semibold text-ink-3 hover:border-ink-4 hover:text-ink"
                             >
                                 <Plus className="h-4 w-4" />
-                                Add slide
+                                স্লাইড যোগ করুন
                             </button>
                         )}
                     </Panel>
@@ -258,12 +258,12 @@ export default function HeroEditor({ initial }) {
                 {/* Editor */}
                 <Panel
                     className="xl:col-span-7"
-                    title={draft.id ? "Edit slide" : "New slide"}
+                    title={draft.id ? "স্লাইড বদলান" : "নতুন স্লাইড"}
                     actions={
                         draft.id && (
                             <Button variant="ghost" size="sm" className="text-danger hover:bg-danger-soft hover:text-danger" onClick={() => setConfirmDelete(true)}>
                                 <Trash2 className="h-3.5 w-3.5" />
-                                Delete
+                                মুছে ফেলুন
                             </Button>
                         )
                     }
@@ -277,51 +277,51 @@ export default function HeroEditor({ initial }) {
                     >
                         <div className="grid gap-4 sm:grid-cols-[1fr_150px]">
                             <div>
-                                <Label>Desktop image</Label>
-                                <ImageUploader value={draft.image} onChange={(v) => set({ image: v })} folder="hero" ratio="16/7" hint="2400 × 1050 px or larger, JPG or WebP" />
+                                <Label>কম্পিউটারের জন্য ছবি</Label>
+                                <ImageUploader value={draft.image} onChange={(v) => set({ image: v })} folder="hero" ratio="16/7" hint="২৪০০ × ১০৫০ পিক্সেল বা বড়, JPG বা WebP" />
                             </div>
                             <div>
-                                <Label optional>Mobile image</Label>
+                                <Label optional>মোবাইলের জন্য ছবি</Label>
                                 <ImageUploader value={draft.mobileImage} onChange={(v) => set({ mobileImage: v })} folder="hero" ratio="4/5" hint="1080 × 1350 px" />
                             </div>
                         </div>
 
                         <div className="grid gap-5">
                             <div>
-                                <Label optional>Image description</Label>
-                                <CharInput max={120} value={draft.alt} onChange={(e) => set({ alt: e.target.value })} placeholder="e.g. Floodlit football turf at night" />
+                                <Label optional>ছবির বর্ণনা</Label>
+                                <CharInput max={120} value={draft.alt} onChange={(e) => set({ alt: e.target.value })} placeholder="যেমন: রাতে আলো জ্বলা ফুটবল মাঠ" />
                             </div>
                             <div>
-                                <Label optional>Small label</Label>
-                                <CharInput max={24} value={draft.eyebrow} onChange={(e) => set({ eyebrow: e.target.value })} placeholder="e.g. Open till 3 am" />
+                                <Label optional>ছোট লেবেল</Label>
+                                <CharInput max={24} value={draft.eyebrow} onChange={(e) => set({ eyebrow: e.target.value })} placeholder="যেমন: রাত ৩টা পর্যন্ত খোলা" />
                             </div>
                             <div>
-                                <Label>Heading</Label>
+                                <Label>শিরোনাম</Label>
                                 <CharInput max={60} value={draft.heading} onChange={(e) => set({ heading: e.target.value })} />
                             </div>
                             <div>
-                                <Label optional>Text under the heading</Label>
+                                <Label optional>শিরোনামের নিচের লেখা</Label>
                                 <CharInput max={160} multiline value={draft.subheading} onChange={(e) => set({ subheading: e.target.value })} />
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <div>
-                                    <Label optional>Button text</Label>
+                                    <Label optional>বাটনের লেখা</Label>
                                     <CharInput max={20} value={draft.ctaLabel} onChange={(e) => set({ ctaLabel: e.target.value })} />
                                 </div>
                                 <div>
-                                    <Label optional>Button link</Label>
+                                    <Label optional>বাটনের লিংক</Label>
                                     <TextInput value={draft.ctaHref} onChange={(e) => set({ ctaHref: e.target.value })} placeholder="/book" />
                                 </div>
                             </div>
                             <div>
-                                <Label>Shade over the image</Label>
+                                <Label>ছবির ওপর ছায়া</Label>
                                 <Segmented
                                     value={draft.overlay}
                                     onChange={(v) => set({ overlay: v })}
                                     options={[
-                                        { value: "dark", label: "Dark" },
-                                        { value: "light", label: "Light" },
-                                        { value: "none", label: "None" },
+                                        { value: "dark", label: "গাঢ়" },
+                                        { value: "light", label: "হালকা" },
+                                        { value: "none", label: "নেই" },
                                     ]}
                                 />
                             </div>
@@ -330,20 +330,20 @@ export default function HeroEditor({ initial }) {
                         <div className="rounded-ctl bg-chalk p-4">
                             <p className="flex items-center gap-2 text-[14px] font-semibold text-ink">
                                 <CalendarClock className="h-4 w-4 text-ink-3" />
-                                Schedule
-                                <span className="font-normal text-ink-4">Optional</span>
+                                কবে দেখাবে
+                                <span className="font-normal text-ink-4">ঐচ্ছিক</span>
                             </p>
                             <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                 <div>
-                                    <Label htmlFor="h-start">Show from</Label>
+                                    <Label htmlFor="h-start">কবে থেকে দেখাবে</Label>
                                     <TextInput id="h-start" type="date" value={draft.startDate} onChange={(e) => set({ startDate: e.target.value })} />
                                 </div>
                                 <div>
-                                    <Label htmlFor="h-end">Hide after</Label>
+                                    <Label htmlFor="h-end">কবে পর্যন্ত দেখাবে</Label>
                                     <TextInput id="h-end" type="date" value={draft.endDate} onChange={(e) => set({ endDate: e.target.value })} />
                                 </div>
                             </div>
-                            <p className="mt-2 text-[12px] text-ink-3">Dates are Dhaka time. Leave empty to show the slide all the time.</p>
+                            <p className="mt-2 text-[12px] text-ink-3">তারিখগুলো ঢাকার সময় অনুযায়ী। খালি রাখলে স্লাইডটি সবসময় দেখাবে।</p>
                         </div>
 
                         {error && <p className="rounded-ctl bg-danger-soft px-4 py-3 text-[14px] font-medium text-danger">{error}</p>}
@@ -357,10 +357,10 @@ export default function HeroEditor({ initial }) {
                                     setError("");
                                 }}
                             >
-                                Discard
+                                বাদ দিন
                             </Button>
                             <Button type="submit" disabled={pending || (!dirty && Boolean(draft.id))}>
-                                {pending ? "Saving…" : draft.id ? "Save slide" : "Add slide"}
+                                {pending ? "সেভ হচ্ছে…" : draft.id ? "স্লাইড সেভ করুন" : "স্লাইড যোগ করুন"}
                             </Button>
                         </div>
                     </form>
@@ -371,15 +371,15 @@ export default function HeroEditor({ initial }) {
                 open={confirmDelete}
                 onClose={() => setConfirmDelete(false)}
                 size="sm"
-                title="Delete this slide?"
-                description="It disappears from the home page. The image stays in the media library."
+                title="স্লাইডটি মুছে ফেলবেন?"
+                description="হোম পেজ থেকে সরে যাবে। ছবিটি ছবির লাইব্রেরিতে থেকে যাবে।"
                 footer={
                     <>
                         <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-                            Keep it
+                            রেখে দিন
                         </Button>
                         <Button variant="ink" className="bg-danger hover:bg-danger" disabled={pending} onClick={remove}>
-                            Delete slide
+                            স্লাইড মুছুন
                         </Button>
                     </>
                 }
@@ -396,12 +396,12 @@ function SliderSettings({ initial, onSaved, showToast }) {
     const seconds = [4000, 6000, 8000].includes(value.autoplayMs) ? value.autoplayMs : 6000;
 
     return (
-        <Panel title="Slider settings">
+        <Panel title="স্লাইডারের সেটিং">
             <div className="space-y-5">
                 <div className="flex items-center justify-between gap-4">
                     <div>
-                        <p className="text-[14px] font-semibold text-ink">Time per slide</p>
-                        <p className="text-[13px] text-ink-3">How long each slide stays before the next.</p>
+                        <p className="text-[14px] font-semibold text-ink">প্রতি স্লাইডের সময়</p>
+                        <p className="text-[13px] text-ink-3">পরের স্লাইডে যাওয়ার আগে প্রতিটি স্লাইড কতক্ষণ থাকবে।</p>
                     </div>
                     <Segmented
                         value={seconds}
@@ -415,15 +415,15 @@ function SliderSettings({ initial, onSaved, showToast }) {
                 </div>
                 <div className="flex items-center justify-between gap-4">
                     <div>
-                        <p className="text-[14px] font-semibold text-ink">Pause on hover</p>
-                        <p className="text-[13px] text-ink-3">Stops the slider while the mouse is over it.</p>
+                        <p className="text-[14px] font-semibold text-ink">মাউস রাখলে থামবে</p>
+                        <p className="text-[13px] text-ink-3">স্লাইডারের ওপর মাউস থাকলে স্লাইড বদলাবে না।</p>
                     </div>
-                    <Switch checked={value.pauseOnHover} onChange={(v) => setValue((s) => ({ ...s, pauseOnHover: v }))} label="Pause on hover" />
+                    <Switch checked={value.pauseOnHover} onChange={(v) => setValue((s) => ({ ...s, pauseOnHover: v }))} label="মাউস রাখলে থামবে" />
                 </div>
                 {dirty && (
                     <div className="flex justify-end gap-2 border-t border-line pt-4">
                         <Button variant="outline" size="sm" disabled={pending} onClick={() => setValue(initial)}>
-                            Discard
+                            বাদ দিন
                         </Button>
                         <Button
                             size="sm"
@@ -432,12 +432,12 @@ function SliderSettings({ initial, onSaved, showToast }) {
                                 startTransition(async () => {
                                     const res = await saveSliderSettings({ autoplayMs: seconds, pauseOnHover: value.pauseOnHover });
                                     if (!res.ok) return showToast(res.error, "error");
-                                    showToast("Slider settings saved");
+                                    showToast("স্লাইডারের সেটিং সেভ হয়েছে");
                                     onSaved();
                                 })
                             }
                         >
-                            {pending ? "Saving…" : "Save settings"}
+                            {pending ? "সেভ হচ্ছে…" : "সেটিং সেভ করুন"}
                         </Button>
                     </div>
                 )}

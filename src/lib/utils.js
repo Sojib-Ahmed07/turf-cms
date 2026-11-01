@@ -1,20 +1,31 @@
 // src/lib/utils.js
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { makeFormat } from "@/i18n/format";
+
+// The site is Bangla only: prices and times print in Bangla everywhere (admin, emails, staff pages too).
+const BN = makeFormat("bn");
 
 /** Merge Tailwind classes safely: cn("px-2", cond && "px-4") */
 export function cn(...inputs) {
     return twMerge(clsx(inputs));
 }
 
-/** ৳1,800 */
+/** 1800 -> "৳১,৮০০" */
 export function taka(value) {
-    const n = Number(value) || 0;
-    return `৳${n.toLocaleString("en-IN")}`;
+    return BN.taka(value);
 }
 
-/** "18:30" -> "6:30 pm" */
+/** "18:30" -> "সন্ধ্যা ৬:৩০", "18:00" -> "সন্ধ্যা ৬টা" */
 export function time12(hhmm) {
+    return BN.time(hhmm);
+}
+
+/** Plain-ASCII versions for places that can't take Bangla (payment gateway product names). */
+export function takaAscii(value) {
+    return `BDT ${(Number(value) || 0).toLocaleString("en-IN")}`;
+}
+export function time12Ascii(hhmm) {
     if (!hhmm) return "";
     const [h, m] = hhmm.split(":").map(Number);
     const suffix = h >= 12 ? "pm" : "am";

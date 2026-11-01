@@ -9,7 +9,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { withLockedTx } from "@/db/pool";
-import { bookings } from "@/db/schema";
+import { auditLog, bookings } from "@/db/schema";
 import { isBlockPast, slotInterval } from "@/lib/time";
 import { PRE_PAYMENT_LOCK_MINUTES, blockingBooking, currentVenueDay, expireStaleHolds, getActiveIntervals, getPitchById, resolveBlock, seatNeed } from "./queries";
 import { MAX_PEOPLE_PER_BOOKING, slotTotal } from "./people";
@@ -79,6 +79,27 @@ function isUniqueViolation(err) {
     return code === "23505" || msg.includes("duplicate key");
 }
 
+// Wrong promo codes one visitor (account, or IP address when signed out) may try in CODE_GUESS_WINDOW_MIN minutes,
+// so nobody can find codes by trying thousands of them. Right codes are never counted.
+const MAX_WRONG_CODES = 10;
+const CODE_GUESS_WINDOW_MIN = 15;
+
+async function codeGuessKey(user) {
+    if (user) return `user:${user.id}`;
+    const h = await headers();
+    const ip = (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || h.get("x-real-ip") || "unknown";
+    return `ip:${ip.slice(0, 64)}`;
+}
+
+async function tooManyWrongCodes(key) {
+    const since = new Date(Date.now() - CODE_GUESS_WINDOW_MIN * 60000);
+    const [{ n }] = await db
+        .select({ n: count() })
+        .from(auditLog)
+        .where(and(eq(auditLog.action, "coupon_wrong"), eq(auditLog.entityId, key), gt(auditLog.createdAt, since)));
+    return Number(n) >= MAX_WRONG_CODES;
+}
+
 export async function previewCoupon(input) {
     const i18n = await getI18n();
     const { t } = i18n;
@@ -88,6 +109,8 @@ export async function previewCoupon(input) {
         const { pitchId, blockId, date, couponCode } = parsed.data;
         if (await outsideWindow(date)) return { ok: false, error: t("errors.pickCalendarDate") };
         const user = await currentUser();
+        const guessKey = await codeGuessKey(user);
+        if (await tooManyWrongCodes(guessKey)) return { ok: false, error: t("errors.tooManyCodes", { minutes: CODE_GUESS_WINDOW_MIN }) };
 
         const pitch = await getPitchById(pitchId);
         const block = pitch && (await resolveBlock(pitch, date, blockId));
@@ -97,7 +120,13 @@ export async function previewCoupon(input) {
         const need = seatNeed(pitch, parsed.data.people);
         const subtotal = slotTotal(block.price, need ? need.people : null);
         const r = await checkCouponForSlot({ code: couponCode, pitchId, block, date, userId: user?.id ?? null, i18n, subtotal });
-        if (!r.ok) return r;
+        if (!r.ok) {
+            // A code that doesn't exist counts as a guess (a real code that doesn't fit this slot doesn't).
+            if (r.unknownCode) {
+                await db.insert(auditLog).values({ actorId: user?.id ?? null, action: "coupon_wrong", entity: "coupon", entityId: guessKey });
+            }
+            return { ok: false, error: r.error };
+        }
         return { ok: true, data: { code: r.coupon.code, discount: r.discount, total: r.total } };
     } catch (err) {
         console.error("[previewCoupon]", err);

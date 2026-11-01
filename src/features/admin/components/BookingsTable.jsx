@@ -14,6 +14,7 @@ import WalkInDialog from "./WalkInDialog";
 import { adminCancelBooking, markPaidAtDesk, markRefunded } from "@/features/admin/actions/bookings";
 import { cn, taka } from "@/lib/utils";
 import { BN } from "@/i18n/format";
+import { startNavProgress } from "@/lib/nav-progress";
 
 const RANGES = [
     { value: "today", label: "আজ" },
@@ -59,6 +60,7 @@ export default function BookingsTable({ data, pitches = [], filters, startDate, 
     function onFilterSubmit(e) {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
+        startNavProgress();
         router.push(hrefWith({ q: fd.get("q")?.toString().trim(), pitch: fd.get("pitch"), status: fd.get("status") }));
     }
 

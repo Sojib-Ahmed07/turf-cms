@@ -56,7 +56,7 @@ export async function couponUses(coupon, userId, exec = db) {
  */
 export async function checkCouponForSlot({ code, pitchId, block, date, userId, i18n = null, exec = db, subtotal = null }) {
     const coupon = await getCouponByCode(code, exec);
-    if (!coupon) return { ok: false, error: (i18n ?? i18nSync()).t("coupon.invalid") };
+    if (!coupon) return { ok: false, unknownCode: true, error: (i18n ?? i18nSync()).t("coupon.invalid") };
     const uses = await couponUses(coupon, userId, exec);
     const r = evaluateCoupon(coupon, {
         // per-person grounds pass price x people; otherwise the slot price

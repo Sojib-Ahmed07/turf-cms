@@ -11,22 +11,22 @@ import { CONTENT_ROLES, DENIED, firstIssue, requireRoles, requiredText, text } f
 const sectionsSchema = z.object({
     live_grounds: z.object({
         isVisible: z.boolean(),
-        heading: requiredText(40, "“Grounds open today” heading"),
-        body: text(140, "“Grounds open today” text"),
+        heading: requiredText(40, "“আজ খালি মাঠ” অংশের শিরোনাম"),
+        body: text(140, "“আজ খালি মাঠ” অংশের লেখা"),
     }),
     how_it_works: z.object({
         isVisible: z.boolean(),
-        heading: requiredText(60, "“How it works” heading"),
+        heading: requiredText(60, "“কীভাবে বুক করবেন” অংশের শিরোনাম"),
         steps: z
-            .array(z.object({ title: requiredText(24, "Step title"), body: text(120, "Step text") }))
-            .min(1, "Keep at least one step.")
+            .array(z.object({ title: requiredText(24, "ধাপের শিরোনাম"), body: text(120, "ধাপের লেখা") }))
+            .min(1, "অন্তত একটি ধাপ রাখুন।")
             .max(4),
     }),
     visit: z.object({
         isVisible: z.boolean(),
-        heading: requiredText(40, "“Find us” heading"),
-        body: text(140, "“Find us” text"),
-        facilities: z.array(z.string().trim().min(1).max(30, "Facility names can be at most 30 characters.")).max(12, "Up to 12 facilities."),
+        heading: requiredText(40, "“ঠিকানা” অংশের শিরোনাম"),
+        body: text(140, "“ঠিকানা” অংশের লেখা"),
+        facilities: z.array(z.string().trim().min(1).max(30, "সুবিধার নাম সর্বোচ্চ ৩০ অক্ষরের হতে পারে।")).max(12, "সর্বোচ্চ ১২টি সুবিধা দেওয়া যায়।"),
     }),
 });
 
@@ -50,17 +50,17 @@ export async function saveSections(input) {
         return { ok: true };
     } catch (err) {
         console.error("[saveSections]", err);
-        return { ok: false, error: "Couldn't save the sections. Try again." };
+        return { ok: false, error: "সেভ হয়নি। আবার চেষ্টা করুন।" };
     }
 }
 
 const termsSchema = z.object({
-    heading: requiredText(60, "Page title"),
-    intro: text(300, "Intro"),
+    heading: requiredText(60, "পেজের শিরোনাম"),
+    intro: text(300, "শুরুর লেখা"),
     items: z
-        .array(z.object({ title: requiredText(80, "Each section title"), body: requiredText(1500, "Each section text") }))
-        .min(1, "Keep at least one section.")
-        .max(20, "Up to 20 sections."),
+        .array(z.object({ title: requiredText(80, "প্রতিটি অংশের শিরোনাম"), body: requiredText(1500, "প্রতিটি অংশের লেখা") }))
+        .min(1, "অন্তত একটি অংশ রাখুন।")
+        .max(20, "সর্বোচ্চ ২০টি অংশ দেওয়া যায়।"),
 });
 
 /** Save the booking terms page (/terms). */
@@ -80,6 +80,6 @@ export async function saveTerms(input) {
         return { ok: true };
     } catch (err) {
         console.error("[saveTerms]", err);
-        return { ok: false, error: "Couldn't save the terms. Try again." };
+        return { ok: false, error: "নিয়মগুলো সেভ হয়নি। আবার চেষ্টা করুন।" };
     }
 }

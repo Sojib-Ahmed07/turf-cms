@@ -8,8 +8,12 @@
 // `days` are weekdays of the booking's operating date (0 = Sunday). `from`/`to` compare the slot's
 // START time on the operating-day clock, so "21:00 to 03:00" works across midnight. Empty `to` = until closing.
 import { hhmmToMinutes, operatingMinutes } from "@/lib/time";
+import { BN } from "@/i18n/format";
+import { makeT } from "@/i18n/translate";
+import bn from "@/i18n/dict/bn";
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// The site is Bangla only: labels and errors always come from the Bangla dictionary.
+const BN_I18N = { t: makeT(bn, null, BN.digits), f: BN };
 
 export function normalizeCode(code) {
     return String(code ?? "")
@@ -18,42 +22,25 @@ export function normalizeCode(code) {
         .replace(/\s+/g, "");
 }
 
-function to12(hhmm) {
-    const [h, m] = hhmm.split(":").map(Number);
-    const suffix = h >= 12 ? "pm" : "am";
-    const hour = h % 12 === 0 ? 12 : h % 12;
-    return m === 0 ? `${hour} ${suffix}` : `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
-}
-
-/**
- * "Fri, Sat from 9 pm" / "every day 6 am to 10 am" / "" when there is no window.
- * i18n (optional): { t, f } from getI18n() for the visitor's language; without it, English (admin screens).
- */
-export function timeWindowLabel(tw, i18n = null) {
+/** "শুক্র, শনি রাত ৯টা থেকে" / "প্রতিদিন সকাল ৬টা থেকে সকাল ১০টা" / "" when there is no window. */
+export function timeWindowLabel(tw, i18n = BN_I18N) {
     if (!tw || (!tw.days?.length && !tw.from && !tw.to)) return "";
     const some = tw.days?.length && tw.days.length < 7;
-    if (i18n) {
-        const { t, f } = i18n;
-        const days = some ? [...tw.days].sort().map((d) => f.dayShort(d)).join(", ") : t("coupon.everyDay");
-        if (tw.from && tw.to) return t("coupon.fromTo", { days, from: f.time(tw.from), to: f.time(tw.to) });
-        if (tw.from) return t("coupon.fromOnly", { days, from: f.time(tw.from) });
-        if (tw.to) return t("coupon.untilOnly", { days, to: f.time(tw.to) });
-        return days;
-    }
-    const days = some ? [...tw.days].sort().map((d) => DAY_NAMES[d]).join(", ") : "every day";
-    if (tw.from && tw.to) return `${days} ${to12(tw.from)} to ${to12(tw.to)}`;
-    if (tw.from) return `${days} from ${to12(tw.from)}`;
-    if (tw.to) return `${days} until ${to12(tw.to)}`;
+    const { t, f } = i18n ?? BN_I18N;
+    const days = some ? [...tw.days].sort().map((d) => f.dayShort(d)).join(", ") : t("coupon.everyDay");
+    if (tw.from && tw.to) return t("coupon.fromTo", { days, from: f.time(tw.from), to: f.time(tw.to) });
+    if (tw.from) return t("coupon.fromOnly", { days, from: f.time(tw.from) });
+    if (tw.to) return t("coupon.untilOnly", { days, to: f.time(tw.to) });
     return days;
 }
 
-/** "20% off, up to ৳600" / "৳200 off" */
+/** "২০% ছাড়, সর্বোচ্চ ৳৬০০" / "৳২০০ ছাড়" */
 export function discountLabel(c) {
     const v = Number(c.value);
     if (c.type === "percent") {
-        return `${v}% off${c.maxDiscount ? `, up to ৳${Number(c.maxDiscount).toLocaleString("en-IN")}` : ""}`;
+        return `${BN.digits(v)}% ছাড়${c.maxDiscount ? `, সর্বোচ্চ ${BN.taka(c.maxDiscount)}` : ""}`;
     }
-    return `৳${v.toLocaleString("en-IN")} off`;
+    return `${BN.taka(v)} ছাড়`;
 }
 
 function weekday(isoDate) {
@@ -65,13 +52,13 @@ function weekday(isoDate) {
  * Can this coupon be used for this slot, and how much does it take off?
  * ctx: { subtotal, pitchId, date "YYYY-MM-DD" (sheet date), startTime "HH:MM", dayStart (minutes, sheet's first slot),
  *        now (ms), usesTotal, usesByUser (null when the player isn't signed in yet),
- *        i18n? ({ t, f } for the visitor's language; English without it) }
+ *        i18n? ({ t, f } from getI18n(); Bangla by default) }
  * Returns { ok: true, discount, total } or { ok: false, error }.
  */
 export function evaluateCoupon(c, ctx) {
-    const i18n = ctx.i18n ?? null;
-    // key = coupon.<key> in the dictionaries; english = the same text without i18n
-    const no = (key, english, vars) => ({ ok: false, error: i18n ? i18n.t(`coupon.${key}`, vars) : english });
+    const i18n = ctx.i18n ?? BN_I18N;
+    // key = coupon.<key> in the Bangla dictionary (the English text is kept as a note for developers)
+    const no = (key, _note, vars) => ({ ok: false, error: i18n.t(`coupon.${key}`, vars) });
     if (!c || !c.isActive) return no("invalid", "That code isn't valid. Check the spelling.");
 
     const now = ctx.now ?? Date.now();
@@ -86,7 +73,7 @@ export function evaluateCoupon(c, ctx) {
 
     const subtotal = Number(ctx.subtotal) || 0;
     if (c.minAmount != null && subtotal < Number(c.minAmount)) {
-        const amount = i18n ? i18n.f.taka(c.minAmount) : `৳${Number(c.minAmount).toLocaleString("en-IN")}`;
+        const amount = i18n.f.taka(c.minAmount);
         return no("minAmount", `This code works on slots of ${amount} or more.`, { amount });
     }
 

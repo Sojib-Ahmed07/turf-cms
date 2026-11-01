@@ -49,7 +49,7 @@ export default function NavigationEditor({ initial }) {
                 return;
             }
             setSaved(form);
-            showToast("Menu saved");
+            showToast("মেনু সেভ হয়েছে");
             router.refresh();
         });
     }
@@ -57,20 +57,20 @@ export default function NavigationEditor({ initial }) {
     return (
         <div className="mx-auto max-w-[920px]">
             <PageHeader
-                title="Navigation"
-                description="Rename or hide the links in the top menu and change their order. The pages they open stay the same."
+                title="মেনু"
+                description="ওপরের মেনুর লিংকগুলোর নাম বদলান, লুকান বা আগে-পরে সাজান। লিংকে চাপলে কোন পেজ খুলবে, সেটা বদলায় না।"
             />
 
-            <Panel title="Menu links" bodyClassName="p-3">
+            <Panel title="মেনুর লিংক" bodyClassName="p-3">
                 {form.items.length === 0 ? (
-                    <p className="px-3 py-8 text-center text-[14px] text-ink-3">No menu links yet. Run the seed to add the default links.</p>
+                    <p className="px-3 py-8 text-center text-[14px] text-ink-3">এখনো কোনো মেনু লিংক নেই। শুরুর লিংকগুলো যোগ করতে seed চালান।</p>
                 ) : (
                     <>
                         <div className="hidden grid-cols-[32px_1fr_180px_56px] gap-4 px-3 pb-2 text-[12px] font-semibold text-ink-3 sm:grid">
                             <span />
-                            <span>Label</span>
-                            <span>Opens</span>
-                            <span className="text-right">Show</span>
+                            <span>নাম</span>
+                            <span>যে পেজ খোলে</span>
+                            <span className="text-right">দেখাবে</span>
                         </div>
                         <ul className="space-y-1.5">
                             {form.items.map((item, i) => (
@@ -82,7 +82,7 @@ export default function NavigationEditor({ initial }) {
                                     )}
                                 >
                                     <OrderButtons onMove={(d) => move(i, d)} first={i === 0} last={i === form.items.length - 1} label={item.label} />
-                                    <CharInput max={18} value={item.label} onChange={(e) => updateItem(item.id, { label: e.target.value })} aria-label="Menu label" />
+                                    <CharInput max={18} value={item.label} onChange={(e) => updateItem(item.id, { label: e.target.value })} aria-label="মেনুর নাম" />
                                     <span className="hidden items-center gap-1.5 truncate text-[13px] text-ink-3 sm:flex">
                                         <Lock className="h-3 w-3 shrink-0" />
                                         {item.href}
@@ -91,7 +91,7 @@ export default function NavigationEditor({ initial }) {
                                         <Switch
                                             checked={item.isVisible}
                                             onChange={(v) => updateItem(item.id, { isVisible: v })}
-                                            label={`Show ${item.label}`}
+                                            label={`${item.label} দেখাবে`}
                                         />
                                     </span>
                                 </li>
@@ -101,8 +101,8 @@ export default function NavigationEditor({ initial }) {
                 )}
             </Panel>
 
-            <Panel className="mt-6" title="Menu button">
-                <SettingRow label="Button text" hint="The green button on the right of the menu.">
+            <Panel className="mt-6" title="মেনুর বাটন">
+                <SettingRow label="বাটনের লেখা" hint="মেনুর ডান পাশের সবুজ বাটন।">
                     <CharInput
                         max={16}
                         value={form.menuButtonLabel}
@@ -113,8 +113,8 @@ export default function NavigationEditor({ initial }) {
                         className="max-w-xs"
                     />
                 </SettingRow>
-                <SettingRow label="Show “My bookings”" hint="Link for signed-in players.">
-                    <Switch checked={form.showMyBookings} onChange={(v) => setForm((f) => ({ ...f, showMyBookings: v }))} label="Show My bookings" />
+                <SettingRow label="“আমার বুকিং” দেখাবে" hint="লগইন করা খেলোয়াড়দের জন্য লিংক।">
+                    <Switch checked={form.showMyBookings} onChange={(v) => setForm((f) => ({ ...f, showMyBookings: v }))} label="আমার বুকিং দেখাবে" />
                 </SettingRow>
             </Panel>
 
@@ -129,10 +129,10 @@ export default function NavigationEditor({ initial }) {
                             setError("");
                         }}
                     >
-                        Discard
+                        বাদ দিন
                     </Button>
                     <Button size="sm" disabled={pending} onClick={save}>
-                        {pending ? "Saving…" : "Save menu"}
+                        {pending ? "সেভ হচ্ছে…" : "মেনু সেভ করুন"}
                     </Button>
                 </SaveBar>
             )}

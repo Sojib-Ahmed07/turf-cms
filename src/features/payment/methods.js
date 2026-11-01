@@ -17,14 +17,14 @@ export const GATEWAYS = ["bkash", "sslcommerz"];
 export const SWITCHES_KEY = "payments";
 
 const INFO = {
-    bkash: { label: "bKash", hint: "Pay from your bKash account" },
-    sslcommerz: { label: "Card or other wallet", hint: "Visa, Mastercard, Nagad, Rocket and more (SSLCommerz)" },
+    bkash: { label: "bKash", hint: "আপনার bKash অ্যাকাউন্ট থেকে পেমেন্ট করুন" },
+    sslcommerz: { label: "কার্ড বা অন্য ওয়ালেট", hint: "ভিসা, মাস্টারকার্ড, নগদ, রকেট ও আরও (SSLCommerz)" },
 };
 
 const NAMES = { bkash: "bKash", sslcommerz: "SSLCommerz" };
 
 export function gatewayName(gateway) {
-    return NAMES[gateway] ?? "the payment gateway";
+    return NAMES[gateway] ?? "পেমেন্ট গেটওয়ে";
 }
 
 /** Keys set in the env. Sync; used by rechecks and cron, which must work even when a method is switched off. */

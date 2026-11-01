@@ -9,9 +9,9 @@ export const MAX_UPLOAD_MB = 10;
 
 /** Throws an Error with a message fit to show the admin. */
 export function checkFile(file) {
-    if (!file) throw new Error("Pick an image first.");
-    if (!TYPES.includes(file.type)) throw new Error("Use a JPG, PNG, WebP, GIF, SVG or ICO image.");
-    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) throw new Error(`That image is over ${MAX_UPLOAD_MB} MB. Make it smaller and try again.`);
+    if (!file) throw new Error("আগে একটি ছবি সিলেক্ট করুন।");
+    if (!TYPES.includes(file.type)) throw new Error("JPG, PNG, WebP, GIF, SVG বা ICO ছবি দিন।");
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) throw new Error(`ছবিটি ${MAX_UPLOAD_MB} MB-এর বেশি বড়। ছোট করে আবার চেষ্টা করুন।`);
 }
 
 function postToCloudinary(sig, file, onProgress) {
@@ -34,9 +34,9 @@ function postToCloudinary(sig, file, onProgress) {
                 data = JSON.parse(xhr.responseText);
             } catch { }
             if (xhr.status >= 200 && xhr.status < 300 && data?.public_id) resolve(data);
-            else reject(new Error(data?.error?.message ? `Cloudinary: ${data.error.message}` : "The upload failed. Try again."));
+            else reject(new Error(data?.error?.message ? `Cloudinary: ${data.error.message}` : "ছবি আপলোড হয়নি। আবার চেষ্টা করুন।"));
         };
-        xhr.onerror = () => reject(new Error("The upload failed. Check your connection and try again."));
+        xhr.onerror = () => reject(new Error("ছবি আপলোড হয়নি। ইন্টারনেট কানেকশন দেখে আবার চেষ্টা করুন।"));
         xhr.send(body);
     });
 }

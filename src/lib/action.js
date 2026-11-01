@@ -11,7 +11,7 @@ export function action(schema, roles, handler) {
             if (!parsed.success) {
                 return {
                     ok: false,
-                    error: "Check the highlighted fields.",
+                    error: "চিহ্নিত ঘরগুলো দেখে নিন।",
                     fieldErrors: parsed.error.flatten().fieldErrors,
                 };
             }
@@ -19,7 +19,7 @@ export function action(schema, roles, handler) {
             return { ok: true, data };
         } catch (err) {
             console.error(err);
-            return { ok: false, error: err.publicMessage ?? "Something went wrong. Try again." };
+            return { ok: false, error: err.publicMessage ?? "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।" };
         }
     };
 }
